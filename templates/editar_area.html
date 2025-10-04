@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-4">
+  <h3>✏️ Editar Área del Lote</h3>
+
+  <form method="POST">
+    <div class="mb-3">
+      <label class="form-label">Área (m²)</label>
+      <input type="number" step="0.01" name="area" class="form-control" value="{{ lote.area or '' }}" required>
+    </div>
+
+    <button type="submit" class="btn btn-primary">💾 Guardar</button>
+    <a href="{{ url_for('lotes_disponibles') }}" class="btn btn-secondary">↩ Volver</a>
+  </form>
+</div>
+{% endblock %}

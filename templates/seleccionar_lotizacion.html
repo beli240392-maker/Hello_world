@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-5">
+  <h2>🏘️ Seleccionar Lotización</h2>
+  <p class="text-muted">Elige la lotización con la que vas a trabajar.</p>
+
+  <form method="POST" action="{{ url_for('seleccionar_lotizacion') }}">
+    <div class="mb-3">
+      <label for="lotizacion_id" class="form-label">Lotización</label>
+      <select id="lotizacion_id" name="lotizacion_id" class="form-control" required>
+        <option value="" selected disabled>-- Selecciona una lotización --</option>
+        {% for lot in lotizaciones %}
+          <option value="{{ lot.id }}">{{ lot.nombre }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="btn btn-primary">Confirmar</button>
+    <a href="{{ url_for('home') }}" class="btn btn-secondary">Cancelar</a>
+  </form>
+</div>
+{% endblock %}

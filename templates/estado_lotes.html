@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>📊 Estado de Lotes</h2>
+
+<!-- SEPARACIONES -->
+<h3>🔴 Separaciones</h3>
+<div class="table-responsive mb-4">
+  <table class="table table-bordered table-striped align-middle">
+    <thead class="table-dark text-center">
+      <tr>
+        <th>#</th>
+        <th>Cliente</th>
+        <th>Lote</th>
+        <th>Monto</th>
+        <th>Fecha</th>
+        <th>Boucher</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for sep in separaciones %}
+      <tr class="text-center">
+        <td>{{ loop.index }}</td>
+        <td>{{ sep.cliente.nombre }} <br><small>DNI: {{ sep.cliente.dni }}</small></td>
+        <td>Mz {{ sep.lote.manzana }} - Lt {{ sep.lote.numero }}</td>
+        <td>S/ {{ "%.2f"|format(sep.monto) }}</td>
+        <td>{{ sep.fecha.strftime("%d/%m/%Y") }}</td>
+        <td>
+          {% if sep.boucher %}
+            <a href="{{ url_for('static', filename=sep.boucher) }}" target="_blank" class="btn btn-sm btn-primary">Ver Boucher</a>
+          {% else %}
+            <span class="text-muted">No disponible</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="text-center text-muted">No hay separaciones registradas.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- COMPRAS AL CONTADO -->
+<h3>🟢 Compras al Contado</h3>
+<div class="table-responsive mb-4">
+  <table class="table table-bordered table-striped align-middle">
+    <thead class="table-dark text-center">
+      <tr>
+        <th>#</th>
+        <th>Cliente</th>
+        <th>Lote</th>
+        <th>Precio</th>
+        <th>Fecha</th>
+        <th>Boucher</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for compra in compras_contado %}
+      <tr class="text-center">
+        <td>{{ loop.index }}</td>
+        <td>{{ compra.cliente.nombre }} <br><small>DNI: {{ compra.cliente.dni }}</small></td>
+        <td>Mz {{ compra.lote.manzana }} - Lt {{ compra.lote.numero }}</td>
+        <td>S/ {{ "%.2f"|format(compra.precio) }}</td>
+        <td>{{ compra.fecha_compra.strftime("%d/%m/%Y") }}</td>
+        <td>
+          {% if compra.boucher_inicial %}
+            <a href="{{ url_for('static', filename=compra.boucher_inicial) }}" target="_blank" class="btn btn-sm btn-primary">Ver Boucher</a>
+          {% else %}
+            <span class="text-muted">No disponible</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="text-center text-muted">No hay compras al contado registradas.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- COMPRAS A CRÉDITO -->
+<h3>🟡 Compras a Crédito</h3>
+<div class="table-responsive mb-4">
+  <table class="table table-bordered table-striped align-middle">
+    <thead class="table-dark text-center">
+      <tr>
+        <th>#</th>
+        <th>Cliente</th>
+        <th>Lote</th>
+        <th>Inicial</th>
+        <th>Cuotas Pagadas</th>
+        <th>Total Cuotas</th>
+        <th>Fecha</th>
+        <th>Estado</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for compra in compras_credito %}
+      {% set vencidas = compra.cuotas | selectattr("pagada", "equalto", False)
+                                       | selectattr("fecha_vencimiento", "lt", now)
+                                       | list | length %}
+      <tr class="text-center">
+        <td>{{ loop.index }}</td>
+        <td>{{ compra.cliente.nombre }} <br><small>DNI: {{ compra.cliente.dni }}</small></td>
+        <td>Mz {{ compra.lote.manzana }} - Lt {{ compra.lote.numero }}</td>
+        <td>S/ {{ "%.2f"|format(compra.inicial) }}</td>
+        <td>{{ compra.cuotas | selectattr("pagada") | list | length }}</td>
+        <td>{{ compra.cuotas_total }}</td>
+        <td>{{ compra.fecha_compra.strftime("%d/%m/%Y") }}</td>
+        <td>
+          {% if vencidas > 0 %}
+            <span class="badge bg-danger">{{ vencidas }} vencida(s)</span>
+          {% else %}
+            <span class="badge bg-success">Al día</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="8" class="text-center text-muted">No hay compras a crédito registradas.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

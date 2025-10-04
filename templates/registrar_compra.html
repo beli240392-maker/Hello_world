@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Registrar Compra</h2>
+
+{% if sep_id and separacion %}
+<div class="alert alert-info">
+  ⚠️ Estás convirtiendo una <strong>separación</strong> en compra.<br>
+  <strong>Lote:</strong> Mz {{ lote.manzana }} - Lt {{ lote.numero }} <br>
+  <strong>Monto de separación:</strong> S/ {{ "%.2f"|format(separacion.monto) }} <br>
+  <strong>Fecha de separación:</strong> {{ separacion.fecha.strftime("%d/%m/%Y") }}
+</div>
+{% endif %}
+
+<form method="POST" enctype="multipart/form-data" class="row g-4">
+  <!-- Datos del Cliente -->
+  <div class="col-md-6">
+    <h5>Datos del Cliente</h5>
+    <div class="mb-3">
+      <label for="nombre" class="form-label">Nombre:</label>
+      <input type="text" class="form-control" name="nombre" value="{{ cliente.nombre if cliente else '' }}" required>
+    </div>
+    <div class="mb-3">
+      <label for="apellidos" class="form-label">Apellidos:</label>
+      <input type="text" class="form-control" name="apellidos" value="{{ cliente.apellidos if cliente else '' }}">
+    </div>
+    <div class="mb-3">
+  <label for="dni" class="form-label">DNI:</label>
+  <input type="number" class="form-control" name="dni" 
+         value="{{ cliente.dni if cliente else '' }}" 
+         required 
+         minlength="8" maxlength="8"
+         oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,8)">
+    </div>
+    <div class="mb-3">
+      <label for="estado_civil" class="form-label">Estado Civil</label>
+      <input type="text" name="estado_civil" class="form-control" 
+             value="{{ cliente.estado_civil if cliente else '' }}">
+    </div>
+
+    <div class="mb-3">
+      <label for="ocupacion" class="form-label">Ocupación</label>
+      <input type="text" name="ocupacion" class="form-control" 
+             value="{{ cliente.ocupacion if cliente else '' }}">
+    </div>
+    <div class="mb-3">
+      <label for="telefono" class="form-label">Teléfono:</label>
+      <input type="text" class="form-control" name="telefono" value="{{ cliente.telefono if cliente else '' }}">
+    </div>
+    <div class="mb-3">
+      <label for="direccion" class="form-label">Dirección:</label>
+      <input type="text" class="form-control" name="direccion" value="{{ cliente.direccion if cliente else '' }}">
+    </div>
+    <div class="mb-3">
+      <label for="ciudad" class="form-label">Ciudad:</label>
+      <input type="text" class="form-control" name="ciudad" value="{{ cliente.ciudad if cliente else '' }}">
+    </div>
+  </div>
+
+  <!-- Datos de la Compra -->
+  <div class="col-md-6">
+    <h5>Datos de la Compra</h5>
+
+    <!-- Selección de Manzana -->
+    <div class="mb-3">
+      <label for="manzana" class="form-label">Manzana:</label>
+      <select id="manzana" name="manzana" class="form-control" required>
+        <option value="">Seleccione una manzana</option>
+        {% for mz, group in lotes|groupby("manzana") %}
+          <option value="{{ mz }}" {% if lote and lote.manzana == mz %}selected{% endif %}>{{ mz }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <!-- Selección de Lote -->
+    <div class="mb-3">
+      <label for="lote" class="form-label">Lote:</label>
+      <select id="lote" name="lote" class="form-control" required>
+        <option value="">Seleccione un lote</option>
+      </select>
+    </div>
+
+    <!-- Precio -->
+    <div class="mb-3">
+      <label for="precio" class="form-label">Precio del Lote:</label>
+      <input type="number" step="0.01" class="form-control" name="precio" 
+             value="{{ separacion.monto if separacion else '' }}" required>
+    </div>
+
+    <div class="mb-3">
+      <label for="forma_pago" class="form-label">Forma de Pago:</label>
+      <select name="forma_pago" class="form-control" required>
+        <option value="contado">Contado</option>
+        <option value="credito">Crédito</option>
+      </select>
+    </div>
+
+    <!-- Campos de crédito -->
+    <div id="creditoFields" style="display: none;">
+      <div class="mb-3">
+        <label for="inicial" class="form-label">Inicial:</label>
+        <input type="number" step="0.01" class="form-control" name="inicial">
+      </div>
+
+      <div class="mb-3">
+        <label for="cuotas" class="form-label">Cantidad de Cuotas:</label>
+        <input type="number" class="form-control" name="cuotas">
+      </div>
+
+      <div class="mb-3">
+        <label for="interes" class="form-label">Interés (%):</label>
+        <input type="number" step="0.01" class="form-control" name="interes" value="0">
+      </div>
+    </div>
+
+    <div class="mb-3">
+      <label for="boucher_inicial" class="form-label">Boucher de pago (obligatorio):</label>
+      <input type="file" class="form-control" name="boucher_inicial" {% if not separacion %}required{% endif %}>
+      {% if separacion and separacion.boucher %}
+        <p class="text-muted">Ya existe un boucher de separación, puedes reemplazarlo si deseas.</p>
+      {% endif %}
+    </div>
+
+    <!-- 👇 Solo pedir fotos de DNI si no existen -->
+    {% if not cliente or not cliente.dni_frontal %}
+    <div class="mb-3">
+      <label for="dni_frontal" class="form-label">Foto DNI (Frontal):</label>
+      <input type="file" class="form-control" name="dni_frontal" accept="image/*" required>
+    </div>
+    {% endif %}
+
+    {% if not cliente or not cliente.dni_reverso %}
+    <div class="mb-3">
+      <label for="dni_reverso" class="form-label">Foto DNI (Reverso):</label>
+      <input type="file" class="form-control" name="dni_reverso" accept="image/*" required>
+    </div>
+    {% endif %}
+
+  </div>
+
+  <input type="hidden" name="sep_id" value="{{ sep_id if sep_id else '' }}">
+
+  <div class="col-12">
+    <button type="submit" class="btn btn-success">Registrar Compra</button>
+  </div>
+</form>
+
+<script>
+  const lotesData = {};
+  {% for mz, group in lotes|groupby("manzana") %}
+    lotesData["{{ mz }}"] = [
+      {% for l in group %}
+        {id: "{{ l.id }}", numero: "{{ l.numero }}", estado: "{{ l.estado }}"},
+      {% endfor %}
+    ];
+  {% endfor %}
+
+  const manzanaSelect = document.getElementById("manzana");
+  const loteSelect = document.getElementById("lote");
+
+  const preselectedMz = "{{ lote.manzana if lote else '' }}";
+  const preselectedLoteId = "{{ lote.id if lote else '' }}";  // 👈 string
+
+  function cargarLotes(mz) {
+    loteSelect.innerHTML = '<option value="">Seleccione un lote</option>';
+    if (mz && lotesData[mz]) {
+      lotesData[mz].forEach(lote => {
+        const option = document.createElement("option");
+        option.value = lote.id;
+        option.textContent = "Lt " + lote.numero;
+
+        // 👇 comparación como string
+        if (preselectedLoteId && preselectedLoteId == lote.id) {
+          option.selected = true;
+        }
+
+        loteSelect.appendChild(option);
+      });
+    }
+  }
+
+  manzanaSelect.addEventListener("change", function () {
+    cargarLotes(this.value);
+  });
+
+  if (preselectedMz) {
+    manzanaSelect.value = preselectedMz;
+    cargarLotes(preselectedMz);
+  }
+
+  // Mostrar/ocultar campos de crédito
+  const formaPagoSelect = document.querySelector("select[name='forma_pago']");
+  const creditoFields = document.getElementById("creditoFields");
+
+  function toggleCreditoFields() {
+    if (formaPagoSelect.value === "credito") {
+      creditoFields.style.display = "block";
+    } else {
+      creditoFields.style.display = "none";
+      creditoFields.querySelectorAll("input").forEach(input => input.value = "");
+    }
+  }
+
+  toggleCreditoFields();
+  formaPagoSelect.addEventListener("change", toggleCreditoFields);
+</script>
+
+{% endblock %}

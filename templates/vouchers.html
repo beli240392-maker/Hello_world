@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-4">
+
+  <h3 class="mb-3">📑 Control de Vouchers</h3>
+
+  <!-- Formulario agregar voucher -->
+  <form method="POST" enctype="multipart/form-data" class="row g-2 mb-4">
+    <div class="col-md-2"><input name="codigo" class="form-control" placeholder="Código" required></div>
+    <div class="col-md-2"><input name="banco" class="form-control" placeholder="Banco"></div>
+    <div class="col-md-2"><input name="nombres" class="form-control" placeholder="Nombres"></div>
+    <div class="col-md-2"><input name="apellidos" class="form-control" placeholder="Apellidos"></div>
+    <div class="col-md-2"><input name="monto" class="form-control" placeholder="Monto"></div>
+    <div class="col-12"><button class="btn btn-primary mt-2">➕ Registrar Voucher</button></div>
+  </form>
+
+  <!-- Formulario buscar voucher -->
+  <form method="GET" class="mb-3">
+    <div class="input-group">
+      <input name="codigo" value="{{ codigo_buscar }}" class="form-control" placeholder="Buscar por código">
+      <button class="btn btn-success">🔍 Buscar</button>
+    </div>
+  </form>
+
+  <!-- Resultados -->
+    <!-- Resultados -->
+  {% if codigo_buscar %}
+    {% if vouchers|length > 0 %}
+      <div class="alert alert-success">✅ Código encontrado.</div>
+      <table class="table table-striped table-bordered">
+        <thead class="table-dark">
+          <tr>
+            <th>Código</th>
+            <th>Banco</th>
+            <th>Nombres</th>
+            <th>Apellidos</th>
+            <th>Monto</th>
+            <th>Fecha</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for v in vouchers %}
+            <tr>
+              <td>{{ v.codigo }}</td>
+              <td>{{ v.banco }}</td>
+              <td>{{ v.nombres }}</td>
+              <td>{{ v.apellidos }}</td>
+              <td>S/ {{ '%.2f'|format(v.monto or 0) }}</td>
+              <td>{{ v.fecha_registro.strftime("%d/%m/%Y %H:%M") }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div class="alert alert-danger">⚠️ No existe un voucher con ese código.</div>
+    {% endif %}
+  {% else %}
+    <!-- Mostrar todos los vouchers si no hay búsqueda -->
+    <table class="table table-striped table-bordered">
+      <thead class="table-dark">
+        <tr>
+          <th>Código</th>
+          <th>Banco</th>
+          <th>Nombres</th>
+          <th>Apellidos</th>
+          <th>Monto</th>
+          <th>Fecha</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for v in vouchers %}
+          <tr>
+            <td>{{ v.codigo }}</td>
+            <td>{{ v.banco }}</td>
+            <td>{{ v.nombres }}</td>
+            <td>{{ v.apellidos }}</td>
+            <td>S/ {{ '%.2f'|format(v.monto or 0) }}</td>
+            <td>{{ v.fecha_registro.strftime("%d/%m/%Y %H:%M") }}</td>
+
+
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+
+
+</div>
+{% endblock %}

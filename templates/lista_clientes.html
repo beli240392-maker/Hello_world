@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>📋 Resultados de búsqueda: "{{ criterio }}"</h2>
+<table class="table table-striped">
+  <thead class="table-dark">
+    <tr>
+      <th>Nombre</th>
+      <th>DNI</th>
+      <th>Teléfono</th>
+      <th>Acción</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for c in clientes %}
+    <tr>
+      <td>{{ c.nombre }} {{ c.apellidos }}</td>
+      <td>{{ c.dni }}</td>
+      <td>{{ c.telefono or 'Sin teléfono' }}</td>
+      <td>
+        <a href="{{ url_for('ver_cliente', cliente_id=c.id) }}" class="btn btn-info btn-sm">Ver Cliente</a>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

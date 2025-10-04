@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>📑 Detalle de Cuotas</h2>
+
+<div class="card mb-4">
+  <div class="card-header bg-primary text-white">Información de la Compra</div>
+  <div class="card-body row">
+    <div class="col-md-6">
+      <p><strong>Cliente:</strong> {{ compra.cliente.nombre }} {{ compra.cliente.apellidos }} (DNI: {{ compra.cliente.dni }})</p>
+      <p><strong>Lote:</strong> Mz {{ compra.lote.manzana }} - Lt {{ compra.lote.numero }}</p>
+      <p><strong>Precio:</strong> S/ {{ "%.2f"|format(compra.precio) }}</p>
+    </div>
+    <div class="col-md-6">
+      <p><strong>Inicial:</strong> S/ {{ "%.2f"|format(compra.inicial) }}</p>
+      <p><strong>Cuotas Totales:</strong> {{ compra.cuotas_total }}</p>
+      <p><strong>Fecha de Compra:</strong> {{ compra.fecha_compra.strftime("%d/%m/%Y") }}</p>
+    </div>
+  </div>
+</div>
+
+<table class="table table-bordered table-striped">
+  <thead class="table-dark text-center">
+    <tr>
+      <th>#</th>
+      <th>Monto</th>
+      <th>Vencimiento</th>
+      <th>Estado</th>
+      <th>Días de atraso</th>
+      <th>Acción</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for cuota in compra.cuotas %}
+    <tr class="text-center">
+      <td>{{ cuota.numero }}</td>
+      <td>S/ {{ "%.2f"|format(cuota.monto) }}</td>
+      <td>{{ cuota.fecha_vencimiento.strftime("%d/%m/%Y") }}</td>
+      <td>
+        {% if cuota.pagada %}
+          <span class="badge bg-success">Pagada</span>
+        {% elif cuota.fecha_vencimiento < now %}
+          <span class="badge bg-danger">Vencida</span>
+        {% else %}
+          <span class="badge bg-warning text-dark">Pendiente</span>
+        {% endif %}
+      </td>
+      <td>
+        {% if not cuota.pagada and cuota.fecha_vencimiento < now %}
+          {{ (now.date() - cuota.fecha_vencimiento.date()).days }} días
+        {% else %}
+          -
+        {% endif %}
+      </td>
+      <td>
+        {% if not cuota.pagada %}
+          <form method="POST" action="{{ url_for('pagar_cuota') }}" enctype="multipart/form-data" class="d-flex flex-column gap-1">
+            <input type="hidden" name="cuota_id" value="{{ cuota.id }}">
+            <input type="file" name="boucher_cuota" accept="image/*" required class="form-control form-control-sm">
+            <button type="submit" class="btn btn-sm btn-success">💰 Pagar</button>
+          </form>
+        {% else %}
+          {% if cuota.pago %}
+            <a href="{{ url_for('static', filename=cuota.pago.boucher) }}" target="_blank" class="btn btn-sm btn-primary">
+              Ver Boucher
+            </a>
+          {% endif %}
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<!-- Botón volver ahora incluye cliente_id -->
+<a href="{{ url_for('ver_cliente', cliente_id=compra.cliente.id) }}" class="btn btn-secondary mt-3">⬅ Volver</a>
+{% endblock %}

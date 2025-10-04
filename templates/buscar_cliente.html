@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>🔎 Buscar Cliente</h2>
+
+<!-- Formulario de búsqueda -->
+<form method="get" action="{{ url_for('buscar_cliente') }}" class="mb-3">
+  <div class="input-group" style="max-width: 500px;">
+    <input type="text" id="buscador" name="q" class="form-control"
+           placeholder="Ingrese DNI o Apellidos" value="{{ query }}">
+    <button type="submit" class="btn btn-primary">Buscar</button>
+  </div>
+</form>
+
+<!-- Resultados -->
+{% if query %}
+  <h5>Resultados para: <strong>{{ query }}</strong></h5>
+  <table class="table table-bordered table-striped">
+    <thead class="table-dark">
+      <tr>
+        <th>Nombre</th>
+        <th>Apellidos</th>
+        <th>DNI</th>
+        <th>Teléfono</th>
+        <th>Acción</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for c in clientes %}
+      <tr>
+        <td>{{ c.nombre }}</td>
+        <td>{{ c.apellidos }}</td>
+        <td>{{ c.dni }}</td>
+        <td>{{ c.telefono or 'Sin teléfono' }}</td>
+        <td>
+          <a href="{{ url_for('ver_cliente', cliente_id=c.id) }}" class="btn btn-info btn-sm">Ver Cliente</a>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" class="text-center">No se encontraron clientes</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endif %}
+
+<!-- Autocomplete con jQuery UI -->
+<link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css">
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://code.jquery.com/ui/1.13.2/jquery-ui.js"></script>
+<script>
+$(function() {
+  $("#buscador").autocomplete({
+    source: "{{ url_for('autocomplete_clientes') }}",
+    minLength: 2,
+    select: function(event, ui) {
+  window.location.href = "/ver_cliente?cliente_id=" + ui.item.id;
+    }
+  });
+});
+</script>
+
+{% endblock %}

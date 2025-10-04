@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>🏡 Bienvenido al Sistema de Lotes</h2>
+<p>Desde aquí puedes administrar los lotes, registrar compras y gestionar clientes.</p>
+
+{% if lotizacion %}
+  <div class="alert alert-info">
+    📍 Estás trabajando en la lotización:
+    <strong>{{ lotizacion.nombre }}</strong>
+  </div>
+{% endif %}
+
+<p class="alert alert-info">
+  Actualmente hay <strong>{{ total_disponibles }}</strong> lotes disponibles,
+  <strong>{{ total_separados }}</strong> separados y
+  <strong>{{ total_vendidos }}</strong> vendidos.
+</p>
+
+<div class="d-flex flex-column gap-2">
+  <a href="{{ url_for('lotes_disponibles') }}" class="btn btn-info">📊 Ver Lotes Disponibles</a>
+  <a href="{{ url_for('registrar_separacion') }}" class="btn btn-warning">🔴 Registrar Separación</a>
+  <a href="{{ url_for('registrar_compra') }}" class="btn btn-success">📝 Registrar Compra</a>
+  <a href="{{ url_for('ver_cliente') }}" class="btn btn-dark">🔍 Buscar Cliente por DNI</a>
+  <a href="{{ url_for('agregar_lotes') }}" class="btn btn-primary">➕ Agregar Lotes</a>
+  <a href="{{ url_for('seleccionar_lotizacion') }}" class="btn btn-secondary">🔄 Cambiar Lotización</a>
+</div>
+{% endblock %}

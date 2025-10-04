@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>📋 Lotes por Manzana</h2>
+
+<div class="alert alert-info">
+  <strong>📊 Resumen:</strong>
+  <span class="badge bg-success">Disponibles: {{ total_disponibles }}</span>
+  <span class="badge bg-warning text-dark">Separados: {{ total_separados }}</span>
+  <span class="badge bg-danger">Vendidos: {{ total_vendidos }}</span>
+</div>
+
+<div class="row">
+  {% for manzana, lotes in manzanas.items() %}
+  <div class="col-md-4 mb-4">
+    <div class="card shadow-sm">
+      <div class="card-header bg-dark text-white">
+        Manzana {{ manzana }}
+      </div>
+      <div class="card-body d-flex flex-wrap gap-2">
+        {% for lote in lotes %}
+          <a href="{{ url_for('detalle_lote', lote_id=lote.id) }}"
+             class="btn {% if lote.estado == 'disponible' %}btn-success
+                        {% elif lote.estado == 'vendido' %}btn-danger
+                        {% else %}btn-warning{% endif %} btn-sm">
+            Lt {{ lote.numero }}
+          </a>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

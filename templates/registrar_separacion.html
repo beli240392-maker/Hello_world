@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Registrar Separación</h2>
+
+<form method="POST" enctype="multipart/form-data" class="row g-4">
+  <!-- Datos del Cliente -->
+  <div class="col-md-6">
+    <h5>Datos del Cliente</h5>
+    <div class="mb-3">
+      <label for="nombre" class="form-label">Nombre:</label>
+      <input type="text" class="form-control" name="nombre" value="{{ cliente.nombre if cliente else '' }}" required>
+    </div>
+    <div class="mb-3">
+      <label for="apellidos" class="form-label">Apellidos:</label>
+      <input type="text" class="form-control" name="apellidos" value="{{ cliente.apellidos if cliente else '' }}">
+    </div>
+    <div class="mb-3">
+  <label for="dni" class="form-label">DNI:</label>
+  <input type="number" class="form-control" name="dni" 
+         value="{{ cliente.dni if cliente else '' }}" 
+         required 
+         minlength="8" maxlength="8"
+         oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,8)">
+    </div>
+    <div class="mb-3">
+      <label for="telefono" class="form-label">Teléfono:</label>
+      <input type="text" class="form-control" name="telefono" value="{{ cliente.telefono if cliente else '' }}">
+    </div>
+    <div class="mb-3">
+  <label for="estado_civil">Estado Civil</label>
+  <input type="text" class="form-control" name="estado_civil" placeholder="Soltero, Casado, etc.">
+</div>
+
+<div class="mb-3">
+  <label for="ocupacion">Ocupación</label>
+  <input type="text" class="form-control" name="ocupacion" placeholder="Ocupación del cliente">
+</div>
+    <div class="mb-3">
+      <label for="direccion" class="form-label">Dirección:</label>
+      <input type="text" class="form-control" name="direccion" value="{{ cliente.direccion if cliente else '' }}">
+    </div>
+    <div class="mb-3">
+      <label for="ciudad" class="form-label">Ciudad:</label>
+      <input type="text" class="form-control" name="ciudad" value="{{ cliente.ciudad if cliente else '' }}">
+    </div>
+  </div>
+
+  <!-- Datos de la Separación -->
+  <div class="col-md-6">
+    <h5>Datos de la Separación</h5>
+    <div class="mb-3">
+      <label for="manzana" class="form-label">Manzana:</label>
+      <select id="manzana" name="manzana" class="form-control" required>
+        <option value="">Seleccione una manzana</option>
+        {% for mz in lotes|groupby("manzana") %}
+          <option value="{{ mz.grouper }}">{{ mz.grouper }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="mb-3">
+      <label for="lote" class="form-label">Lote:</label>
+      <select id="lote" name="lote" class="form-control" required>
+        <option value="">Seleccione un lote</option>
+      </select>
+    </div>
+
+    <div class="mb-3">
+      <label for="monto" class="form-label">Monto de Separación:</label>
+      <input type="number" step="0.01" class="form-control" name="monto" required>
+    </div>
+
+    <div class="mb-3">
+      <label for="boucher" class="form-label">Boucher:</label>
+      <input type="file" class="form-control" name="boucher" required>
+    </div>
+    <div class="mb-3">
+  <label for="dni_frontal">DNI Frontal</label>
+  <input type="file" class="form-control" name="dni_frontal" accept="image/*">
+</div>
+
+<div class="mb-3">
+  <label for="dni_reverso">DNI Reverso</label>
+  <input type="file" class="form-control" name="dni_reverso" accept="image/*">
+</div>
+<div class="col-12">
+    <button type="submit" class="btn btn-warning">Registrar Separación</button>
+  </div>
+  </div>
+</form>
+
+<script>
+  const lotesData = {};
+  {% for mz, group in lotes|groupby("manzana") %}
+    lotesData["{{ mz }}"] = [
+      {% for lote in group %}
+        {
+          id: {{ lote.id }},
+          numero: "{{ lote.numero }}",
+          estado: "{{ lote.estado }}"
+        },
+      {% endfor %}
+    ];
+  {% endfor %}
+
+  const manzanaSelect = document.getElementById("manzana");
+  const loteSelect = document.getElementById("lote");
+
+  manzanaSelect.addEventListener("change", function () {
+    const selectedMz = this.value;
+    loteSelect.innerHTML = '<option value="">Seleccione un lote</option>';
+
+    if (selectedMz && lotesData[selectedMz]) {
+      lotesData[selectedMz].forEach(lote => {
+        if (lote.estado === "disponible") {
+          const option = document.createElement("option");
+          option.value = lote.id;
+          option.textContent = "Lt " + lote.numero;
+          loteSelect.appendChild(option);
+        }
+      });
+    }
+  });
+</script>
+{% endblock %}

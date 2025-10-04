@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>📊 Estado General de Pagos</h2>
+
+<div class="table-responsive">
+  <table class="table table-bordered table-striped align-middle">
+    <thead class="table-dark text-center">
+      <tr>
+        <th>Cliente</th>
+        <th>DNI</th>
+        <th>Total Compras</th>
+        <th>Total Pagado</th>
+        <th>Saldo Pendiente</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in resumen %}
+      <tr class="text-center">
+        <td>{{ item.cliente.nombre }} {{ item.cliente.apellidos }}</td>
+        <td>{{ item.cliente.dni }}</td>
+        <td>S/ {{ "%.2f"|format(item.total_precio) }}</td>
+        <td>S/ {{ "%.2f"|format(item.total_pagado) }}</td>
+        <td>
+          {% if item.saldo > 0 %}
+            <span class="text-danger">S/ {{ "%.2f"|format(item.saldo) }}</span>
+          {% else %}
+            <span class="text-success">Cancelado</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="5" class="text-center text-muted">No hay registros de pagos.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<a href="{{ url_for('home') }}" class="btn btn-secondary mt-3">⬅ Volver</a>
+{% endblock %}

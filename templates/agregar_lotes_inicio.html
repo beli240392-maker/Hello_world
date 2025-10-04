@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>➕ Agregar Lotes</h2>
+
+<form method="POST" action="{{ url_for('agregar_lotes') }}" class="card p-4 shadow-sm">
+  <div class="mb-3">
+  <label for="manzana" class="form-label">Manzana</label>
+  <input type="text" name="manzana" id="manzana" class="form-control" 
+         pattern="^[A-Z]{1}['\"]?$" 
+         title="Solo se permite una letra mayúscula y opcionalmente un apóstrofe (') o comillas (&quot;)" 
+         required>
+</div>
+
+  <div class="mb-3">
+    <label for="total_lotes" class="form-label">Cantidad de Lotes</label>
+    <input type="number" name="total_lotes" id="total_lotes" min="1" required class="form-control">
+  </div>
+
+  <button type="submit" class="btn btn-primary">Continuar</button>
+</form>
+{% endblock %}

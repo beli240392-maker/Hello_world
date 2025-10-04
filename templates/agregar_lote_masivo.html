@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Agregar {{ total_lotes }} Lotes en Manzana {{ manzana }}</h2>
+
+<form method="POST" class="card p-4 shadow-sm">
+  <input type="hidden" name="manzana" value="{{ manzana }}">
+  <input type="hidden" name="total_lotes" value="{{ total_lotes }}">
+
+  <div class="table-responsive">
+    <table class="table table-bordered table-striped align-middle">
+      <thead class="table-dark text-center">
+        <tr>
+          <th>Número de Lote</th>
+          <th>Área (m²)</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for i in range(1, total_lotes + 1) %}
+        <tr class="text-center">
+          <td>
+            <input type="text" name="numeros[]" value="{{ i }}" class="form-control text-center" readonly>
+          </td>
+          <td>
+            <input type="number" name="areas[]" step="0.01" class="form-control" required>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <button type="submit" class="btn btn-success">Guardar Lotes</button>
+  <a href="{{ url_for('agregar_lotes') }}" class="btn btn-secondary">⬅ Volver</a>
+</form>
+{% endblock %}

@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>➕ Agregar Lote en Manzana {{ manzana }}</h2>
+
+<form method="POST" action="{{ url_for('guardar_lotes') }}" class="card p-4 shadow-sm">
+  <!-- Manzana viene oculta, ya seleccionada en la vista anterior -->
+  <input type="hidden" name="manzana" value="{{ manzana }}">
+  <input type="hidden" name="total_lotes" value="1">
+
+  <div class="mb-3">
+    <label for="numero" class="form-label">Número de Lote</label>
+    <input type="text" name="numeros[]" id="numero" required class="form-control">
+  </div>
+
+  <div class="mb-3">
+    <label for="area" class="form-label">Área (m²)</label>
+    <input type="number" name="areas[]" id="area" step="0.01" required class="form-control">
+  </div>
+
+  <button type="submit" class="btn btn-success">Guardar Lote</button>
+  <a href="{{ url_for('agregar_lotes') }}" class="btn btn-secondary">⬅ Volver</a>
+</form>
+{% endblock %}

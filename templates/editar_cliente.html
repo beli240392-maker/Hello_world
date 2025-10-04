@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>✏️ Editar Cliente</h2>
+
+<form method="POST" class="card p-4 shadow-sm">
+  <div class="row">
+    <div class="col-md-6 mb-3">
+      <label for="nombre" class="form-label">Nombre</label>
+      <input type="text" name="nombre" id="nombre" value="{{ cliente.nombre }}" required class="form-control">
+    </div>
+    <div class="col-md-6 mb-3">
+      <label for="apellidos" class="form-label">Apellidos</label>
+      <input type="text" name="apellidos" id="apellidos" value="{{ cliente.apellidos }}" required class="form-control">
+    </div>
+    <div class="col-md-6 mb-3">
+      <label for="dni" class="form-label">DNI</label>
+      <input type="text" name="dni" id="dni" value="{{ cliente.dni }}" required class="form-control">
+    </div>
+    <div class="col-md-6 mb-3">
+  <label for="estado_civil" class="form-label">Estado Civil</label>
+  <input type="text" name="estado_civil" class="form-control" 
+         value="{{ cliente.estado_civil if cliente else '' }}">
+</div>
+
+<div class="col-md-6 mb-3">
+  <label for="ocupacion" class="form-label">Ocupación</label>
+  <input type="text" name="ocupacion" class="form-control" 
+         value="{{ cliente.ocupacion if cliente else '' }}">
+</div>
+    <div class="col-md-6 mb-3">
+      <label for="telefono" class="form-label">Teléfono</label>
+      <input type="text" name="telefono" id="telefono" value="{{ cliente.telefono }}" class="form-control">
+    </div>
+    <div class="col-md-6 mb-3">
+      <label for="ciudad" class="form-label">Ciudad</label>
+      <input type="text" name="ciudad" id="ciudad" value="{{ cliente.ciudad }}" class="form-control">
+    </div>
+    <div class="col-md-6 mb-3">
+      <label for="direccion" class="form-label">Dirección</label>
+      <input type="text" name="direccion" id="direccion" value="{{ cliente.direccion }}" class="form-control">
+    </div>
+  </div>
+  <a href="{{ url_for('ver_cliente', cliente_id=cliente.id) }}" class="btn btn-secondary">
+  ← Volver
+</a>
+
+  <button type="submit" class="btn btn-success">💾 Guardar Cambios</button>
+  <a href="{{ url_for('ver_cliente', cliente_id=cliente.id) }}" class="btn btn-secondary">⬅ Cancelar</a>
+</form>
+{% endblock %}

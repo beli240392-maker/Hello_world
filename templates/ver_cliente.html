@@ -1,0 +1,306 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>🔍 Buscar Cliente</h2>
+
+<!-- 🔄 Buscador siempre visible -->
+<form method="POST" class="mb-3">
+  <div class="input-group" style="max-width: 400px;">
+    <input type="text" id="criterio" name="q" class="form-control"
+           placeholder="Ingrese DNI o Apellidos" required autocomplete="off">
+    <button type="submit" class="btn btn-primary">Buscar</button>
+  </div>
+</form>
+
+{% if cliente %}
+  {% if not separaciones and not compras_contado and not compras_credito and not historial %}
+    <div class="alert alert-warning text-center">
+      Este cliente no tiene lotes activos ni historial.
+    </div>
+  {% else %}
+    {% if separaciones or compras_contado or compras_credito %}
+  <div class="card mb-4">
+  <div class="card-header bg-primary text-white">Información del Cliente</div>
+  <div class="card-body">
+    <div class="row">
+      
+      <!-- Información del cliente en 2 columnas -->
+      <div class="col-md-7">
+        <div class="row">
+          <div class="col-md-6">
+            <p><strong>Nombre:</strong> {{ cliente.nombre }}</p>
+            <p><strong>Apellidos:</strong> {{ cliente.apellidos }}</p>
+            <p><strong>DNI:</strong> {{ cliente.dni }}</p>
+            <p><strong>Teléfono:</strong> {{ cliente.telefono }}</p>
+          </div>
+          <div class="col-md-6">
+            <p><strong>Estado Civil:</strong> {{ cliente.estado_civil or "No registrada" }}</p>
+            <p><strong>Ocupación:</strong> {{ cliente.ocupacion or "No registrada" }}</p>
+            <p><strong>Dirección:</strong> {{ cliente.direccion }}</p>
+            <p><strong>Ciudad:</strong> {{ cliente.ciudad }}</p>
+          </div>
+        </div>
+        {% if current_user.rol == "admin" %}
+        <a href="{{ url_for('editar_cliente', cliente_id=cliente.id) }}" 
+           class="btn btn-primary btn-sm mt-2">✏️ Editar Cliente</a>
+        {% endif %}
+      </div>
+
+      <!-- Fotos DNI en horizontal -->
+      <div class="col-md-5 text-center">
+        <div class="d-flex justify-content-center gap-3">
+          {% if cliente.dni_frontal %}
+            <div>
+              <a href="{{ url_for('static', filename=cliente.dni_frontal) }}" target="_blank">
+                <img src="{{ url_for('static', filename=cliente.dni_frontal) }}" 
+                     class="img-thumbnail" style="max-width: 120px; height: auto;">
+              </a>
+              <p class="text-muted small mt-1">DNI Frontal</p>
+            </div>
+          {% endif %}
+          {% if cliente.dni_reverso %}
+            <div>
+              <a href="{{ url_for('static', filename=cliente.dni_reverso) }}" target="_blank">
+                <img src="{{ url_for('static', filename=cliente.dni_reverso) }}" 
+                     class="img-thumbnail" style="max-width: 120px; height: auto;">
+              </a>
+              <p class="text-muted small mt-1">DNI Reverso</p>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- Modal DNI Reverso -->
+<div class="modal fade" id="modalReverso" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content">
+      <div class="modal-body text-center">
+        <img src="{{ url_for('static', filename=cliente.dni_reverso) }}" class="img-fluid" alt="DNI Reverso">
+      </div>
+    </div>
+  </div>
+</div>
+
+      
+    {% endif %}
+
+    <!-- SEPARACIONES ACTIVAS -->
+    {% if separaciones %}
+    <h3>🔴 Separaciones Activas</h3>
+    <table class="table table-bordered table-striped">
+      <thead class="table-dark">
+        <tr>
+          <th>Lote</th>
+          <th>Monto</th>
+          <th>Fecha</th>
+          <th>Boucher</th>
+          <th>Acción</th>
+          <th>Vendedor</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for sep in separaciones %}
+        <tr>
+          <td>Mz {{ sep.lote.manzana }} - Lt {{ sep.lote.numero }}</td>
+          <td>S/ {{ "%.2f"|format(sep.monto) }}</td>
+          <td>{{ sep.fecha.strftime("%d/%m/%Y") }}</td>
+          <td>
+            {% if sep.boucher %}
+              <a href="{{ url_for('static', filename=sep.boucher) }}" target="_blank" class="btn btn-sm btn-primary">Ver Boucher</a>
+            {% else %}
+              <span class="text-muted">No disponible</span>
+            {% endif %}
+          </td>
+          <td class="d-flex flex-column gap-1">
+            <form method="GET" action="{{ url_for('registrar_compra') }}">
+              <input type="hidden" name="sep_id" value="{{ sep.id }}">
+              <button type="submit" class="btn btn-sm btn-success">Convertir a Compra</button>
+            </form>
+            <form method="POST" action="{{ url_for('liberar_separacion', sep_id=sep.id) }}"
+                  onsubmit="return confirm('¿Seguro que deseas liberar este lote separado?');">
+              <button type="submit" class="btn btn-sm btn-danger">Liberar</button>
+            </form>
+          </td>
+          <td>{{ sep.usuario.username if sep.usuario else "No registrado" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+
+    <!-- COMPRAS AL CONTADO -->
+    {% if compras_contado %}
+    <h3>🟢 Compras al Contado</h3>
+    <table class="table table-bordered table-striped">
+      <thead class="table-dark">
+        <tr>
+          <th>Lote</th>
+          <th>Precio</th>
+          <th>Fecha</th>
+          <th>Boucher</th>
+          <th>Acta de Entrega</th>
+          <th>Vendedor</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in compras_contado %}
+        <tr>
+          <td>Mz {{ c.lote.manzana }} - Lt {{ c.lote.numero }}</td>
+          <td>S/ {{ "%.2f"|format(c.precio) }}</td>
+          <td>{{ c.fecha_compra.strftime("%d/%m/%Y") }}</td>
+          <td>
+            {% if c.boucher_inicial %}
+              <a href="{{ url_for('static', filename=c.boucher_inicial) }}" target="_blank" class="btn btn-sm btn-primary">Ver Boucher</a>
+              <form action="{{ url_for('liberar_lote', id=c.lote_id, tipo='compra') }}" method="POST" style="display:inline;">
+                {% if current_user.rol == "admin" %}
+                <button type="submit" class="btn btn-danger btn-sm"
+                        onclick="return confirm('¿Seguro que deseas liberar esta compra?');">
+                  Liberar
+                {% endif %}
+                </button>
+              </form>
+            {% else %}
+              <span class="text-muted">No disponible</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if c.acta_entrega %}
+              <a href="{{ url_for('static', filename=c.acta_entrega) }}" target="_blank" class="btn btn-success btn-sm">✅ Ver Acta</a>
+            {% else %}
+              <form action="{{ url_for('subir_acta', compra_id=c.id) }}" method="POST" enctype="multipart/form-data" style="display:inline;">
+                <input type="file" name="acta_file" required>
+                <button type="submit" class="btn btn-warning btn-sm">📄 Subir Acta</button>
+              </form>
+            {% endif %}
+            {% if c.entregado %}
+              <span class="badge bg-success ms-2">Entregado</span>
+            {% else %}
+              <span class="badge bg-secondary ms-2">Pendiente</span>
+            {% endif %}
+            <td>{{ c.usuario.username if c.usuario else "No registrado" }}</td>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+
+    <!-- COMPRAS A CRÉDITO -->
+    {% if compras_credito %}
+    <h3>🟡 Compras a Crédito</h3>
+    <table class="table table-bordered table-striped">
+      <thead class="table-dark">
+        <tr>
+          <th>Lote</th>
+          <th>Precio</th>
+          <th>Inicial</th>
+          <th>Cuotas Pagadas</th>
+          <th>Total Cuotas</th>
+          <th>Fecha</th>
+          <th>Acción</th>
+          <th>Acta de Entrega</th>
+          <th>Vendedor</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in compras_credito %}
+        <tr>
+          <td>Mz {{ c.lote.manzana }} - Lt {{ c.lote.numero }}</td>
+          <td>S/ {{ "%.2f"|format(c.precio) }}</td>
+          <td>S/ {{ "%.2f"|format(c.inicial) }}</td>
+          <td>{{ c.cuotas | selectattr("pagada") | list | length }}</td>
+          <td>{{ c.cuotas_total }}</td>
+          <td>{{ c.fecha_compra.strftime("%d/%m/%Y") }}</td>
+          <td>
+            <a href="{{ url_for('detalle_cuotas', compra_id=c.id) }}" class="btn btn-sm btn-info">Ver Cuotas</a>
+            <form action="{{ url_for('liberar_lote', id=c.lote_id, tipo='compra') }}" method="POST" style="display:inline;">
+              {% if current_user.rol == "admin" %}
+              <button type="submit" class="btn btn-danger btn-sm"
+                      onclick="return confirm('¿Seguro que deseas liberar esta compra?');">
+                Liberar
+              {% endif %}
+              </button>
+            </form>
+          </td>
+          <td>
+            {% if c.acta_entrega %}
+              <a href="{{ url_for('static', filename=c.acta_entrega) }}" target="_blank" class="btn btn-success btn-sm">✅ Ver Acta</a>
+            {% else %}
+              <form action="{{ url_for('subir_acta', compra_id=c.id) }}" method="POST" enctype="multipart/form-data" style="display:inline%;">
+                <input type="file" name="acta_file" required>
+                <button type="submit" class="btn btn-warning btn-sm">📄 Subir Acta</button>
+              </form>
+            {% endif %}
+            {% if c.entregado %}
+              <span class="badge bg-success ms-2">Entregado</span>
+            {% else %}
+              <span class="badge bg-secondary ms-2">Pendiente</span>
+            {% endif %}
+            <td>{{ c.usuario.username if c.usuario else "No registrado" }}</td>
+          </td>
+          
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+
+    <!-- HISTORIAL DEL CLIENTE -->
+    {% if historial %}
+    <h3>📜 Historial del Cliente</h3>
+    <table class="table table-bordered table-striped">
+      <thead class="table-dark">
+        <tr>
+          <th>Tipo</th>
+          <th>Lote</th>
+          <th>Detalle</th>
+          <th>Fecha</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for h in historial %}
+        <tr>
+          <td>
+            {% if "convertida" in h.tipo|lower %}
+              <span class="badge bg-success">{{ h.tipo }}</span>
+            {% elif "liberada" in h.tipo|lower %}
+              <span class="badge bg-danger">{{ h.tipo }}</span>
+            {% else %}
+              <span class="badge bg-secondary">{{ h.tipo }}</span>
+            {% endif %}
+          </td>
+          <td>Mz {{ h.lote.manzana }} - Lt {{ h.lote.numero }}</td>
+          <td>{{ h.detalle }}</td>
+          <td>{{ h.fecha.strftime("%d/%m/%Y %H:%M") }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+  {% endif %}
+{% elif request.method == "POST" %}
+  <div class="alert alert-warning">No se encontró ningún cliente con ese DNI o apellido.</div>
+{% endif %}
+
+<!-- ==========================
+     AUTOCOMPLETE JAVASCRIPT
+=========================== -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
+<link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css">
+
+<script>
+$(function() {
+  $("#criterio").autocomplete({
+    source: "{{ url_for('autocomplete_clientes') }}",  // endpoint en app.py
+    minLength: 2,
+    select: function(event, ui) {
+      window.location.href = "/ver_cliente?cliente_id=" + ui.item.id;
+    }
+  });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>🏡 Crear Nueva Lotización</h2>
+
+<form method="POST" class="card p-4 shadow-sm">
+  <div class="mb-3">
+    <label for="nombre" class="form-label">Nombre de la Lotización</label>
+    <input type="text" name="nombre" id="nombre" required class="form-control">
+  </div>
+
+  <button type="submit" class="btn btn-primary">Crear Lotización</button>
+</form>
+{% endblock %}

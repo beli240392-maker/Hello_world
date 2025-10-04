@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>🏡 Detalle del Lote</h2>
+
+<div class="card shadow-sm mb-4">
+  <div class="card-body">
+    <p><strong>Manzana:</strong> {{ lote.manzana }}</p>
+    <p><strong>Número:</strong> {{ lote.numero }}</p>
+    <p><strong>Área:</strong> {{ lote.area }} m²</p>
+    <p><strong>Estado:</strong>
+      {% if lote.estado == "disponible" %}
+        <span class="badge bg-success">Disponible</span>
+      {% elif lote.estado == "vendido" %}
+        <span class="badge bg-danger">Vendido</span>
+      {% else %}
+        <span class="badge bg-warning text-dark">Separado</span>
+      {% endif %}
+    </p>
+    <a href="{{ url_for('editar_area', lote_id=lote.id) }}" class="btn btn-sm btn-warning">✏️ Editar Área</a>
+
+  </div>
+</div>
+
+{% if compra %}
+  <h3>📝 Información de la Compra</h3>
+  <ul class="list-group mb-3">
+    <li class="list-group-item"><strong>Cliente:</strong> {{ compra.cliente.nombre }} {{ compra.cliente.apellidos }} (DNI: {{ compra.cliente.dni }})</li>
+    <li class="list-group-item"><strong>Forma de pago:</strong> {{ compra.forma_pago|capitalize }}</li>
+    <li class="list-group-item"><strong>Precio:</strong> S/ {{ "%.2f"|format(compra.precio) }}</li>
+    {% if compra.forma_pago == "credito" %}
+      <li class="list-group-item"><strong>Inicial:</strong> S/ {{ "%.2f"|format(compra.inicial) }}</li>
+      <li class="list-group-item"><strong>Cuotas:</strong> {{ compra.cuotas_total }} (S/ {{ "%.2f"|format(compra.cuota_monto) }} cada una)</li>
+    {% endif %}
+    <li class="list-group-item"><strong>Fecha de compra:</strong> {{ compra.fecha_compra.strftime("%d/%m/%Y") }}</li>
+  </ul>
+{% elif separacion %}
+  <h3>🔴 Información de la Separación</h3>
+  <ul class="list-group mb-3">
+    <li class="list-group-item"><strong>Cliente:</strong> {{ separacion.cliente.nombre }} {{ separacion.cliente.apellidos }} (DNI: {{ separacion.cliente.dni }})</li>
+    <li class="list-group-item"><strong>Monto separación:</strong> S/ {{ "%.2f"|format(separacion.monto) }}</li>
+    <li class="list-group-item"><strong>Fecha:</strong> {{ separacion.fecha.strftime("%d/%m/%Y") }}</li>
+  </ul>
+{% endif %}
+
+<a href="{{ url_for('lotes_disponibles') }}" class="btn btn-secondary">⬅ Volver</a>
+{% endblock %}

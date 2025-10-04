@@ -1,0 +1,24 @@
+# Entorno virtual
+venv/
+
+# Variables de entorno
+.env
+
+# Archivos de cache de Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Archivos temporales
+*.sqlite3
+instance/
+
+# Archivos de sistema
+.DS_Store
+Thumbs.db
+
+# Archivos sensibles del sistema (si no quieres subirlos a GitHub)
+static/dni/
+static/bouchers/
+static/actas/
