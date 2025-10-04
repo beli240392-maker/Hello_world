@@ -6,15 +6,20 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 
   <style>
-    /* 🔹 Reducir tamaño de texto */
+    /* 🔹 Reducir más el tamaño global */
     body {
-      font-size: 0.85rem;
+      font-size: 0.75rem; /* más compacto */
     }
     .navbar-brand {
-      font-size: 1rem;
+      font-size: 0.9rem;
     }
     .nav-link {
-      font-size: 0.85rem;
+      font-size: 0.75rem;
+    }
+    /* 🔹 Limitar ancho del contenido */
+    .container-narrow {
+      max-width: 1000px;
+      margin: auto;
     }
   </style>
 </head>
@@ -64,8 +69,8 @@
   </nav>
   {% endif %}
 
-  <!-- 🔹 Aquí cambiamos container por container-lg -->
-  <div class="container-lg">
+  <!-- 🔹 Usamos container-narrow en lugar de container -->
+  <div class="container-narrow">
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
         {% for category, message in messages %}
