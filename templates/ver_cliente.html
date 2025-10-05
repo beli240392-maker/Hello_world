@@ -255,6 +255,7 @@
     <!-- HISTORIAL DEL CLIENTE -->
     {% if historial %}
     <h3>📜 Historial del Cliente</h3>
+    <div class="table-responsive"></div>
     <table class="table table-bordered table-striped">
       <thead class="table-dark">
         <tr>
@@ -283,6 +284,7 @@
         {% endfor %}
       </tbody>
     </table>
+    </div>
     {% endif %}
   {% endif %}
 {% elif request.method == "POST" %}
