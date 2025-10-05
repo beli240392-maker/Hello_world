@@ -255,11 +255,15 @@
     {% endif %}
 
     <!-- HISTORIAL DEL CLIENTE -->
-    {% if historial %}
-    <h3>📜 Historial del Cliente</h3>
-    <div class="table-responsive">
-    <table class="table table-bordered table-striped">
-      <thead class="table-dark">
+{% if historial %}
+<div class="mt-5">
+  <h3 class="mb-3 d-flex align-items-center">
+    <span class="me-2">📜</span> <span>Historial del Cliente</span>
+  </h3>
+
+  <div class="table-responsive">
+    <table class="table table-bordered table-striped table-hover align-middle table-sm">
+      <thead class="table-dark text-center">
         <tr>
           <th>Tipo</th>
           <th>Lote</th>
@@ -270,7 +274,7 @@
       <tbody>
         {% for h in historial %}
         <tr>
-          <td>
+          <td class="text-center">
             {% if "convertida" in h.tipo|lower %}
               <span class="badge bg-success">{{ h.tipo }}</span>
             {% elif "liberada" in h.tipo|lower %}
@@ -279,15 +283,16 @@
               <span class="badge bg-secondary">{{ h.tipo }}</span>
             {% endif %}
           </td>
-          <td>Mz {{ h.lote.manzana }} - Lt {{ h.lote.numero }}</td>
-          <td>{{ h.detalle }}</td>
-          <td>{{ h.fecha.strftime("%d/%m/%Y %H:%M") }}</td>
+          <td class="text-center">Mz {{ h.lote.manzana }} - Lt {{ h.lote.numero }}</td>
+          <td class="text-break">{{ h.detalle }}</td>
+          <td class="text-center">{{ h.fecha.strftime("%d/%m/%Y %H:%M") }}</td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
-    {% endif %}
+</div>
+{% endif %}
   {% endif %}
 {% elif request.method == "POST" %}
   <div class="alert alert-warning">No se encontró ningún cliente con ese DNI o apellido.</div>
