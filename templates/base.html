@@ -1,48 +1,96 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <meta charset="UTF-8">
   <title>Sistema de Lotes</title>
+
+  <!-- Bootstrap -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 
   <style>
-    /* 🔹 Reducir más el tamaño global */
+    /* 🔹 Ajuste general de tipografía */
     body {
-      font-size: 0.75rem; /* más compacto */
+      font-size: 0.85rem;
+      background-color: #f8f9fa;
     }
-    .navbar-brand {
-      font-size: 0.9rem;
-    }
-    .nav-link {
-      font-size: 0.75rem;
-    }
-    /* 🔹 Limitar ancho del contenido */
-    .container-narrow {
-      max-width: 1000px;
+
+    /* 🔹 Centrar y limitar el ancho en pantallas grandes */
+    .container-responsive {
+      max-width: 1100px;
       margin: auto;
+      padding: 0 10px;
+    }
+
+    /* 🔹 Navbar más compacta */
+    .navbar-brand {
+      font-size: 0.95rem;
+      white-space: nowrap;
+    }
+
+    .nav-link {
+      font-size: 0.85rem;
+      padding: 4px 8px;
+    }
+
+    /* 🔹 Tablas responsive */
+    .table-responsive {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    /* 🔹 Ajuste del texto de lotización */
+    .navbar-text {
+      font-size: 0.8rem;
+    }
+
+    /* 🔹 Ajuste de botones pequeños */
+    .btn-sm {
+      font-size: 0.8rem;
+      padding: 3px 8px;
+    }
+
+    /* 🔹 En móviles, reducir padding y tamaño de fuente */
+    @media (max-width: 768px) {
+      body {
+        font-size: 0.8rem;
+      }
+      .navbar-brand {
+        font-size: 0.85rem;
+      }
+      .nav-link {
+        font-size: 0.75rem;
+      }
+      .container-responsive {
+        padding: 0 5px;
+      }
     }
   </style>
 </head>
+
 <body>
   {% if current_user.is_authenticated %}
-  <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
+  <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-3">
     <div class="container-fluid">
       <a class="navbar-brand" href="{{ url_for('home') }}">🏡 Sistema de Lotes</a>
       <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
         <span class="navbar-toggler-icon"></span>
       </button>
+
       <div class="collapse navbar-collapse" id="navbarNav">
         <!-- Menú principal -->
-        <ul class="navbar-nav me-auto">
+        <ul class="navbar-nav me-auto mb-2 mb-lg-0">
           <li class="nav-item"><a class="nav-link" href="{{ url_for('home') }}">Inicio</a></li>
           <li class="nav-item"><a class="nav-link" href="{{ url_for('lotes_disponibles') }}">Lotes</a></li>
           <li class="nav-item"><a class="nav-link" href="{{ url_for('registrar_separacion') }}">Registrar Separación</a></li>
           <li class="nav-item"><a class="nav-link" href="{{ url_for('registrar_compra') }}">Registrar Compra</a></li>
           <li class="nav-item"><a class="nav-link" href="{{ url_for('buscar_cliente') }}">Buscar Cliente</a></li>
           <li class="nav-item"><a class="nav-link" href="{{ url_for('agregar_lotes') }}">Agregar Lotes</a></li>
+
           {% if current_user.is_authenticated and current_user.rol == 'admin' %}
           <li class="nav-item"><a class="nav-link" href="{{ url_for('reportes') }}">📊 Reportes</a></li>
           {% endif %}
+
           <li class="nav-item"><a class="nav-link" href="{{ url_for('vouchers') }}">📑 Vouchers</a></li>
         </ul>
 
@@ -51,17 +99,15 @@
           {% if lotizacion %}
           <li class="nav-item">
             <span class="navbar-text text-white me-3">
-              📍 Lotización activa: <strong>{{ lotizacion.nombre }}</strong>
+              📍 <strong>{{ lotizacion.nombre }}</strong>
             </span>
           </li>
           {% endif %}
-          <li class="nav-item">
-            <a href="{{ url_for('seleccionar_lotizacion') }}" class="btn btn-outline-light btn-sm me-2">
-              Cambiar Lotización
-            </a>
+          <li class="nav-item me-2">
+            <a href="{{ url_for('seleccionar_lotizacion') }}" class="btn btn-outline-light btn-sm">Cambiar</a>
           </li>
           <li class="nav-item">
-            <a href="{{ url_for('logout') }}" class="btn btn-danger btn-sm">Cerrar Sesión</a>
+            <a href="{{ url_for('logout') }}" class="btn btn-danger btn-sm">Salir</a>
           </li>
         </ul>
       </div>
@@ -69,19 +115,19 @@
   </nav>
   {% endif %}
 
-  <!-- 🔹 Usamos container-narrow en lugar de container -->
-  <div class="container-narrow">
+  <div class="container-responsive">
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
         {% for category, message in messages %}
           <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
             {{ message }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
           </div>
         {% endfor %}
       {% endif %}
     {% endwith %}
 
+    <!-- Contenido -->
     {% block content %}{% endblock %}
   </div>
 
