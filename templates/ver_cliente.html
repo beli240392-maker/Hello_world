@@ -90,6 +90,7 @@
     <!-- SEPARACIONES ACTIVAS -->
     {% if separaciones %}
     <h3>🔴 Separaciones Activas</h3>
+    <div class="table-responsive">
     <table class="table table-bordered table-striped">
       <thead class="table-dark">
         <tr>
@@ -129,12 +130,13 @@
         {% endfor %}
       </tbody>
     </table>
+    </div>
     {% endif %}
 
     <!-- COMPRAS AL CONTADO -->
     {% if compras_contado %}
     <h3>🟢 Compras al Contado</h3>
-    <div class="table-responsive"></div>
+    <div class="table-responsive">
     <table class="table table-bordered table-striped">
       <thead class="table-dark">
         <tr>
@@ -193,7 +195,7 @@
     <!-- COMPRAS A CRÉDITO -->
     {% if compras_credito %}
     <h3>🟡 Compras a Crédito</h3>
-    <div class="table-responsive"></div>
+    <div class="table-responsive">
     <table class="table table-bordered table-striped">
       <thead class="table-dark">
         <tr>
@@ -255,7 +257,7 @@
     <!-- HISTORIAL DEL CLIENTE -->
     {% if historial %}
     <h3>📜 Historial del Cliente</h3>
-    <div class="table-responsive"></div>
+    <div class="table-responsive">
     <table class="table table-bordered table-striped">
       <thead class="table-dark">
         <tr>
