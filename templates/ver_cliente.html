@@ -134,6 +134,7 @@
     <!-- COMPRAS AL CONTADO -->
     {% if compras_contado %}
     <h3>🟢 Compras al Contado</h3>
+    <div class="table-responsive"></div>
     <table class="table table-bordered table-striped">
       <thead class="table-dark">
         <tr>
@@ -186,11 +187,13 @@
         {% endfor %}
       </tbody>
     </table>
+    </div>
     {% endif %}
 
     <!-- COMPRAS A CRÉDITO -->
     {% if compras_credito %}
     <h3>🟡 Compras a Crédito</h3>
+    <div class="table-responsive"></div>
     <table class="table table-bordered table-striped">
       <thead class="table-dark">
         <tr>
@@ -246,6 +249,7 @@
         {% endfor %}
       </tbody>
     </table>
+    </div>
     {% endif %}
 
     <!-- HISTORIAL DEL CLIENTE -->
