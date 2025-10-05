@@ -85,7 +85,10 @@
           <li class="nav-item"><a class="nav-link" href="{{ url_for('registrar_separacion') }}">Registrar Separación</a></li>
           <li class="nav-item"><a class="nav-link" href="{{ url_for('registrar_compra') }}">Registrar Compra</a></li>
           <li class="nav-item"><a class="nav-link" href="{{ url_for('buscar_cliente') }}">Buscar Cliente</a></li>
+          
+          {% if current_user.is_authenticated and current_user.rol == 'admin' %}
           <li class="nav-item"><a class="nav-link" href="{{ url_for('agregar_lotes') }}">Agregar Lotes</a></li>
+          {% endif %}
 
           {% if current_user.is_authenticated and current_user.rol == 'admin' %}
           <li class="nav-item"><a class="nav-link" href="{{ url_for('reportes') }}">📊 Reportes</a></li>

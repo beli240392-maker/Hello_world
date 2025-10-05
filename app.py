@@ -236,6 +236,7 @@ patron_manzana = re.compile(r"^[A-Z]{1}['\"]?$")
 
 @app.route("/agregar_lotes", methods=["GET", "POST"])
 @login_required
+@admin_required
 @lotizacion_required
 def agregar_lotes():
     # Verifica lotización activa
