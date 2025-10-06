@@ -374,22 +374,25 @@ def registrar_compra():
 
     lotes = []
     if lotizacion:
-        # ✅ Si viene el parámetro "manzana" (por GET o POST), lo usamos para filtrar
-        from urllib.parse import unquote  # ✅ agregado para decodificar B%27 -> B'
+        from urllib.parse import unquote
         manzana_param = request.args.get("manzana") or request.form.get("manzana")
+
         if manzana_param:
-            manzana_param = unquote(manzana_param).strip()  # ✅ decodifica y limpia
+            # ✅ Normalizamos la manzana para evitar errores con apóstrofes o espacios
+            manzana_param = unquote(manzana_param).strip().replace("&#39;", "'").replace("&apos;", "'")
+
+            # 🔍 Filtramos de forma más robusta
             lotes = (
                 Lote.query
                 .filter(
                     Lote.lotizacion_id == lotizacion.id,
                     Lote.estado == "disponible",
-                    Lote.manzana == manzana_param
+                    db.func.replace(Lote.manzana, "’", "'") == manzana_param  # acepta distintos tipos de comilla
                 )
                 .all()
             )
         else:
-            # ✅ Solo mostrar disponibles por defecto (tu línea original)
+            # Muestra todos los disponibles si no hay parámetro
             lotes = Lote.query.filter_by(lotizacion_id=lotizacion.id, estado="disponible").all()
 
     sep_id = request.args.get("sep_id")
