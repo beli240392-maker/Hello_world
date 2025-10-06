@@ -176,17 +176,22 @@ def editar_cliente(cliente_id):
     return render_template("editar_cliente.html", cliente=cliente, lotizacion=lotizacion)
 
 # ------------------- API para obtener lotes por manzana -------------------
-@app.route("/get_lotes/<manzana>")
-def get_lotes(manzana):
-    lotizacion_id = session.get("lotizacion_id")
-    lotes = Lote.query.filter_by(manzana=manzana, estado="disponible", lotizacion_id=lotizacion_id).all()
-    data = []
-    for l in lotes:
-        data.append({
-            "id": int(l.id) if l.id else 0,
-            "numero": str(l.numero) if l.numero else ""
-        })
+@app.route("/get_lotes/<int:lotizacion_id>")
+def get_lotes(lotizacion_id):
+    lotes = Lote.query.filter_by(lotizacion_id=lotizacion_id, estado="disponible").all()
+    
+    # Escapamos apóstrofes y comillas problemáticas antes de enviar JSON
+    data = [
+        {
+            "id": l.id,
+            "manzana": l.manzana.replace("'", "’") if l.manzana else "",
+            "numero": l.numero
+        }
+        for l in lotes
+    ]
+    
     return jsonify(data)
+
 
 @app.route("/detalle_lote/<int:lote_id>")
 def detalle_lote(lote_id):
