@@ -533,7 +533,6 @@ def registrar_compra():
         lotizacion=lotizacion
     )
 
-
 # ------------------- REGISTRAR SEPARACION -------------------
 @app.route("/registrar_separacion", methods=["GET", "POST"])
 @lotizacion_required
