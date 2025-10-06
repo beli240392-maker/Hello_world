@@ -162,6 +162,7 @@ class Voucher(db.Model):
     nombres = db.Column(db.String(100), nullable=False)
     apellidos = db.Column(db.String(100), nullable=False)
     monto = db.Column(db.Float, nullable=False)
+    proyecto = db.Column(db.String(100))
     fecha_registro = db.Column(db.DateTime, default=lambda: datetime.now(pytz.timezone("America/Lima")))
 
 

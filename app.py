@@ -1090,6 +1090,8 @@ def vouchers():
         nombres = request.form.get("nombres")
         apellidos = request.form.get("apellidos")
         monto = float(request.form.get("monto") or 0)
+        proyecto = request.form.get("proyecto")
+
 
         # Verificar duplicado
         existe = Voucher.query.filter_by(codigo=codigo).first()
@@ -1102,6 +1104,7 @@ def vouchers():
                 nombres=nombres,
                 apellidos=apellidos,
                 monto=monto,
+                proyecto=proyecto,  
                 fecha_registro=datetime.now(lima)
             )
             db.session.add(v)
