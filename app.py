@@ -235,7 +235,7 @@ def estado_pagos():
 # ------------------- AGREGAR LOTES -------------------
 
 # Solo acepta manzanas de la A -Z y manzanas con apostrofe o comillas
-patron_manzana = re.compile(r"^[A-Z]{1}['\"]?$")
+patron_manzana = re.compile(r"^[A-Z]{1}[´]?$")
 
 @app.route("/agregar_lotes", methods=["GET", "POST"])
 @login_required
@@ -258,7 +258,7 @@ def agregar_lotes():
             manzana = request.form.get("manzana", "").strip().upper()
 
             if not patron_manzana.match(manzana):
-                flash("Formato de manzana inválido. Usa solo una letra mayúscula y opcionalmente un apóstrofe o comilla.", "danger")
+                flash("Formato de manzana inválido. Usa solo una letra mayúscula y opcionalmente un apostrofe")
                 return redirect(url_for("agregar_lotes"))
 
             try:
