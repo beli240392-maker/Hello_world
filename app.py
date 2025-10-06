@@ -364,7 +364,7 @@ def editar_area(lote_id):
 
 
 # ------------------- REGISTRAR COMPRA -------------------
-@app.route("/registrar_compra", methods=["GET", "POST"])
+@app.route("/registrar_compra", methods=["GET", "POST"]) 
 @lotizacion_required
 @login_required
 def registrar_compra():
@@ -374,8 +374,23 @@ def registrar_compra():
 
     lotes = []
     if lotizacion:
-        # ✅ Solo mostrar disponibles por defecto
-        lotes = Lote.query.filter_by(lotizacion_id=lotizacion.id, estado="disponible").all()
+        # ✅ Si viene el parámetro "manzana" (por GET o POST), lo usamos para filtrar
+        from urllib.parse import unquote  # ✅ agregado para decodificar B%27 -> B'
+        manzana_param = request.args.get("manzana") or request.form.get("manzana")
+        if manzana_param:
+            manzana_param = unquote(manzana_param).strip()  # ✅ decodifica y limpia
+            lotes = (
+                Lote.query
+                .filter(
+                    Lote.lotizacion_id == lotizacion.id,
+                    Lote.estado == "disponible",
+                    Lote.manzana == manzana_param
+                )
+                .all()
+            )
+        else:
+            # ✅ Solo mostrar disponibles por defecto (tu línea original)
+            lotes = Lote.query.filter_by(lotizacion_id=lotizacion.id, estado="disponible").all()
 
     sep_id = request.args.get("sep_id")
     lote = None
@@ -470,7 +485,6 @@ def registrar_compra():
             from werkzeug.utils import secure_filename
             boucher_path = guardar_boucher(boucher_file)
 
-
         # Calcular precio total con interés
         monto_total = precio
         if forma_pago == "credito" and interes > 0:
@@ -532,6 +546,7 @@ def registrar_compra():
         separacion=separacion,
         lotizacion=lotizacion
     )
+
 
 # ------------------- REGISTRAR SEPARACION -------------------
 @app.route("/registrar_separacion", methods=["GET", "POST"])
