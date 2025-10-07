@@ -145,6 +145,7 @@
           <th>Fecha</th>
           <th>Boucher</th>
           <th>Acta de Entrega</th>
+          <th>Comentario</th>
           <th>Vendedor</th>
         </tr>
       </thead>
@@ -175,7 +176,10 @@
             {% else %}
               <form action="{{ url_for('subir_acta', compra_id=c.id) }}" method="POST" enctype="multipart/form-data" style="display:inline;">
                 <input type="file" name="acta_file" required>
-                <button type="submit" class="btn btn-warning btn-sm">📄 Subir Acta</button>
+                <button type="submit" class="btn btn-warning btn-sm">
+                  
+                📄 Subir Acta
+              </button>
               </form>
             {% endif %}
             {% if c.entregado %}
@@ -183,6 +187,16 @@
             {% else %}
               <span class="badge bg-secondary ms-2">Pendiente</span>
             {% endif %}
+            <td>
+  <form action="{{ url_for('agregar_comentario', compra_id=c.id) }}" method="POST" class="d-flex">
+    <textarea name="comentario" rows="3" class="form-control form-control-sm me-2" 
+          style="min-width: 190px; max-width: 600px; resize: both;"
+          placeholder="Escribe un comentario">{{ c.comentario or '' }}</textarea>
+
+    <button type="submit" class="btn btn-primary btn-sm">💾</button>
+  </form>
+</td>
+
             <td>{{ c.usuario.username if c.usuario else "No registrado" }}</td>
           </td>
         </tr>
@@ -207,6 +221,7 @@
           <th>Fecha</th>
           <th>Acción</th>
           <th>Acta de Entrega</th>
+           <th>Comentario</th>
           <th>Vendedor</th>
         </tr>
       </thead>
@@ -244,6 +259,15 @@
             {% else %}
               <span class="badge bg-secondary ms-2">Pendiente</span>
             {% endif %}
+            <td>
+            <form action="{{ url_for('agregar_comentario', compra_id=c.id) }}" method="POST" class="d-flex">
+              <textarea name="comentario" rows="3" class="form-control form-control-sm me-2" 
+          style="min-width: 190px; max-width: 600px; resize: both;"
+          placeholder="Escribe un comentario">{{ c.comentario or '' }}</textarea>
+
+              <button type="submit" class="btn btn-primary btn-sm">💾</button>
+            </form>
+          </td>
             <td>{{ c.usuario.username if c.usuario else "No registrado" }}</td>
           </td>
           

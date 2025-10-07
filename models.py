@@ -80,7 +80,9 @@ class Compra(db.Model):
     anulada = db.Column(db.Boolean, default=False)
     interes = db.Column(db.Float, default=0)  # porcentaje de interés aplicado al crédito
     acta_entrega = db.Column(db.String(200), nullable=True)   # ruta archivo PDF/JPG
-    entregado = db.Column(db.Boolean, default=False)          # flag rápido
+    entregado = db.Column(db.Boolean, default=False)   
+    comentario = db.Column(db.Text)
+      
 
     # Relación con cuotas y pagos
     cuotas = db.relationship("Cuota", backref="compra", lazy=True, cascade="all, delete-orphan")

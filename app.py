@@ -554,6 +554,24 @@ def registrar_compra():
     )
 
 
+
+@app.route("/agregar_comentario/<int:compra_id>", methods=["POST"])
+@login_required
+def agregar_comentario(compra_id):
+    compra = Compra.query.get_or_404(compra_id)
+    comentario = request.form.get("comentario", "").strip()
+
+    if comentario:
+        compra.comentario = comentario
+        db.session.commit()
+        flash("✅ Comentario guardado correctamente.", "success")
+    else:
+        flash("⚠️ El comentario está vacío o no se pudo guardar.", "warning")
+
+    # Redirigir de vuelta a la vista del cliente correcto
+    return redirect(url_for("ver_cliente", cliente_id=compra.cliente_id))
+
+
 # ------------------- REGISTRAR SEPARACION -------------------
 @app.route("/registrar_separacion", methods=["GET", "POST"])
 @lotizacion_required
