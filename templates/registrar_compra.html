@@ -21,7 +21,7 @@
     </div>
     <div class="mb-3">
       <label for="apellidos" class="form-label">Apellidos:</label>
-      <input type="text" class="form-control" name="apellidos" value="{{ cliente.apellidos if cliente else '' }}">
+      <input type="text" class="form-control" name="apellidos" value="{{ cliente.apellidos if cliente else '' }}" required>
     </div>
     <div class="mb-3">
   <label for="dni" class="form-label">DNI:</label>
@@ -34,25 +34,25 @@
     <div class="mb-3">
       <label for="estado_civil" class="form-label">Estado Civil</label>
       <input type="text" name="estado_civil" class="form-control" 
-             value="{{ cliente.estado_civil if cliente else '' }}">
+             value="{{ cliente.estado_civil if cliente else '' }}" required>
     </div>
 
     <div class="mb-3">
       <label for="ocupacion" class="form-label">Ocupación</label>
       <input type="text" name="ocupacion" class="form-control" 
-             value="{{ cliente.ocupacion if cliente else '' }}">
+             value="{{ cliente.ocupacion if cliente else '' }}" required>
     </div>
     <div class="mb-3">
       <label for="telefono" class="form-label">Teléfono:</label>
-      <input type="text" class="form-control" name="telefono" value="{{ cliente.telefono if cliente else '' }}">
+      <input type="text" class="form-control" name="telefono" value="{{ cliente.telefono if cliente else '' }}" required>
     </div>
     <div class="mb-3">
       <label for="direccion" class="form-label">Dirección:</label>
-      <input type="text" class="form-control" name="direccion" value="{{ cliente.direccion if cliente else '' }}">
+      <input type="text" class="form-control" name="direccion" value="{{ cliente.direccion if cliente else '' }}" required>
     </div>
     <div class="mb-3">
       <label for="ciudad" class="form-label">Ciudad:</label>
-      <input type="text" class="form-control" name="ciudad" value="{{ cliente.ciudad if cliente else '' }}">
+      <input type="text" class="form-control" name="ciudad" value="{{ cliente.ciudad if cliente else '' }}" required>
     </div>
   </div>
 

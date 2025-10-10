@@ -12,7 +12,7 @@
     </div>
     <div class="mb-3">
       <label for="apellidos" class="form-label">Apellidos:</label>
-      <input type="text" class="form-control" name="apellidos" value="{{ cliente.apellidos if cliente else '' }}">
+      <input type="text" class="form-control" name="apellidos" value="{{ cliente.apellidos if cliente else '' }}" required>
     </div>
     <div class="mb-3">
   <label for="dni" class="form-label">DNI:</label>
@@ -24,24 +24,24 @@
     </div>
     <div class="mb-3">
       <label for="telefono" class="form-label">Teléfono:</label>
-      <input type="text" class="form-control" name="telefono" value="{{ cliente.telefono if cliente else '' }}">
+      <input type="text" class="form-control" name="telefono" value="{{ cliente.telefono if cliente else '' }}" required>
     </div>
     <div class="mb-3">
   <label for="estado_civil">Estado Civil</label>
-  <input type="text" class="form-control" name="estado_civil" placeholder="Soltero, Casado, etc.">
+  <input type="text" class="form-control" name="estado_civil" placeholder="Soltero, Casado, etc." required>
 </div>
 
 <div class="mb-3">
   <label for="ocupacion">Ocupación</label>
-  <input type="text" class="form-control" name="ocupacion" placeholder="Ocupación del cliente">
+  <input type="text" class="form-control" name="ocupacion" placeholder="Ocupación del cliente" required>
 </div>
     <div class="mb-3">
       <label for="direccion" class="form-label">Dirección:</label>
-      <input type="text" class="form-control" name="direccion" value="{{ cliente.direccion if cliente else '' }}">
+      <input type="text" class="form-control" name="direccion" value="{{ cliente.direccion if cliente else '' }}" required>
     </div>
     <div class="mb-3">
       <label for="ciudad" class="form-label">Ciudad:</label>
-      <input type="text" class="form-control" name="ciudad" value="{{ cliente.ciudad if cliente else '' }}">
+      <input type="text" class="form-control" name="ciudad" value="{{ cliente.ciudad if cliente else '' }}" required>
     </div>
   </div>
 
