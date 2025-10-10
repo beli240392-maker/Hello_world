@@ -7,11 +7,11 @@
   <!-- Formulario agregar voucher -->
   <form method="POST" enctype="multipart/form-data" class="row g-2 mb-4">
     <div class="col-md-2"><input name="codigo" class="form-control" placeholder="Código" required></div>
-    <div class="col-md-2"><input name="banco" class="form-control" placeholder="Banco"></div>
-    <div class="col-md-2"><input name="nombres" class="form-control" placeholder="Nombres"></div>
-    <div class="col-md-2"><input name="apellidos" class="form-control" placeholder="Apellidos"></div>
-    <div class="col-md-2"><input name="monto" class="form-control" placeholder="Monto"></div>
-    <div class="col-md-2"><input name="proyecto" class="form-control" placeholder="Proyecto"></div>
+    <div class="col-md-2"><input name="banco" class="form-control" placeholder="Banco" required></div>
+    <div class="col-md-2"><input name="nombres" class="form-control" placeholder="Nombres" required></div>
+    <div class="col-md-2"><input name="apellidos" class="form-control" placeholder="Apellidos" required></div>
+    <div class="col-md-2"><input name="monto" class="form-control" placeholder="Monto" required></div>
+    <div class="col-md-2"><input name="proyecto" class="form-control" placeholder="Proyecto" required></div>
     <div class="col-12"><button class="btn btn-primary mt-2">➕ Registrar Voucher</button></div>
   </form>
 
@@ -67,6 +67,7 @@
           <th>Nombres</th>
           <th>Apellidos</th>
           <th>Monto</th>
+          <th>Proyecto</th>
           <th>Fecha</th>
         </tr>
       </thead>
@@ -78,6 +79,7 @@
             <td>{{ v.nombres }}</td>
             <td>{{ v.apellidos }}</td>
             <td>S/ {{ '%.2f'|format(v.monto or 0) }}</td>
+            <td>{{ v.proyecto }}</td>
             <td>{{ v.fecha_registro.strftime("%d/%m/%Y %H:%M") }}</td>
 
 
