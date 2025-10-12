@@ -219,6 +219,7 @@
           <th>Cuotas Pagadas</th>
           <th>Total Cuotas</th>
           <th>Fecha</th>
+          <th>Voucher</th>
           <th>Acción</th>
           <th>Acta de Entrega</th>
            <th>Comentario</th>
@@ -234,6 +235,8 @@
           <td>{{ c.cuotas | selectattr("pagada") | list | length }}</td>
           <td>{{ c.cuotas_total }}</td>
           <td>{{ c.fecha_compra.strftime("%d/%m/%Y") }}</td>
+          <td><a href="{{ url_for('static', filename=c.boucher_inicial) }}" target="_blank" class="btn btn-sm btn-primary">Ver Voucher</a>
+              <form action="{{ url_for('liberar_lote', id=c.lote_id, tipo='compra') }}" method="POST" style="display:inline;"></td>
           <td>
             <a href="{{ url_for('detalle_cuotas', compra_id=c.id) }}" class="btn btn-sm btn-info">Ver Cuotas</a>
             <form action="{{ url_for('liberar_lote', id=c.lote_id, tipo='compra') }}" method="POST" style="display:inline;">
