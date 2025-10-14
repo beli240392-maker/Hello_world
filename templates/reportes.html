@@ -7,6 +7,9 @@
   <input type="date" name="fecha" class="form-control w-auto" value="{{ fecha }}">
   <button type="submit" class="btn btn-primary">Filtrar</button>
 </form>
+<a href="{{ url_for('exportar_ventas') }}" class="btn btn-success float-end mb-3">
+  📤 Exportar Ventas
+</a>
 
 <div class="row mb-4 text-center">
   <div class="col-md-3">

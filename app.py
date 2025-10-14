@@ -11,6 +11,7 @@ from models import Usuario
 from werkzeug.security import check_password_hash, generate_password_hash
 from flask import Flask
 from flask_login import logout_user, login_required
+from flask import send_file, session
 from functools import wraps
 from flask import session, redirect, url_for, flash
 import re
@@ -18,6 +19,8 @@ from sqlalchemy import cast, Integer
 from flask_login import current_user
 import pytz
 import os
+import io
+import openpyxl
 from dotenv import load_dotenv
 from sqlalchemy import func
 from sqlalchemy import or_
@@ -152,7 +155,6 @@ def lotes_disponibles():
                            lotizacion=lotizacion)
 
 @app.route("/editar_cliente/<int:cliente_id>", methods=["GET", "POST"])
-@admin_required
 def editar_cliente(cliente_id):
     cliente = Cliente.query.get_or_404(cliente_id)
     lotizacion = None
@@ -495,6 +497,17 @@ def registrar_compra():
         monto_total = precio
         if forma_pago == "credito" and interes > 0:
             monto_total = precio * (1 + interes / 100)
+        
+        # ✅ Fecha de compra (si no se ingresa, usa la actual)
+        fecha_compra_str = request.form.get("fecha_compra")
+        if fecha_compra_str:
+            try:
+                fecha_compra = datetime.strptime(fecha_compra_str, "%Y-%m-%d")
+            except ValueError:
+                fecha_compra = datetime.utcnow()
+        else:
+            fecha_compra = datetime.utcnow()
+
 
         # Crear compra
         compra = Compra(
@@ -505,9 +518,10 @@ def registrar_compra():
             inicial=inicial,
             cuotas_total=cuotas_total,
             cuota_monto=(monto_total - inicial) / cuotas_total if forma_pago == "credito" and cuotas_total > 0 else 0,
-            boucher_inicial=boucher_path,  # ✅ Ahora sí correcto
+            boucher_inicial=boucher_path,  
             interes=interes,
-            usuario_id=current_user.id
+            usuario_id=current_user.id,
+            fecha_compra=fecha_compra 
         )
         db.session.add(compra)
         db.session.commit()
@@ -524,6 +538,7 @@ def registrar_compra():
                     fecha_vencimiento=fecha_vencimiento
                 )
                 db.session.add(cuota)
+ 
 
         # Si venía de separación → marcar inactiva
         sep_id = request.form.get("sep_id")
@@ -1141,6 +1156,83 @@ def vouchers():
     return render_template("vouchers.html", vouchers=vouchers, codigo_buscar=codigo_buscar,pytz=pytz)
 
 
+@app.route("/exportar_ventas")
+@login_required
+@lotizacion_required
+def exportar_ventas():
+    lotizacion_id = session.get("lotizacion_id")
+
+    if not lotizacion_id:
+        flash("No hay una lotización activa seleccionada.", "warning")
+        return redirect(url_for("home"))
+
+    # Crear un libro de Excel
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Ventas"
+
+    # Encabezados
+    encabezados = [
+        "Cliente", "DNI", "Teléfono", "Dirección", "Ciudad", 
+        "Estado Civil", "Ocupación",
+        "Manzana", "Lote", "Forma de Pago", "Precio", "Inicial", 
+        "Cuotas", "Interés", "Vendedor", "Fecha de Compra"
+    ]
+    ws.append(encabezados)
+
+    # 🔹 Filtramos solo las compras de la lotización activa
+    compras = (
+        Compra.query
+        .join(Cliente)
+        .join(Lote)
+        .filter(Lote.lotizacion_id == lotizacion_id)
+        .join(Usuario, isouter=True)
+        .all()
+    )
+
+    for compra in compras:
+        fila = [
+            compra.cliente.nombre + " " + compra.cliente.apellidos,
+            compra.cliente.dni,
+            compra.cliente.telefono or "",
+            compra.cliente.direccion or "",
+            compra.cliente.ciudad or "",
+            compra.cliente.estado_civil or "",
+            compra.cliente.ocupacion or "",
+            compra.lote.manzana,
+            compra.lote.numero,
+            compra.forma_pago,
+            compra.precio,
+            compra.inicial,
+            compra.cuotas_total,
+            compra.interes,
+            compra.usuario.username if compra.usuario else "No registrado",
+            compra.fecha_compra.strftime("%d/%m/%Y %H:%M"),
+        ]
+        ws.append(fila)
+
+    # Ajustar ancho de columnas
+    for columna in ws.columns:
+        max_length = 0
+        columna_letra = columna[0].column_letter
+        for celda in columna:
+            if celda.value:
+                max_length = max(max_length, len(str(celda.value)))
+        ws.column_dimensions[columna_letra].width = max_length + 2
+
+    # Guardar en memoria y enviar al usuario
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    nombre_archivo = f"ventas_lotizacion_{lotizacion_id}.xlsx"
+
+    return send_file(
+        output,
+        as_attachment=True,
+        download_name=nombre_archivo,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
 
 
 @app.route("/logout")

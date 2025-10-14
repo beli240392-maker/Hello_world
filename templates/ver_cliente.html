@@ -39,10 +39,8 @@
             <p><strong>Ciudad:</strong> {{ cliente.ciudad }}</p>
           </div>
         </div>
-        {% if current_user.rol == "admin" %}
         <a href="{{ url_for('editar_cliente', cliente_id=cliente.id) }}" 
            class="btn btn-primary btn-sm mt-2">✏️ Editar Cliente</a>
-        {% endif %}
       </div>
 
       <!-- Fotos DNI en horizontal -->
