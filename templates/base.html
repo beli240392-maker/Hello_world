@@ -90,9 +90,9 @@
           <li class="nav-item"><a class="nav-link" href="{{ url_for('agregar_lotes') }}">Agregar Lotes</a></li>
           {% endif %}
 
-          {% if current_user.is_authenticated and current_user.rol == 'admin' %}
+          
           <li class="nav-item"><a class="nav-link" href="{{ url_for('reportes') }}">📊 Reportes</a></li>
-          {% endif %}
+          
 
           <li class="nav-item"><a class="nav-link" href="{{ url_for('vouchers') }}">📑 Vouchers</a></li>
         </ul>

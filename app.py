@@ -981,7 +981,6 @@ def subir_acta(compra_id):
 # ------------------- REPORTES -------------------
 @app.route("/reportes", methods=["GET"])
 @login_required
-@admin_required
 @lotizacion_required
 def reportes():
     lotizacion_id = session.get("lotizacion_id")
