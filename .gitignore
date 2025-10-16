@@ -22,3 +22,7 @@ Thumbs.db
 static/dni/
 static/bouchers/
 static/actas/
+static/escrituras/*
+static/otros_docs/*
+!static/escrituras/.gitkeep
+!static/otros_docs/.gitkeep

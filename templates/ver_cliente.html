@@ -118,15 +118,24 @@
     {% endif %}
   </td>
   <td>
-    {% if c.acta_entrega %}
-      <a href="{{ url_for('static', filename=c.acta_entrega) }}" target="_blank" class="btn btn-success btn-sm">✅ Ver Acta</a>
-    {% else %}
-      <form action="{{ url_for('subir_acta', compra_id=c.id) }}" method="POST" enctype="multipart/form-data">
-        <input type="file" name="acta_file" required>
-        <button type="submit" class="btn btn-warning btn-sm">📄 Subir Acta</button>
-      </form>
-    {% endif %}
-  </td>
+  {% if c.acta_entrega %}
+    <a href="{{ url_for('static', filename=c.acta_entrega) }}" target="_blank" class="btn btn-success btn-sm mb-1 w-100">
+      ✅ Ver Acta
+    </a>
+  {% else %}
+    <form action="{{ url_for('subir_acta', compra_id=c.id) }}" method="POST" enctype="multipart/form-data" class="d-flex flex-column align-items-start gap-1">
+      <input type="file" name="acta_file" class="form-control form-control-sm" required>
+      <button type="submit" class="btn btn-warning btn-sm w-100">
+        📄 Subir Acta
+      </button>
+    </form>
+  {% endif %}
+  {% if c.entregado %}
+    <span class="badge bg-success mt-1">Entregado</span>
+  {% else %}
+    <span class="badge bg-secondary mt-1">Pendiente</span>
+  {% endif %}
+</td>
   <td>
     <form action="{{ url_for('agregar_comentario', compra_id=c.id) }}" method="POST" class="d-flex">
       <textarea name="comentario" rows="3" class="form-control form-control-sm me-2"
@@ -237,24 +246,58 @@
   <td>{{ c.cuotas | selectattr("pagada") | list | length }}</td>
   <td>{{ c.cuotas_total }}</td>
   <td>{{ c.fecha_compra.strftime("%d/%m/%Y") }}</td>
-  <td><a href="{{ url_for('static', filename=c.boucher_inicial) }}" target="_blank" class="btn btn-sm btn-primary">Ver Voucher</a></td>
-  <td><a href="{{ url_for('detalle_cuotas', compra_id=c.id) }}" class="btn btn-sm btn-info">Ver Cuotas</a></td>
   <td>
-    {% if c.acta_entrega %}
-      <a href="{{ url_for('static', filename=c.acta_entrega) }}" target="_blank" class="btn btn-success btn-sm">✅ Ver Acta</a>
-    {% else %}
-      <form action="{{ url_for('subir_acta', compra_id=c.id) }}" method="POST" enctype="multipart/form-data">
-        <input type="file" name="acta_file" required>
-        <button type="submit" class="btn btn-warning btn-sm">📄 Subir Acta</button>
-      </form>
-    {% endif %}
-  </td>
-  <td>
-    <form action="{{ url_for('agregar_comentario', compra_id=c.id) }}" method="POST" class="d-flex">
-      <textarea name="comentario" rows="3" class="form-control form-control-sm me-2"
-      placeholder="Escribe un comentario">{{ c.comentario or '' }}</textarea>
-      <button type="submit" class="btn btn-primary btn-sm">💾</button>
+  {% if c.boucher_inicial %}
+    <a href="{{ url_for('static', filename=c.boucher_inicial) }}" target="_blank" class="btn btn-sm btn-primary">Ver Voucher</a>
+  {% else %}
+    <span class="text-muted">No disponible</span>
+  {% endif %}
+</td>
+
+<td>
+  <a href="{{ url_for('detalle_cuotas', compra_id=c.id) }}" class="btn btn-sm btn-info">Ver Cuotas</a>
+
+  {% if current_user.rol == "admin" %}
+  <form action="{{ url_for('liberar_lote', id=c.lote_id, tipo='compra') }}" method="POST" style="display:inline;">
+    <button type="submit" class="btn btn-danger btn-sm mt-1"
+            onclick="return confirm('¿Seguro que deseas liberar esta compra a crédito?');">
+      Liberar
+    </button>
+  </form>
+  {% endif %}
+</td>
+    <td>
+  {% if c.acta_entrega %}
+    <a href="{{ url_for('static', filename=c.acta_entrega) }}" target="_blank" class="btn btn-success btn-sm mb-1 w-100">
+      ✅ Ver Acta
+    </a>
+  {% else %}
+    <form action="{{ url_for('subir_acta', compra_id=c.id) }}" method="POST" enctype="multipart/form-data" class="d-flex flex-column align-items-start gap-1">
+      <input type="file" name="acta_file" class="form-control form-control-sm" required>
+      <button type="submit" class="btn btn-warning btn-sm w-100">
+        📄 Subir Acta
+      </button>
     </form>
+  {% endif %}
+  {% if c.entregado %}
+    <span class="badge bg-success mt-1">Entregado</span>
+  {% else %}
+    <span class="badge bg-secondary mt-1">Pendiente</span>
+  {% endif %}
+</td>
+  <td>
+    <form action="{{ url_for('agregar_comentario', compra_id=c.id) }}" method="POST" class="mt-1">
+  <div class="input-group">
+    <textarea name="comentario" 
+              rows="3" 
+              class="form-control form-control-sm"
+              style="min-width: 250px; max-width: 100%; resize: vertical;"
+              placeholder="Escribe un comentario">{{ c.comentario or '' }}</textarea>
+    <button type="submit" class="btn btn-primary btn-sm">
+      💾
+    </button>
+  </div>
+</form>
   </td>
   <td>{{ c.usuario.username if c.usuario else "No registrado" }}</td>
 </tr>
