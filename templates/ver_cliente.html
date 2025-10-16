@@ -2,7 +2,7 @@
 {% block content %}
 <h2>🔍 Buscar Cliente</h2>
 
-<!-- 🔄 Buscador siempre visible -->
+<!-- 🔄 Buscador -->
 <form method="POST" class="mb-3">
   <div class="input-group" style="max-width: 400px;">
     <input type="text" id="criterio" name="q" class="form-control"
@@ -23,7 +23,7 @@
   <div class="card-body">
     <div class="row">
       
-      <!-- Información del cliente en 2 columnas -->
+      <!-- Información del cliente -->
       <div class="col-md-7">
         <div class="row">
           <div class="col-md-6">
@@ -43,14 +43,14 @@
            class="btn btn-primary btn-sm mt-2">✏️ Editar Cliente</a>
       </div>
 
-      <!-- Fotos DNI en horizontal -->
+      <!-- Fotos DNI -->
       <div class="col-md-5 text-center">
         <div class="d-flex justify-content-center gap-3">
           {% if cliente.dni_frontal %}
             <div>
               <a href="{{ url_for('static', filename=cliente.dni_frontal) }}" target="_blank">
                 <img src="{{ url_for('static', filename=cliente.dni_frontal) }}" 
-                     class="img-thumbnail" style="max-width: 120px; height: auto;">
+                     class="img-thumbnail" style="max-width: 120px;">
               </a>
               <p class="text-muted small mt-1">DNI Frontal</p>
             </div>
@@ -59,14 +59,13 @@
             <div>
               <a href="{{ url_for('static', filename=cliente.dni_reverso) }}" target="_blank">
                 <img src="{{ url_for('static', filename=cliente.dni_reverso) }}" 
-                     class="img-thumbnail" style="max-width: 120px; height: auto;">
+                     class="img-thumbnail" style="max-width: 120px;">
               </a>
               <p class="text-muted small mt-1">DNI Reverso</p>
             </div>
           {% endif %}
         </div>
       </div>
-
     </div>
   </div>
 </div>
@@ -81,244 +80,264 @@
     </div>
   </div>
 </div>
-
-      
+{% endif %}
+<!-- ===============================
+     COMPRAS AL CONTADO
+================================ -->
+{% if compras_contado %}
+<h3>🟢 Compras al Contado</h3>
+<div class="table-responsive">
+<table class="table table-bordered table-striped">
+<thead class="table-dark">
+<tr>
+  <th>Lote</th>
+  <th>Precio</th>
+  <th>Fecha</th>
+  <th>Boucher</th>
+  <th>Acta de Entrega</th>
+  <th>Comentario</th>
+  <th>Vendedor</th>
+</tr>
+</thead>
+<tbody>
+{% for c in compras_contado %}
+<tr>
+  <td>Mz {{ c.lote.manzana }} - Lt {{ c.lote.numero }}</td>
+  <td>S/ {{ "%.2f"|format(c.precio) }}</td>
+  <td>{{ c.fecha_compra.strftime("%d/%m/%Y") }}</td>
+  <td>
+    {% if c.boucher_inicial %}
+      <a href="{{ url_for('static', filename=c.boucher_inicial) }}" target="_blank" class="btn btn-sm btn-primary">Ver Boucher</a>
+      {% if current_user.rol == "admin" %}
+      <form action="{{ url_for('liberar_lote', id=c.lote_id, tipo='compra') }}" method="POST" style="display:inline;">
+        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('¿Seguro que deseas liberar esta compra?');">Liberar</button>
+      </form>
+      {% endif %}
+    {% else %}
+      <span class="text-muted">No disponible</span>
     {% endif %}
-
-    <!-- SEPARACIONES ACTIVAS -->
-    {% if separaciones %}
-    <h3>🔴 Separaciones Activas</h3>
-    <div class="table-responsive">
-    <table class="table table-bordered table-striped">
-      <thead class="table-dark">
-        <tr>
-          <th>Lote</th>
-          <th>Monto</th>
-          <th>Fecha</th>
-          <th>Boucher</th>
-          <th>Acción</th>
-          <th>Vendedor</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for sep in separaciones %}
-        <tr>
-          <td>Mz {{ sep.lote.manzana }} - Lt {{ sep.lote.numero }}</td>
-          <td>S/ {{ "%.2f"|format(sep.monto) }}</td>
-          <td>{{ sep.fecha.strftime("%d/%m/%Y") }}</td>
-          <td>
-            {% if sep.boucher %}
-              <a href="{{ url_for('static', filename=sep.boucher) }}" target="_blank" class="btn btn-sm btn-primary">Ver Boucher</a>
-            {% else %}
-              <span class="text-muted">No disponible</span>
-            {% endif %}
-          </td>
-          <td class="d-flex flex-column gap-1">
-            <form method="GET" action="{{ url_for('registrar_compra') }}">
-              <input type="hidden" name="sep_id" value="{{ sep.id }}">
-              <button type="submit" class="btn btn-sm btn-success">Convertir a Compra</button>
-            </form>
-            <form method="POST" action="{{ url_for('liberar_separacion', sep_id=sep.id) }}"
-                  onsubmit="return confirm('¿Seguro que deseas liberar este lote separado?');">
-              <button type="submit" class="btn btn-sm btn-danger">Liberar</button>
-            </form>
-          </td>
-          <td>{{ sep.usuario.username if sep.usuario else "No registrado" }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
+  </td>
+  <td>
+    {% if c.acta_entrega %}
+      <a href="{{ url_for('static', filename=c.acta_entrega) }}" target="_blank" class="btn btn-success btn-sm">✅ Ver Acta</a>
+    {% else %}
+      <form action="{{ url_for('subir_acta', compra_id=c.id) }}" method="POST" enctype="multipart/form-data">
+        <input type="file" name="acta_file" required>
+        <button type="submit" class="btn btn-warning btn-sm">📄 Subir Acta</button>
+      </form>
     {% endif %}
+  </td>
+  <td>
+    <form action="{{ url_for('agregar_comentario', compra_id=c.id) }}" method="POST" class="d-flex">
+      <textarea name="comentario" rows="3" class="form-control form-control-sm me-2"
+      placeholder="Escribe un comentario">{{ c.comentario or '' }}</textarea>
+      <button type="submit" class="btn btn-primary btn-sm">💾</button>
+    </form>
+  </td>
+  <td>{{ c.usuario.username if c.usuario else "No registrado" }}</td>
+</tr>
 
-    <!-- COMPRAS AL CONTADO -->
-    {% if compras_contado %}
-    <h3>🟢 Compras al Contado</h3>
-    <div class="table-responsive">
-    <table class="table table-bordered table-striped">
-      <thead class="table-dark">
-        <tr>
-          <th>Lote</th>
-          <th>Precio</th>
-          <th>Fecha</th>
-          <th>Boucher</th>
-          <th>Acta de Entrega</th>
-          <th>Comentario</th>
-          <th>Vendedor</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for c in compras_contado %}
-        <tr>
-          <td>Mz {{ c.lote.manzana }} - Lt {{ c.lote.numero }}</td>
-          <td>S/ {{ "%.2f"|format(c.precio) }}</td>
-          <td>{{ c.fecha_compra.strftime("%d/%m/%Y") }}</td>
-          <td>
-            {% if c.boucher_inicial %}
-              <a href="{{ url_for('static', filename=c.boucher_inicial) }}" target="_blank" class="btn btn-sm btn-primary">Ver Boucher</a>
-              <form action="{{ url_for('liberar_lote', id=c.lote_id, tipo='compra') }}" method="POST" style="display:inline;">
-                {% if current_user.rol == "admin" %}
-                <button type="submit" class="btn btn-danger btn-sm"
-                        onclick="return confirm('¿Seguro que deseas liberar esta compra?');">
-                  Liberar
+<!-- 🎨 DOCUMENTOS ADICIONALES - CONTADO -->
+<tr>
+  <td colspan="7" class="bg-light">
+    <div class="p-3 rounded shadow-sm bg-white border">
+      <h6 class="text-primary mb-3"><i class="fas fa-folder-open"></i> Documentos Adicionales</h6>
+      <div class="row g-3">
+
+        <!-- Escritura -->
+        <div class="col-md-4">
+          <div class="card h-100 shadow-sm border-0 bg-light">
+            <div class="card-body">
+              <strong class="d-block mb-2"><i class="fas fa-file-contract"></i> Escritura/Minuta</strong>
+              {% if c.escritura %}
+                <a href="{{ url_for('static', filename=c.escritura) }}" target="_blank" class="btn btn-success btn-sm me-2"><i class="fas fa-eye"></i> Ver</a>
+                {% if current_user.rol == 'admin' %}
+                <form method="POST" action="{{ url_for('eliminar_documento', compra_id=c.id, tipo='escritura') }}" style="display:inline;">
+                  <button type="submit" class="btn btn-danger btn-sm"><i class="fas fa-trash"></i></button>
+                </form>
                 {% endif %}
-                </button>
-              </form>
-            {% else %}
-              <span class="text-muted">No disponible</span>
-            {% endif %}
-          </td>
-          <td>
-            {% if c.acta_entrega %}
-              <a href="{{ url_for('static', filename=c.acta_entrega) }}" target="_blank" class="btn btn-success btn-sm">✅ Ver Acta</a>
-            {% else %}
-              <form action="{{ url_for('subir_acta', compra_id=c.id) }}" method="POST" enctype="multipart/form-data" style="display:inline;">
-                <input type="file" name="acta_file" required>
-                <button type="submit" class="btn btn-warning btn-sm">
-                  
-                📄 Subir Acta
-              </button>
-              </form>
-            {% endif %}
-            {% if c.entregado %}
-              <span class="badge bg-success ms-2">Entregado</span>
-            {% else %}
-              <span class="badge bg-secondary ms-2">Pendiente</span>
-            {% endif %}
-            <td>
-  <form action="{{ url_for('agregar_comentario', compra_id=c.id) }}" method="POST" class="d-flex">
-    <textarea name="comentario" rows="3" class="form-control form-control-sm me-2" 
-          style="min-width: 190px; max-width: 600px; resize: both;"
-          placeholder="Escribe un comentario">{{ c.comentario or '' }}</textarea>
-
-    <button type="submit" class="btn btn-primary btn-sm">💾</button>
-  </form>
-</td>
-
-            <td>{{ c.usuario.username if c.usuario else "No registrado" }}</td>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-    {% endif %}
-
-    <!-- COMPRAS A CRÉDITO -->
-    {% if compras_credito %}
-    <h3>🟡 Compras a Crédito</h3>
-    <div class="table-responsive">
-    <table class="table table-bordered table-striped">
-      <thead class="table-dark">
-        <tr>
-          <th>Lote</th>
-          <th>Precio</th>
-          <th>Inicial</th>
-          <th>Cuotas Pagadas</th>
-          <th>Total Cuotas</th>
-          <th>Fecha</th>
-          <th>Voucher</th>
-          <th>Acción</th>
-          <th>Acta de Entrega</th>
-           <th>Comentario</th>
-          <th>Vendedor</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for c in compras_credito %}
-        <tr>
-          <td>Mz {{ c.lote.manzana }} - Lt {{ c.lote.numero }}</td>
-          <td>S/ {{ "%.2f"|format(c.precio) }}</td>
-          <td>S/ {{ "%.2f"|format(c.inicial) }}</td>
-          <td>{{ c.cuotas | selectattr("pagada") | list | length }}</td>
-          <td>{{ c.cuotas_total }}</td>
-          <td>{{ c.fecha_compra.strftime("%d/%m/%Y") }}</td>
-          <td><a href="{{ url_for('static', filename=c.boucher_inicial) }}" target="_blank" class="btn btn-sm btn-primary">Ver Voucher</a>
-              <form action="{{ url_for('liberar_lote', id=c.lote_id, tipo='compra') }}" method="POST" style="display:inline;"></td>
-          <td>
-            <a href="{{ url_for('detalle_cuotas', compra_id=c.id) }}" class="btn btn-sm btn-info">Ver Cuotas</a>
-            <form action="{{ url_for('liberar_lote', id=c.lote_id, tipo='compra') }}" method="POST" style="display:inline;">
-              {% if current_user.rol == "admin" %}
-              <button type="submit" class="btn btn-danger btn-sm"
-                      onclick="return confirm('¿Seguro que deseas liberar esta compra?');">
-                Liberar
+              {% else %}
+                <span class="text-muted d-block mb-2">No subido</span>
+                <button class="btn btn-outline-primary btn-sm mt-1" type="button" data-bs-toggle="collapse" data-bs-target="#formEscritura{{ c.id }}"><i class="fas fa-upload"></i> Subir Escritura</button>
+                <div class="collapse mt-3" id="formEscritura{{ c.id }}">
+                  <form method="POST" action="{{ url_for('subir_documentos', compra_id=c.id) }}" enctype="multipart/form-data">
+                    <input type="hidden" name="tipo_documento" value="escritura">
+                    <div class="mb-2"><input type="file" name="archivo" class="form-control form-control-sm" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" required></div>
+                    <button type="submit" class="btn btn-success btn-sm"><i class="fas fa-upload"></i> Guardar</button>
+                  </form>
+                </div>
               {% endif %}
-              </button>
-            </form>
-          </td>
-          <td>
-            {% if c.acta_entrega %}
-              <a href="{{ url_for('static', filename=c.acta_entrega) }}" target="_blank" class="btn btn-success btn-sm">✅ Ver Acta</a>
-            {% else %}
-              <form action="{{ url_for('subir_acta', compra_id=c.id) }}" method="POST" enctype="multipart/form-data" style="display:inline%;">
-                <input type="file" name="acta_file" required>
-                <button type="submit" class="btn btn-warning btn-sm">📄 Subir Acta</button>
-              </form>
-            {% endif %}
-            {% if c.entregado %}
-              <span class="badge bg-success ms-2">Entregado</span>
-            {% else %}
-              <span class="badge bg-secondary ms-2">Pendiente</span>
-            {% endif %}
-            <td>
-            <form action="{{ url_for('agregar_comentario', compra_id=c.id) }}" method="POST" class="d-flex">
-              <textarea name="comentario" rows="3" class="form-control form-control-sm me-2" 
-          style="min-width: 190px; max-width: 600px; resize: both;"
-          placeholder="Escribe un comentario">{{ c.comentario or '' }}</textarea>
+            </div>
+          </div>
+        </div>
 
-              <button type="submit" class="btn btn-primary btn-sm">💾</button>
-            </form>
-          </td>
-            <td>{{ c.usuario.username if c.usuario else "No registrado" }}</td>
-          </td>
-          
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-    {% endif %}
-
-    <!-- HISTORIAL DEL CLIENTE -->
-{% if historial %}
-<div class="mt-5">
-  <h3 class="mb-3 d-flex align-items-center">
-    <span class="me-2">📜</span> <span>Historial del Cliente</span>
-  </h3>
-
-  <div class="table-responsive">
-    <table class="table table-bordered table-striped table-hover align-middle table-sm">
-      <thead class="table-dark text-center">
-        <tr>
-          <th>Tipo</th>
-          <th>Lote</th>
-          <th>Detalle</th>
-          <th>Fecha</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for h in historial %}
-        <tr>
-          <td class="text-center">
-            {% if "convertida" in h.tipo|lower %}
-              <span class="badge bg-success">{{ h.tipo }}</span>
-            {% elif "liberada" in h.tipo|lower %}
-              <span class="badge bg-danger">{{ h.tipo }}</span>
-            {% else %}
-              <span class="badge bg-secondary">{{ h.tipo }}</span>
-            {% endif %}
-          </td>
-          <td class="text-center">Mz {{ h.lote.manzana }} - Lt {{ h.lote.numero }}</td>
-          <td class="text-break">{{ h.detalle }}</td>
-          <td class="text-center">{{ h.fecha.strftime("%d/%m/%Y %H:%M") }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
+        <!-- Otros Documentos -->
+        <div class="col-md-8">
+          <div class="card h-100 shadow-sm border-0 bg-light">
+            <div class="card-body">
+              <strong class="d-block mb-2"><i class="fas fa-copy"></i> Otros Documentos</strong>
+              {% if c.otros_documentos %}
+                {% set otros = c.otros_documentos | from_json %}
+                <div class="d-flex flex-wrap gap-2">
+                  {% for doc in otros %}
+                    <div class="d-inline-flex align-items-center bg-info text-white px-2 py-1 rounded">
+                      <a href="{{ url_for('static', filename=doc.ruta) }}" target="_blank" class="text-white text-decoration-none me-2"><i class="fas fa-file-alt"></i> {{ doc.nombre }}</a>
+                      {% if current_user.rol == 'admin' %}
+                      <form method="POST" action="{{ url_for('eliminar_documento', compra_id=c.id, tipo='otro_' + loop.index0|string) }}" style="display:inline;">
+                        <button type="submit" class="btn btn-sm btn-link text-white p-0"><i class="fas fa-times"></i></button>
+                      </form>
+                      {% endif %}
+                    </div>
+                  {% endfor %}
+                </div>
+              {% else %}
+                <span class="text-muted">No hay documentos adicionales</span>
+              {% endif %}
+              <button class="btn btn-outline-primary btn-sm mt-3" type="button" data-bs-toggle="collapse" data-bs-target="#formOtros{{ c.id }}"><i class="fas fa-upload"></i> Agregar Documento</button>
+              <div class="collapse mt-3" id="formOtros{{ c.id }}">
+                <form method="POST" action="{{ url_for('subir_documentos', compra_id=c.id) }}" enctype="multipart/form-data">
+                  <input type="hidden" name="tipo_documento" value="otro">
+                  <div class="mb-2"><input type="text" name="nombre_documento" class="form-control form-control-sm" placeholder="Ej: Plano, Autorización, etc." required></div>
+                  <div class="mb-2"><input type="file" name="archivo" class="form-control form-control-sm" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" required></div>
+                  <button type="submit" class="btn btn-success btn-sm"><i class="fas fa-upload"></i> Guardar</button>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
 </div>
 {% endif %}
-  {% endif %}
+<!-- ===============================
+     COMPRAS A CRÉDITO
+================================ -->
+{% if compras_credito %}
+<h3>🟡 Compras a Crédito</h3>
+<div class="table-responsive">
+<table class="table table-bordered table-striped">
+<thead class="table-dark">
+<tr>
+  <th>Lote</th><th>Precio</th><th>Inicial</th><th>Cuotas Pagadas</th>
+  <th>Total Cuotas</th><th>Fecha</th><th>Voucher</th><th>Acción</th>
+  <th>Acta de Entrega</th><th>Comentario</th><th>Vendedor</th>
+</tr>
+</thead>
+<tbody>
+{% for c in compras_credito %}
+<tr>
+  <td>Mz {{ c.lote.manzana }} - Lt {{ c.lote.numero }}</td>
+  <td>S/ {{ "%.2f"|format(c.precio) }}</td>
+  <td>S/ {{ "%.2f"|format(c.inicial) }}</td>
+  <td>{{ c.cuotas | selectattr("pagada") | list | length }}</td>
+  <td>{{ c.cuotas_total }}</td>
+  <td>{{ c.fecha_compra.strftime("%d/%m/%Y") }}</td>
+  <td><a href="{{ url_for('static', filename=c.boucher_inicial) }}" target="_blank" class="btn btn-sm btn-primary">Ver Voucher</a></td>
+  <td><a href="{{ url_for('detalle_cuotas', compra_id=c.id) }}" class="btn btn-sm btn-info">Ver Cuotas</a></td>
+  <td>
+    {% if c.acta_entrega %}
+      <a href="{{ url_for('static', filename=c.acta_entrega) }}" target="_blank" class="btn btn-success btn-sm">✅ Ver Acta</a>
+    {% else %}
+      <form action="{{ url_for('subir_acta', compra_id=c.id) }}" method="POST" enctype="multipart/form-data">
+        <input type="file" name="acta_file" required>
+        <button type="submit" class="btn btn-warning btn-sm">📄 Subir Acta</button>
+      </form>
+    {% endif %}
+  </td>
+  <td>
+    <form action="{{ url_for('agregar_comentario', compra_id=c.id) }}" method="POST" class="d-flex">
+      <textarea name="comentario" rows="3" class="form-control form-control-sm me-2"
+      placeholder="Escribe un comentario">{{ c.comentario or '' }}</textarea>
+      <button type="submit" class="btn btn-primary btn-sm">💾</button>
+    </form>
+  </td>
+  <td>{{ c.usuario.username if c.usuario else "No registrado" }}</td>
+</tr>
+
+<!-- 🎨 DOCUMENTOS ADICIONALES - CRÉDITO -->
+<tr>
+  <td colspan="11" class="bg-light">
+    <div class="p-3 rounded shadow-sm bg-white border">
+      <h6 class="text-primary mb-3"><i class="fas fa-folder-open"></i> Documentos Adicionales</h6>
+      <div class="row g-3">
+
+        <!-- Escritura -->
+        <div class="col-md-4">
+          <div class="card h-100 shadow-sm border-0 bg-light">
+            <div class="card-body">
+              <strong class="d-block mb-2"><i class="fas fa-file-contract"></i> Escritura/Minuta</strong>
+              {% if c.escritura %}
+                <a href="{{ url_for('static', filename=c.escritura) }}" target="_blank" class="btn btn-success btn-sm me-2"><i class="fas fa-eye"></i> Ver</a>
+                {% if current_user.rol == 'admin' %}
+                <form method="POST" action="{{ url_for('eliminar_documento', compra_id=c.id, tipo='escritura') }}" style="display:inline;">
+                  <button type="submit" class="btn btn-danger btn-sm"><i class="fas fa-trash"></i></button>
+                </form>
+                {% endif %}
+              {% else %}
+                <span class="text-muted d-block mb-2">No subido</span>
+                <button class="btn btn-outline-primary btn-sm mt-1" type="button" data-bs-toggle="collapse" data-bs-target="#formEscritura{{ c.id }}"><i class="fas fa-upload"></i> Subir Escritura</button>
+                <div class="collapse mt-3" id="formEscritura{{ c.id }}">
+                  <form method="POST" action="{{ url_for('subir_documentos', compra_id=c.id) }}" enctype="multipart/form-data">
+                    <input type="hidden" name="tipo_documento" value="escritura">
+                    <div class="mb-2"><input type="file" name="archivo" class="form-control form-control-sm" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" required></div>
+                    <button type="submit" class="btn btn-success btn-sm"><i class="fas fa-upload"></i> Guardar</button>
+                  </form>
+                </div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+
+        <!-- Otros Documentos -->
+        <div class="col-md-8">
+          <div class="card h-100 shadow-sm border-0 bg-light">
+            <div class="card-body">
+              <strong class="d-block mb-2"><i class="fas fa-copy"></i> Otros Documentos</strong>
+              {% if c.otros_documentos %}
+                {% set otros = c.otros_documentos | from_json %}
+                <div class="d-flex flex-wrap gap-2">
+                  {% for doc in otros %}
+                    <div class="d-inline-flex align-items-center bg-info text-white px-2 py-1 rounded">
+                      <a href="{{ url_for('static', filename=doc.ruta) }}" target="_blank" class="text-white text-decoration-none me-2"><i class="fas fa-file-alt"></i> {{ doc.nombre }}</a>
+                      {% if current_user.rol == 'admin' %}
+                      <form method="POST" action="{{ url_for('eliminar_documento', compra_id=c.id, tipo='otro_' + loop.index0|string) }}" style="display:inline;">
+                        <button type="submit" class="btn btn-sm btn-link text-white p-0"><i class="fas fa-times"></i></button>
+                      </form>
+                      {% endif %}
+                    </div>
+                  {% endfor %}
+                </div>
+              {% else %}
+                <span class="text-muted">No hay documentos adicionales</span>
+              {% endif %}
+              <button class="btn btn-outline-primary btn-sm mt-3" type="button" data-bs-toggle="collapse" data-bs-target="#formOtros{{ c.id }}"><i class="fas fa-upload"></i> Agregar Documento</button>
+              <div class="collapse mt-3" id="formOtros{{ c.id }}">
+                <form method="POST" action="{{ url_for('subir_documentos', compra_id=c.id) }}" enctype="multipart/form-data">
+                  <input type="hidden" name="tipo_documento" value="otro">
+                  <div class="mb-2"><input type="text" name="nombre_documento" class="form-control form-control-sm" placeholder="Ej: Plano, Autorización, etc." required></div>
+                  <div class="mb-2"><input type="file" name="archivo" class="form-control form-control-sm" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" required></div>
+                  <button type="submit" class="btn btn-success btn-sm"><i class="fas fa-upload"></i> Guardar</button>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+</div>
+{% endif %}
+{% endif %}
 {% elif request.method == "POST" %}
   <div class="alert alert-warning">No se encontró ningún cliente con ese DNI o apellido.</div>
 {% endif %}
@@ -333,12 +352,25 @@
 <script>
 $(function() {
   $("#criterio").autocomplete({
-    source: "{{ url_for('autocomplete_clientes') }}",  // endpoint en app.py
+    source: "{{ url_for('autocomplete_clientes') }}",
     minLength: 2,
     select: function(event, ui) {
       window.location.href = "/ver_cliente?cliente_id=" + ui.item.id;
     }
   });
 });
+
+// Mostrar u ocultar el campo de nombre personalizado
+function toggleNombreDocumento(compraId) {
+  const select = document.getElementById('tipoDoc' + compraId);
+  const nombreDiv = document.getElementById('nombreDocDiv' + compraId);
+  if (select && nombreDiv) {
+    nombreDiv.style.display = (select.value === 'otro') ? 'block' : 'none';
+  }
+}
 </script>
+
+<!-- ✅ Bootstrap 5 JS Bundle -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
 {% endblock %}

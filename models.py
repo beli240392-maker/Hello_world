@@ -82,6 +82,8 @@ class Compra(db.Model):
     acta_entrega = db.Column(db.String(200), nullable=True)   # ruta archivo PDF/JPG
     entregado = db.Column(db.Boolean, default=False)   
     comentario = db.Column(db.Text)
+    escritura = db.Column(db.String(200))
+    otros_documentos = db.Column(db.Text)
       
 
     # Relación con cuotas y pagos

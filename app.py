@@ -34,10 +34,23 @@ app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("DATABASE_URL")
 db.init_app(app)
 
 
+@app.template_filter('from_json')
+def from_json_filter(value):
+    import json
+    try:
+        return json.loads(value) if value else []
+    except:
+        return []
+
+
 
 
 app.config["UPLOAD_FOLDER"] = os.path.join("static", "bouchers")
 os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
+
+CARPETAS_DOCUMENTOS = ["escrituras", "otros_docs"]
+for carpeta in CARPETAS_DOCUMENTOS:
+    os.makedirs(os.path.join("static", carpeta), exist_ok=True)
 
 
 
@@ -1234,6 +1247,123 @@ def exportar_ventas():
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
 
+# ------------------- SUBIR DOCUMENTOS -------------------
+# ------------------- SUBIR DOCUMENTOS -------------------
+@app.route("/subir_documentos/<int:compra_id>", methods=["POST"])
+@login_required
+@lotizacion_required
+def subir_documentos(compra_id):
+    compra = Compra.query.get_or_404(compra_id)
+
+    tipo_documento = request.form.get("tipo_documento")
+    archivo = request.files.get("archivo")
+
+    if not archivo or not archivo.filename:
+        flash("⚠️ No se seleccionó ningún archivo.", "warning")
+        return redirect(url_for("ver_cliente", cliente_id=compra.cliente_id))
+
+    from werkzeug.utils import secure_filename
+    import json
+
+    # Definir carpeta según el tipo de documento
+    carpetas = {
+        "escritura": "escrituras",
+        "otro": "otros_docs"
+    }
+
+    carpeta = carpetas.get(tipo_documento, "otros_docs")
+    docs_folder = os.path.join("static", carpeta)
+    os.makedirs(docs_folder, exist_ok=True)
+
+    # Guardar archivo con nombre único
+    filename = secure_filename(archivo.filename)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    unique_filename = f"{timestamp}_{filename}"
+    save_path = os.path.join(docs_folder, unique_filename)
+    archivo.save(save_path)
+
+    ruta_relativa = f"{carpeta}/{unique_filename}".replace("\\", "/")
+
+    # 🧩 Control de documentos según tipo
+    if tipo_documento == "escritura":
+        # ✅ Si ya hay una escritura, no permitir otra
+        if compra.escritura:
+            flash("⚠️ Ya existe una escritura registrada. Elimina la anterior si deseas reemplazarla.", "warning")
+            # Borrar el archivo recién subido (porque no se usará)
+            try:
+                os.remove(save_path)
+            except:
+                pass
+            return redirect(url_for("ver_cliente", cliente_id=compra.cliente_id))
+
+        # ✅ Guardar nueva escritura
+        compra.escritura = ruta_relativa
+        flash("✅ Escritura subida correctamente.", "success")
+
+    elif tipo_documento == "otro":
+        # ✅ Permitir varios documentos tipo 'otro'
+        nombre_custom = request.form.get("nombre_documento", "Documento")
+
+        otros = []
+        if compra.otros_documentos:
+            try:
+                otros = json.loads(compra.otros_documentos)
+            except:
+                otros = []
+
+        otros.append({
+            "nombre": nombre_custom,
+            "ruta": ruta_relativa,
+            "fecha": timestamp
+        })
+
+        compra.otros_documentos = json.dumps(otros)
+        flash(f"✅ {nombre_custom} subido correctamente.", "success")
+
+    db.session.commit()
+    return redirect(url_for("ver_cliente", cliente_id=compra.cliente_id))
+
+
+# ------------------- ELIMINAR DOCUMENTO -------------------
+@app.route("/eliminar_documento/<int:compra_id>/<tipo>", methods=["POST"])
+@login_required
+@admin_required
+@lotizacion_required
+def eliminar_documento(compra_id, tipo):
+    compra = Compra.query.get_or_404(compra_id)
+    
+    import json
+    
+    if tipo == "escritura":
+        # Eliminar archivo físico de static/escrituras/
+        if compra.escritura:
+            try:
+                os.remove(os.path.join("static", compra.escritura))
+            except:
+                pass
+        compra.escritura = None
+        flash("✅ Escritura eliminada.", "success")
+        
+    elif tipo.startswith("otro_"):
+        # Eliminar documento específico de la lista en static/otros_docs/
+        index = int(tipo.split("_")[1])
+        if compra.otros_documentos:
+            try:
+                otros = json.loads(compra.otros_documentos)
+                if 0 <= index < len(otros):
+                    doc = otros.pop(index)
+                    # Eliminar archivo físico
+                    try:
+                        os.remove(os.path.join("static", doc["ruta"]))
+                    except:
+                        pass
+                    compra.otros_documentos = json.dumps(otros) if otros else None
+                    flash(f"✅ {doc['nombre']} eliminado.", "success")
+            except:
+                pass
+    
+    db.session.commit()
+    return redirect(url_for("ver_cliente", cliente_id=compra.cliente_id))
 
 @app.route("/logout")
 @login_required
