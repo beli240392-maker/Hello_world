@@ -1,54 +1,189 @@
 {% extends "base.html" %}
 {% block content %}
 
-<div class="d-flex justify-content-center align-items-center vh-100">
-  <div class="card shadow-lg p-4" style="max-width: 400px; width: 100%;">
-    <h3 class="text-center mb-4 text-primary">
-      🔐 Iniciar Sesión
-    </h3>
+<style>
+  body {
+    background: linear-gradient(to bottom, #f8f9fb, #f1f3f7);
+    font-family: 'Poppins', sans-serif;
+  }
+  .login-container {
+    display: flex;
+    height: 100vh;
+  }
 
-    <!-- Mensajes Flash -->
-    {% with messages = get_flashed_messages(with_categories=true) %}
-      {% if messages %}
-        {% for category, message in messages %}
-          <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-            {{ message }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-          </div>
-        {% endfor %}
-      {% endif %}
-    {% endwith %}
+  /* Lado izquierdo: imagen o ilustración */
+  .login-image {
+    flex: 1;
+    background: linear-gradient(135deg, rgba(183, 200, 255, 0.25), rgba(255, 255, 255, 0.1));
+    backdrop-filter: blur(10px);
+    color: #2c3e50;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 3rem;
+    text-align: center;
+  }
 
-    <form method="POST">
-      <!-- Usuario -->
-      <div class="mb-3">
-        <label for="usuario" class="form-label">Usuario</label>
-        <input type="text" class="form-control" name="usuario" id="usuario" placeholder="Ingrese su usuario" required>
-      </div>
+  .login-image h1 {
+    font-weight: 700;
+    margin-top: 1rem;
+    font-size: 2.3rem;
+    color: #2b2f42; 
+  }
 
-      <!-- Contraseña -->
-      <div class="mb-3">
-        <label for="password" class="form-label">Contraseña</label>
-        <input type="password" class="form-control" name="password" id="password" placeholder="Ingrese su contraseña" required>
-      </div>
+  .login-image p {
+    max-width: 400px;
+    font-size: 1rem;
+    opacity: 0.9;
+    color: #5f6478;
+  }
 
-      <!-- Selección de Lotización -->
-      <div class="mb-3">
-        <label for="lotizacion_id" class="form-label">Seleccionar Lotización</label>
-        <select name="lotizacion_id" id="lotizacion_id" class="form-select" required>
-          <option value="">-- Selecciona --</option>
-          {% for l in lotizaciones %}
-            <option value="{{ l.id }}">{{ l.nombre }}</option>
+  .login-image img {
+    width: 280px;
+    max-width: 90%;
+    margin-bottom: 1rem;
+  }
+
+  /* Lado derecho: formulario */
+  .login-form {
+    flex: 1;
+    background: #ffffff;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .card {
+    width: 100%;
+    max-width: 400px;
+    padding: 2.5rem;
+    border-radius: 16px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06), 0 12px 40px rgba(0, 0, 0, 0.03);
+  }
+
+  .form-label {
+    font-weight: 500;
+  }
+
+  .form-control, .form-select {
+    border-radius: 10px;
+    padding: 10px;
+  }
+
+  .btn-primary {
+    background: linear-gradient(90deg, #6C63FF, #8E87FF);
+    border: none;
+    font-weight: 600;
+    border-radius: 10px;
+    padding: 10px;
+    transition: all 0.3s ease;
+  }
+
+.btn-primary:hover {
+  background: linear-gradient(90deg, #5A52E0, #7D74FF);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 15px rgba(108, 99, 255, 0.3);
+}
+
+  .small-link {
+    color: #6c757d;
+  }
+
+  .small-link:hover {
+    color: #007bff;
+  }
+
+  @media (max-width: 992px) {
+    .login-container {
+      flex-direction: column;
+    }
+    .login-image {
+      display: none;
+    }
+    .login-form {
+      background: linear-gradient(120deg, #007bff, #00b4d8);
+    }
+    .card {
+      background: #fff;
+    }
+  }
+</style>
+
+<div class="login-container">
+  <!-- Imagen / lado izquierdo -->
+  <div class="login-image">
+    <h1 class="fw-bold">Bienvenido 👋</h1>
+    <p class="opacity-90">Inicia sesión para continuar</p>
+
+  </div>
+
+  <!-- Formulario / lado derecho -->
+  <div class="login-form">
+    <div class="card border-0">
+      <h3 class="text-center mb-4 text-primary">🔐 Iniciar Sesión</h3>
+
+      <!-- Mensajes Flash -->
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, message in messages %}
+            <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+              {{ message }}
+              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
           {% endfor %}
-        </select>
-      </div>
+        {% endif %}
+      {% endwith %}
 
-      <!-- Botón ingresar -->
-      <div class="d-grid">
-        <button type="submit" class="btn btn-primary">Ingresar</button>
-      </div>
-    </form>
+      <form method="POST" autocomplete="off">
+        <div class="mb-3">
+          <label for="usuario" class="form-label">Usuario</label>
+          <input type="text" class="form-control" name="usuario" id="usuario" placeholder="Ingrese su usuario" required>
+        </div>
+
+        <div class="mb-3">
+          <label for="password" class="form-label">Contraseña</label>
+          <div class="input-group">
+            <input type="password" class="form-control" name="password" id="password" placeholder="Ingrese su contraseña" required>
+            <button type="button" class="btn btn-outline-secondary" onclick="togglePassword()">
+              <i class="bi bi-eye-fill" id="toggleIcon"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="mb-4">
+          <label for="lotizacion_id" class="form-label">Seleccionar Lotización</label>
+          <select name="lotizacion_id" id="lotizacion_id" class="form-select" required>
+            <option value="">-- Selecciona --</option>
+            {% for l in lotizaciones %}
+              <option value="{{ l.id }}">{{ l.nombre }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="d-grid">
+          <button type="submit" class="btn btn-primary btn-lg">Ingresar</button>
+        </div>
+
+      </form>
+    </div>
   </div>
 </div>
+
+<script>
+function togglePassword() {
+  const passwordInput = document.getElementById("password");
+  const icon = document.getElementById("toggleIcon");
+  if (passwordInput.type === "password") {
+    passwordInput.type = "text";
+    icon.classList.remove("bi-eye-fill");
+    icon.classList.add("bi-eye-slash-fill");
+  } else {
+    passwordInput.type = "password";
+    icon.classList.remove("bi-eye-slash-fill");
+    icon.classList.add("bi-eye-fill");
+  }
+}
+</script>
 
 {% endblock %}
