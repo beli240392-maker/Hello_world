@@ -25,11 +25,11 @@
     </div>
     <div class="mb-3">
   <label for="dni" class="form-label">DNI:</label>
-  <input type="number" class="form-control" name="dni" 
-         value="{{ cliente.dni if cliente else '' }}" 
-         required 
-         minlength="8" maxlength="8"
-         oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,8)">
+  <input type="text" class="form-control" name="dni"
+       value="{{ cliente.dni if cliente else '' }}"
+       required 
+       minlength="8" maxlength="15"
+       oninput="this.value=this.value.replace(/[^A-Za-z0-9]/g,'').slice(0,15)">
     </div>
     <div class="mb-3">
       <label for="estado_civil" class="form-label">Estado Civil</label>
