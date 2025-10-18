@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-4">
+    <h3 class="text-primary mb-3">✏️ Editar Voucher</h3>
+
+    <form method="POST">
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <label>Código</label>
+                <input type="text" name="codigo" value="{{ voucher.codigo }}" class="form-control" required>
+            </div>
+            <div class="col-md-6 mb-3">
+                <label>Banco</label>
+                <input type="text" name="banco" value="{{ voucher.banco }}" class="form-control">
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <label>Nombres</label>
+                <input type="text" name="nombres" value="{{ voucher.nombres }}" class="form-control" required>
+            </div>
+            <div class="col-md-6 mb-3">
+                <label>Apellidos</label>
+                <input type="text" name="apellidos" value="{{ voucher.apellidos }}" class="form-control" required>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <label>Monto</label>
+                <input type="number" step="0.01" name="monto" value="{{ voucher.monto }}" class="form-control" required>
+            </div>
+            <div class="col-md-6 mb-3">
+                <label>Proyecto</label>
+                <input type="text" name="proyecto" value="{{ voucher.proyecto }}" class="form-control">
+            </div>
+        </div>
+
+        <button type="submit" class="btn btn-success">💾 Guardar Cambios</button>
+        <a href="{{ url_for('vouchers') }}" class="btn btn-secondary">⬅ Volver</a>
+    </form>
+</div>
+{% endblock %}

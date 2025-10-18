@@ -1364,6 +1364,30 @@ def eliminar_documento(compra_id, tipo):
     db.session.commit()
     return redirect(url_for("ver_cliente", cliente_id=compra.cliente_id))
 
+
+@app.route("/editar_voucher/<int:id>", methods=["GET", "POST"])
+@login_required
+@admin_required
+def editar_voucher(id):
+    from models import Voucher
+    voucher = Voucher.query.get_or_404(id)
+
+    if request.method == "POST":
+        voucher.codigo = request.form["codigo"]
+        voucher.banco = request.form["banco"]
+        voucher.nombres = request.form["nombres"]
+        voucher.apellidos = request.form["apellidos"]
+        voucher.monto = float(request.form["monto"])
+        voucher.proyecto = request.form["proyecto"]
+
+        db.session.commit()
+        flash("Voucher actualizado correctamente.", "success")
+        return redirect(url_for("vouchers"))  # Ajusta si tu ruta principal tiene otro nombre
+
+    return render_template("editar_voucher.html", voucher=voucher)
+
+
+
 @app.route("/logout")
 @login_required
 def logout():
