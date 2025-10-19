@@ -45,6 +45,7 @@ class Lote(db.Model):
     compra        = db.relationship("Compra", backref="lote", uselist=False)
     separaciones  = db.relationship("Separacion", backref="lote", lazy=True, cascade="all, delete-orphan")
     historial     = db.relationship("Historial", backref="lote", lazy=True, cascade="all, delete-orphan")
+    vouchers = db.relationship("Voucher", back_populates="lote", lazy=True)
 
     lotizacion_id = db.Column(db.Integer, db.ForeignKey("lotizaciones.id"), nullable=False)
 
@@ -168,11 +169,12 @@ class Voucher(db.Model):
     monto = db.Column(db.Float, nullable=False)
     proyecto = db.Column(db.String(100))
     fecha_registro = db.Column(db.DateTime, default=lambda: datetime.now(pytz.timezone("America/Lima")))
-
+    lote_id = db.Column(db.Integer, db.ForeignKey("lotes.id"))
 
     # Relación con usuario que registró el voucher
     usuario_id = db.Column(db.Integer, db.ForeignKey("usuarios.id"), nullable=True)
     usuario = db.relationship("Usuario", backref="vouchers")
+    lote = db.relationship("Lote", back_populates="vouchers")
 
 
 class Usuario(UserMixin, db.Model):

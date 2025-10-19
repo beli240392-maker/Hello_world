@@ -26,6 +26,19 @@
             </div>
         </div>
 
+        <div>
+            <label>Seleccion un Lote: </label>
+            <select name="lote_id" class="form-select" required>
+            <option value="">Seleccionar lote...</option>
+            {% for lote in lotes %}
+                <option value="{{ lote.id }}" {% if voucher.lote_id == lote.id %}selected{% endif %}>
+                Mz {{ lote.manzana }} - Lt {{ lote.numero }}
+                </option>
+            {% endfor %}
+            </select>
+        </div>
+
+
         <div class="row">
             <div class="col-md-6 mb-3">
                 <label>Monto</label>

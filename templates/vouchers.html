@@ -12,6 +12,13 @@
     <div class="col-md-2"><input name="apellidos" class="form-control" placeholder="Apellidos" required></div>
     <div class="col-md-2"><input name="monto" class="form-control" placeholder="Monto" required></div>
     <div class="col-md-2"><input name="proyecto" class="form-control" placeholder="Proyecto" required></div>
+    <select name="lote_id" class="form-select" required>
+      <option value="">Seleccionar lote...</option>
+      {% for lote in lotes %}
+      <option value="{{ lote.id }}">Mz {{ lote.manzana }} - Lt {{ lote.numero }}</option>
+      {% endfor %}
+    </select>
+
     <div class="col-12"><button class="btn btn-primary mt-2">➕ Registrar Voucher</button></div>
   </form>
 
@@ -35,11 +42,10 @@
             <th>Nombres</th>
             <th>Apellidos</th>
             <th>Monto</th>
+            <th>Lote</th>
             <th>Proyecto</th>
             <th>Fecha</th>
-            {% if current_user.rol == "admin" %}
             <th>Acción</th>
-            {% endif %}
           </tr>
         </thead>
         <tbody>
@@ -50,15 +56,22 @@
               <td>{{ v.nombres }}</td>
               <td>{{ v.apellidos }}</td>
               <td>S/ {{ '%.2f'|format(v.monto or 0) }}</td>
+              <td>
+                {% if v.lote %}
+                  Mz {{ v.lote.manzana }} - Lt {{ v.lote.numero }}
+                {% else %}
+                  —
+                {% endif %}
+              </td> 
               <td>{{ v.proyecto }}</td>
               <td>{{ v.fecha_registro.strftime("%d/%m/%Y %H:%M") }}</td>
-              {% if current_user.rol == "admin" %}
+    
               <td>
                 <a href="{{ url_for('editar_voucher', id=v.id) }}" class="btn btn-warning btn-sm">
                     ✏️ Editar
                 </a>
               </td>
-              {% endif %}
+             
             </tr>
           {% endfor %}
         </tbody>
@@ -76,11 +89,11 @@
           <th>Nombres</th>
           <th>Apellidos</th>
           <th>Monto</th>
+          <th>Lote</th>
           <th>Proyecto</th>
           <th>Fecha</th>
-          {% if current_user.rol == "admin" %}
           <th>Acción</th>
-          {% endif %}
+          
         </tr>
       </thead>
       <tbody>
@@ -91,13 +104,20 @@
             <td>{{ v.nombres }}</td>
             <td>{{ v.apellidos }}</td>
             <td>S/ {{ '%.2f'|format(v.monto or 0) }}</td>
+            <td>
+              {% if v.lote %}
+                Mz {{ v.lote.manzana }} - Lt {{ v.lote.numero }}
+              {% else %}
+                  —
+              {% endif %}
+            </td>
             <td>{{ v.proyecto }}</td>
             <td>{{ v.fecha_registro.strftime("%d/%m/%Y %H:%M") }}</td>
-            {% if current_user.rol == "admin" %}
+            
             <td>
               <a href="{{ url_for('editar_voucher', id=v.id) }}" class="btn btn-warning btn-sm">✏️ Editar</a>
             </td>
-            {% endif %}
+            
           </tr>
         {% endfor %}
       </tbody>

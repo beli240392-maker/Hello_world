@@ -1127,8 +1127,9 @@ def autocomplete_clientes():
 @app.route("/vouchers", methods=["GET", "POST"])
 @login_required
 def vouchers():
+    from models import Voucher, Lote  # ✅ asegúrate de importar Lote
     codigo_buscar = request.args.get("codigo", "").strip()
-
+    
     if request.method == "POST":
         codigo = request.form["codigo"].strip()
         banco = request.form.get("banco")
@@ -1136,7 +1137,7 @@ def vouchers():
         apellidos = request.form.get("apellidos")
         monto = float(request.form.get("monto") or 0)
         proyecto = request.form.get("proyecto")
-
+        lote_id = request.form.get("lote_id")  # ✅ usa get() por seguridad
 
         # Verificar duplicado
         existe = Voucher.query.filter_by(codigo=codigo).first()
@@ -1150,13 +1151,15 @@ def vouchers():
                 apellidos=apellidos,
                 monto=monto,
                 proyecto=proyecto,  
-                fecha_registro=datetime.now(lima)
+                lote_id=lote_id,  # ✅ ahora guarda el lote
+                fecha_registro=datetime.now(lima),
+                usuario_id=current_user.id
+                
             )
             db.session.add(v)
             db.session.commit()
             flash("✅ Voucher registrado correctamente.", "success")
         
-
         return redirect(url_for("vouchers"))
 
     # ✅ Si hay búsqueda → filtrar
@@ -1165,7 +1168,17 @@ def vouchers():
     else:
         vouchers = Voucher.query.order_by(Voucher.fecha_registro.desc()).all()
 
-    return render_template("vouchers.html", vouchers=vouchers, codigo_buscar=codigo_buscar,pytz=pytz)
+    # ✅ Consulta de lotes
+    lotes = Lote.query.order_by(Lote.manzana.asc(), Lote.numero.asc()).all()
+    print("Lotes cargados:", len(lotes))  # 👀 útil para depurar en consola
+
+    return render_template(
+        "vouchers.html",
+        vouchers=vouchers,
+        codigo_buscar=codigo_buscar,
+        lotes=lotes,  # ✅ ahora se envía correctamente al template
+        pytz=pytz
+    )
 
 
 @app.route("/exportar_ventas")
@@ -1367,10 +1380,10 @@ def eliminar_documento(compra_id, tipo):
 
 @app.route("/editar_voucher/<int:id>", methods=["GET", "POST"])
 @login_required
-@admin_required
 def editar_voucher(id):
     from models import Voucher
     voucher = Voucher.query.get_or_404(id)
+    lotes = Lote.query.order_by(Lote.manzana.asc(), Lote.numero.asc()).all() 
 
     if request.method == "POST":
         voucher.codigo = request.form["codigo"]
@@ -1379,12 +1392,15 @@ def editar_voucher(id):
         voucher.apellidos = request.form["apellidos"]
         voucher.monto = float(request.form["monto"])
         voucher.proyecto = request.form["proyecto"]
+        voucher.lote_id = request.form.get("lote_id") or None 
 
         db.session.commit()
         flash("Voucher actualizado correctamente.", "success")
         return redirect(url_for("vouchers"))  # Ajusta si tu ruta principal tiene otro nombre
+    
 
-    return render_template("editar_voucher.html", voucher=voucher)
+    return render_template("editar_voucher.html", voucher=voucher, lotes=lotes)
+
 
 
 
