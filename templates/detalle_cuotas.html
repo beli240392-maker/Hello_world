@@ -1,6 +1,38 @@
 {% extends "base.html" %}
 {% block content %}
-<h2>📑 Detalle de Cuotas</h2>
+<h2>📑 Detalle de Cuotas - Lote Mz {{ compra.lote.manzana|upper }} Lt {{ compra.lote.numero }}</h2>
+
+<!-- ✅ NUEVO: Alerta de estado de cancelación -->
+{% if compra.cancelado %}
+<div class="alert alert-success mb-4">
+  <h4 class="alert-heading">🎉 ¡Compra Totalmente Cancelada!</h4>
+  {% if compra.fecha_cancelacion %}
+  <p class="mb-0">
+    <strong>Fecha de cancelación:</strong> 
+    {{ compra.fecha_cancelacion.astimezone(pytz.timezone('America/Lima')).strftime('%d/%m/%Y %H:%M') }}
+  </p>
+  {% endif %}
+</div>
+{% else %}
+<div class="alert alert-info mb-4">
+  {% set cuotas_pagadas = compra.cuotas|selectattr('pagada', 'equalto', True)|list|length %}
+  <div class="d-flex justify-content-between align-items-center mb-2">
+    <div>
+      <strong>Estado:</strong> Pago en proceso
+      <br>
+      <strong>Progreso:</strong> {{ cuotas_pagadas }} / {{ compra.cuotas_total }} cuotas pagadas
+    </div>
+    <h3 class="mb-0 text-primary">{{ (cuotas_pagadas / compra.cuotas_total * 100)|round|int }}%</h3>
+  </div>
+  <div class="progress" style="height: 25px;">
+    <div class="progress-bar bg-success progress-bar-striped progress-bar-animated" 
+         role="progressbar" 
+         style="width: {{ (cuotas_pagadas / compra.cuotas_total * 100)|round }}%">
+      {{ (cuotas_pagadas / compra.cuotas_total * 100)|round|int }}%
+    </div>
+  </div>
+</div>
+{% endif %}
 
 <div class="card mb-4">
   <div class="card-header bg-primary text-white">Información de la Compra</div>
@@ -14,6 +46,15 @@
       <p><strong>Inicial:</strong> S/ {{ "%.2f"|format(compra.inicial) }}</p>
       <p><strong>Cuotas Totales:</strong> {{ compra.cuotas_total }}</p>
       <p><strong>Fecha de Compra:</strong> {{ compra.fecha_compra.strftime("%d/%m/%Y") }}</p>
+      <!-- ✅ NUEVO: Mostrar estado de cancelación -->
+      <p>
+        <strong>Estado:</strong> 
+        {% if compra.cancelado %}
+          <span class="badge bg-success">✅ CANCELADO</span>
+        {% else %}
+          <span class="badge bg-warning text-dark">⏳ EN PROCESO</span>
+        {% endif %}
+      </p>
     </div>
   </div>
 </div>
@@ -37,16 +78,16 @@
       <td>{{ cuota.fecha_vencimiento.strftime("%d/%m/%Y") }}</td>
       <td>
         {% if cuota.pagada %}
-          <span class="badge bg-success">Pagada</span>
+          <span class="badge bg-success">✅ Pagada</span>
         {% elif cuota.fecha_vencimiento < now %}
-          <span class="badge bg-danger">Vencida</span>
+          <span class="badge bg-danger">❌ Vencida</span>
         {% else %}
-          <span class="badge bg-warning text-dark">Pendiente</span>
+          <span class="badge bg-warning text-dark">⏳ Pendiente</span>
         {% endif %}
       </td>
       <td>
         {% if not cuota.pagada and cuota.fecha_vencimiento < now %}
-          {{ (now.date() - cuota.fecha_vencimiento.date()).days }} días
+          <span class="text-danger fw-bold">{{ (now.date() - cuota.fecha_vencimiento.date()).days }} días</span>
         {% else %}
           -
         {% endif %}
@@ -59,10 +100,12 @@
             <button type="submit" class="btn btn-sm btn-success">💰 Pagar</button>
           </form>
         {% else %}
-          {% if cuota.pago %}
+          {% if cuota.pago and cuota.pago.boucher %}
             <a href="{{ url_for('static', filename=cuota.pago.boucher) }}" target="_blank" class="btn btn-sm btn-primary">
-              Ver Boucher
+              📄 Ver Boucher
             </a>
+          {% else %}
+            <span class="text-muted small">Sin voucher</span>
           {% endif %}
         {% endif %}
       </td>
@@ -71,6 +114,37 @@
   </tbody>
 </table>
 
+<!-- ✅ Resumen de pagos -->
+<div class="card mt-4">
+  <div class="card-header bg-secondary text-white">
+    💰 Resumen de Pagos
+  </div>
+  <div class="card-body">
+    <div class="row">
+      <div class="col-md-3">
+        <h6>Total a Pagar</h6>
+        <p class="h4 text-primary">S/ {{ "%.2f"|format(compra.precio) }}</p>
+      </div>
+      <div class="col-md-3">
+        <h6>Inicial Pagado</h6>
+        <p class="h4 text-success">S/ {{ "%.2f"|format(compra.inicial) }}</p>
+      </div>
+      <div class="col-md-3">
+        <h6>Pagado en Cuotas</h6>
+        {% set monto_cuotas_pagadas = compra.cuotas|selectattr('pagada', 'equalto', True)|sum(attribute='monto') %}
+        <p class="h4 text-success">S/ {{ "%.2f"|format(monto_cuotas_pagadas) }}</p>
+      </div>
+      <div class="col-md-3">
+        <h6>Saldo Pendiente</h6>
+        {% set saldo = compra.precio - compra.inicial - monto_cuotas_pagadas %}
+        <p class="h4 {{ 'text-success' if saldo == 0 else 'text-danger' }}">
+          S/ {{ "%.2f"|format(saldo) }}
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Botón volver ahora incluye cliente_id -->
-<a href="{{ url_for('ver_cliente', cliente_id=compra.cliente.id) }}" class="btn btn-secondary mt-3">⬅ Volver</a>
+<a href="{{ url_for('ver_cliente', cliente_id=compra.cliente.id) }}" class="btn btn-secondary mt-3">⬅ Volver al Cliente</a>
 {% endblock %}

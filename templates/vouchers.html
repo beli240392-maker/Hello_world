@@ -45,7 +45,9 @@
             <th>Lote</th>
             <th>Proyecto</th>
             <th>Fecha</th>
+            {% if current_user.rol == 'admin' %}
             <th>Acción</th>
+            {% endif %}
           </tr>
         </thead>
         <tbody>
@@ -65,12 +67,13 @@
               </td> 
               <td>{{ v.proyecto }}</td>
               <td>{{ v.fecha_registro.strftime("%d/%m/%Y %H:%M") }}</td>
-    
+              {% if current_user.rol == 'admin' %}
               <td>
                 <a href="{{ url_for('editar_voucher', id=v.id) }}" class="btn btn-warning btn-sm">
                     ✏️ Editar
                 </a>
               </td>
+              {% endif %}
              
             </tr>
           {% endfor %}
@@ -92,7 +95,9 @@
           <th>Lote</th>
           <th>Proyecto</th>
           <th>Fecha</th>
+          {% if current_user.rol == 'admin' %}
           <th>Acción</th>
+          {% endif %}
           
         </tr>
       </thead>
@@ -113,11 +118,11 @@
             </td>
             <td>{{ v.proyecto }}</td>
             <td>{{ v.fecha_registro.strftime("%d/%m/%Y %H:%M") }}</td>
-            
+            {% if current_user.rol == 'admin' %}
             <td>
               <a href="{{ url_for('editar_voucher', id=v.id) }}" class="btn btn-warning btn-sm">✏️ Editar</a>
             </td>
-            
+            {% endif %}
           </tr>
         {% endfor %}
       </tbody>

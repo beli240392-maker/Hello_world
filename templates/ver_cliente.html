@@ -81,6 +81,7 @@
   </div>
 </div>
 {% endif %}
+
 <!-- ===============================
      COMPRAS AL CONTADO
 ================================ -->
@@ -91,6 +92,7 @@
 <thead class="table-dark">
 <tr>
   <th>Lote</th>
+  <th>Estado</th>
   <th>Precio</th>
   <th>Fecha</th>
   <th>Boucher</th>
@@ -103,6 +105,12 @@
 {% for c in compras_contado %}
 <tr>
   <td>Mz {{ c.lote.manzana }} - Lt {{ c.lote.numero }}</td>
+  <td>
+    <span class="badge bg-success">✅ CANCELADO</span>
+    {% if c.fecha_cancelacion %}
+      <br><small class="text-muted">{{ c.fecha_cancelacion.astimezone(pytz.timezone('America/Lima')).strftime('%d/%m/%Y') }}</small>
+    {% endif %}
+  </td>
   <td>S/ {{ "%.2f"|format(c.precio) }}</td>
   <td>{{ c.fecha_compra.strftime("%d/%m/%Y") }}</td>
   <td>
@@ -148,7 +156,7 @@
 
 <!-- 🎨 DOCUMENTOS ADICIONALES - CONTADO -->
 <tr>
-  <td colspan="7" class="bg-light">
+  <td colspan="8" class="bg-light">
     <div class="p-3 rounded shadow-sm bg-white border">
       <h6 class="text-primary mb-3"><i class="fas fa-folder-open"></i> Documentos Adicionales</h6>
       <div class="row g-3">
@@ -223,6 +231,7 @@
 </table>
 </div>
 {% endif %}
+
 <!-- ===============================
      COMPRAS A CRÉDITO
 ================================ -->
@@ -232,15 +241,37 @@
 <table class="table table-bordered table-striped">
 <thead class="table-dark">
 <tr>
-  <th>Lote</th><th>Precio</th><th>Inicial</th><th>Cuotas Pagadas</th>
-  <th>Total Cuotas</th><th>Fecha</th><th>Voucher</th><th>Acción</th>
-  <th>Acta de Entrega</th><th>Comentario</th><th>Vendedor</th>
+  <th>Lote</th>
+  <th>Estado</th>
+  <th>Precio</th>
+  <th>Inicial</th>
+  <th>Cuotas Pagadas</th>
+  <th>Total Cuotas</th>
+  <th>Fecha</th>
+  <th>Voucher</th>
+  <th>Acción</th>
+  <th>Acta de Entrega</th>
+  <th>Comentario</th>
+  <th>Vendedor</th>
 </tr>
 </thead>
 <tbody>
 {% for c in compras_credito %}
 <tr>
   <td>Mz {{ c.lote.manzana }} - Lt {{ c.lote.numero }}</td>
+  <td>
+    {% if c.cancelado %}
+      <span class="badge bg-success">✅ CANCELADO</span>
+      {% if c.fecha_cancelacion %}
+        <br><small class="text-muted">{{ c.fecha_cancelacion.astimezone(pytz.timezone('America/Lima')).strftime('%d/%m/%Y') }}</small>
+      {% endif %}
+    {% else %}
+      {% set cuotas_pagadas = c.cuotas|selectattr('pagada', 'equalto', True)|list|length %}
+      <span class="badge bg-warning text-dark">
+        📊 {{ cuotas_pagadas }}/{{ c.cuotas_total }}
+      </span>
+    {% endif %}
+  </td>
   <td>S/ {{ "%.2f"|format(c.precio) }}</td>
   <td>S/ {{ "%.2f"|format(c.inicial) }}</td>
   <td>{{ c.cuotas | selectattr("pagada") | list | length }}</td>
@@ -304,9 +335,20 @@
 
 <!-- 🎨 DOCUMENTOS ADICIONALES - CRÉDITO -->
 <tr>
-  <td colspan="11" class="bg-light">
+  <td colspan="12" class="bg-light">
     <div class="p-3 rounded shadow-sm bg-white border">
       <h6 class="text-primary mb-3"><i class="fas fa-folder-open"></i> Documentos Adicionales</h6>
+      
+      <!-- ✅ Mostrar alerta si está cancelado -->
+      {% if c.cancelado %}
+      <div class="alert alert-success mb-3">
+        <strong>🎉 Pagado completamente</strong>
+        {% if c.fecha_cancelacion %}
+          <br>Fecha: {{ c.fecha_cancelacion.astimezone(pytz.timezone('America/Lima')).strftime('%d/%m/%Y %H:%M') }}
+        {% endif %}
+      </div>
+      {% endif %}
+      
       <div class="row g-3">
 
         <!-- Escritura -->

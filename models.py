@@ -85,12 +85,43 @@ class Compra(db.Model):
     comentario = db.Column(db.Text)
     escritura = db.Column(db.String(200))
     otros_documentos = db.Column(db.Text)
+    cancelado = db.Column(db.Boolean, default=False)
+    fecha_cancelacion = db.Column(db.DateTime)
       
 
     # Relación con cuotas y pagos
     cuotas = db.relationship("Cuota", backref="compra", lazy=True, cascade="all, delete-orphan")
     pagos = db.relationship("Pago", backref="compra", lazy=True, cascade="all, delete-orphan")
     usuario = db.relationship("Usuario", backref="compras") 
+
+    def verificar_cancelacion(self):
+        """
+        Verifica si la compra está completamente pagada y actualiza el estado
+        """
+        if self.forma_pago == "contado":
+            # Al contado siempre está cancelado desde el inicio
+            self.cancelado = True
+            if not self.fecha_cancelacion:
+                self.fecha_cancelacion = self.fecha_compra
+            return True
+        
+        elif self.forma_pago == "credito":
+            # Verificar si todas las cuotas están pagadas
+            if self.cuotas_total > 0:
+                cuotas_pagadas = sum(1 for cuota in self.cuotas if cuota.pagada)
+                if cuotas_pagadas == self.cuotas_total:
+                    self.cancelado = True
+                    if not self.fecha_cancelacion:
+                        from datetime import datetime
+                        import pytz
+                        lima = pytz.timezone("America/Lima")
+                        self.fecha_cancelacion = datetime.now(lima)
+                    return True
+                else:
+                    self.cancelado = False
+                    return False
+        
+        return False
 
 
 # ---------------- CUOTA ----------------

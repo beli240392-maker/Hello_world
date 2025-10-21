@@ -65,9 +65,6 @@ def load_user(user_id):
 
 
 
-app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///lotes.db"
-app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-
 
 # ------------------- FUNCIONES AUXILIARES -------------------
 def guardar_boucher(file):
@@ -382,6 +379,24 @@ def editar_area(lote_id):
 
 
 # ------------------- REGISTRAR COMPRA -------------------
+
+
+
+@app.route("/agregar_comentario/<int:compra_id>", methods=["POST"])
+@login_required
+def agregar_comentario(compra_id):
+    compra = Compra.query.get_or_404(compra_id)
+    comentario = request.form.get("comentario", "").strip()
+
+    if comentario:
+        compra.comentario = comentario
+        db.session.commit()
+        flash("✅ Comentario guardado correctamente.", "success")
+    else:
+        flash("⚠️ El comentario está vacío o no se pudo guardar.", "warning")
+
+    # Redirigir de vuelta a la vista del cliente correcto
+    return redirect(url_for("ver_cliente", cliente_id=compra.cliente_id))
 @app.route("/registrar_compra", methods=["GET", "POST"]) 
 @lotizacion_required
 @login_required
@@ -405,7 +420,7 @@ def registrar_compra():
                 .filter(
                     Lote.lotizacion_id == lotizacion.id,
                     Lote.estado == "disponible",
-                    db.func.replace(Lote.manzana, "’", "'") == manzana_param  # acepta distintos tipos de comilla
+                    db.func.replace(Lote.manzana, "'", "'") == manzana_param  # acepta distintos tipos de comilla
                 )
                 .all()
             )
@@ -435,8 +450,8 @@ def registrar_compra():
         telefono = request.form.get("telefono", "").strip()
         direccion = request.form.get("direccion", "").strip().lower()
         ciudad = request.form.get("ciudad", "").strip().lower()
-        estado_civil = request.form.get("estado_civil", "").strip().lower()  # ✅ agregado
-        ocupacion = request.form.get("ocupacion", "").strip().lower()        # ✅ agregado
+        estado_civil = request.form.get("estado_civil", "").strip().lower()
+        ocupacion = request.form.get("ocupacion", "").strip().lower()
 
         precio = float(request.form.get("precio", 0))
         forma_pago = request.form["forma_pago"]
@@ -455,12 +470,11 @@ def registrar_compra():
                 direccion=direccion,
                 ciudad=ciudad,
                 estado_civil=estado_civil,  
-                ocupacion=ocupacion        #
+                ocupacion=ocupacion
             )
             db.session.add(cliente)
-            db.session.commit()
+            db.session.commit()  # ✅ Commit para obtener el ID
         else:
-            
             cliente.nombre = nombre
             cliente.apellidos = apellidos
             cliente.telefono = telefono
@@ -468,7 +482,7 @@ def registrar_compra():
             cliente.ciudad = ciudad
             cliente.estado_civil = estado_civil
             cliente.ocupacion = ocupacion
-            db.session.commit()
+            db.session.commit()  # ✅ Commit para actualizar datos
 
         # ✅ Guardar fotos de DNI
         dni_frontal_file = request.files.get("dni_frontal")
@@ -490,7 +504,7 @@ def registrar_compra():
             dni_reverso_file.save(save_path)
             cliente.dni_reverso = f"dni/{filename}".replace("\\", "/")
 
-        db.session.commit()
+        db.session.commit()  # ✅ Commit para guardar las fotos
 
         # Lote
         lote_id = request.form.get("lote")
@@ -521,29 +535,33 @@ def registrar_compra():
         else:
             fecha_compra = datetime.utcnow()
 
-
         # Crear compra
         compra = Compra(
-            cliente_id=cliente.id,
+            cliente_id=cliente.id,  # ✅ Ahora cliente.id existe
             lote_id=lote.id,
             forma_pago=forma_pago,
             precio=monto_total,
             inicial=inicial,
             cuotas_total=cuotas_total,
             cuota_monto=(monto_total - inicial) / cuotas_total if forma_pago == "credito" and cuotas_total > 0 else 0,
-            boucher_inicial=boucher_path,  
+            boucher_inicial=boucher_path,
             interes=interes,
             usuario_id=current_user.id,
-            fecha_compra=fecha_compra 
+            fecha_compra=fecha_compra
         )
         db.session.add(compra)
-        db.session.commit()
+        db.session.flush()  # ✅ flush para obtener compra.id antes del commit final
+
+        # ✅ Si es al contado, marcar como cancelado inmediatamente
+        if forma_pago == "contado":
+            compra.cancelado = True
+            compra.fecha_cancelacion = fecha_compra
 
         # Generar cuotas
         if forma_pago == "credito" and cuotas_total > 0:
-            fecha_vencimiento = datetime.utcnow()
+            fecha_vencimiento = fecha_compra
             for i in range(1, cuotas_total + 1):
-                fecha_vencimiento += timedelta(days=30)
+                fecha_vencimiento = fecha_vencimiento + timedelta(days=30)
                 cuota = Cuota(
                     compra_id=compra.id,
                     numero=i,
@@ -551,7 +569,6 @@ def registrar_compra():
                     fecha_vencimiento=fecha_vencimiento
                 )
                 db.session.add(cuota)
- 
 
         # Si venía de separación → marcar inactiva
         sep_id = request.form.get("sep_id")
@@ -567,7 +584,7 @@ def registrar_compra():
                 )
                 db.session.add(historial)
 
-        db.session.commit()
+        db.session.commit()  # ✅ Commit final
         flash("Compra registrada correctamente.", "success")
         return redirect(url_for("ver_cliente", cliente_id=cliente.id))
 
@@ -580,25 +597,6 @@ def registrar_compra():
         separacion=separacion,
         lotizacion=lotizacion
     )
-
-
-
-@app.route("/agregar_comentario/<int:compra_id>", methods=["POST"])
-@login_required
-def agregar_comentario(compra_id):
-    compra = Compra.query.get_or_404(compra_id)
-    comentario = request.form.get("comentario", "").strip()
-
-    if comentario:
-        compra.comentario = comentario
-        db.session.commit()
-        flash("✅ Comentario guardado correctamente.", "success")
-    else:
-        flash("⚠️ El comentario está vacío o no se pudo guardar.", "warning")
-
-    # Redirigir de vuelta a la vista del cliente correcto
-    return redirect(url_for("ver_cliente", cliente_id=compra.cliente_id))
-
 
 # ------------------- REGISTRAR SEPARACION -------------------
 @app.route("/registrar_separacion", methods=["GET", "POST"])
@@ -813,24 +811,37 @@ def detalle_cuotas(compra_id):
         lotizacion = Lotizacion.query.get(session["lotizacion_id"])
 
     return render_template("detalle_cuotas.html", compra=compra, now=now,
-                           cliente_id=compra.cliente.id, lotizacion=lotizacion)
+                           cliente_id=compra.cliente.id, lotizacion=lotizacion, pytz=pytz)
 
 # ------------------- PAGAR CUOTA -------------------
 @app.route("/pagar_cuota", methods=["POST"])
 def pagar_cuota():
     cuota_id = request.form["cuota_id"]
     cuota = Cuota.query.get_or_404(cuota_id)
+    compra = cuota.compra
+    
+    # Guardar boucher
     boucher_file = request.files.get("boucher_cuota")
     boucher_path = guardar_boucher(boucher_file)
+    
+    # Registrar pago
     pago = Pago(compra_id=cuota.compra_id, monto=cuota.monto, boucher=boucher_path)
     db.session.add(pago)
-    db.session.commit()
+    db.session.flush()  # ✅ CRÍTICO: Hacer flush para obtener pago.id
+    
+    # Marcar cuota como pagada
     cuota.pagada = True
-    cuota.pago_id = pago.id
-    db.session.commit()
-    flash("✅ Cuota pagada correctamente.", "success")
+    cuota.pago_id = pago.id  # ✅ Ahora pago.id ya tiene valor
+    
+    # Verificar si se completó el pago total
+    if compra.verificar_cancelacion():
+        db.session.commit()
+        flash("🎉 ¡Felicidades! Cuota pagada y compra TOTALMENTE CANCELADA.", "success")
+    else:
+        db.session.commit()
+        flash("✅ Cuota pagada correctamente.", "success")
+    
     return redirect(url_for("detalle_cuotas", compra_id=cuota.compra_id))
-
 # ------------------- LIBERAR LOTE -------------------
 @app.route("/liberar_lote/<int:id>/<string:tipo>", methods=["POST"])
 @login_required
@@ -1380,6 +1391,7 @@ def eliminar_documento(compra_id, tipo):
 
 @app.route("/editar_voucher/<int:id>", methods=["GET", "POST"])
 @login_required
+@admin_required
 def editar_voucher(id):
     from models import Voucher
     voucher = Voucher.query.get_or_404(id)
