@@ -1002,6 +1002,9 @@ def reportes():
         fecha = datetime.strptime(fecha_str, "%Y-%m-%d").date() if fecha_str else date.today()
     except ValueError:
         fecha = date.today()
+    
+    # Convertir fecha a datetime para consistencia en el template
+    fecha_datetime = datetime.combine(fecha, datetime.min.time())
 
     # === Consultas ===
     separaciones = (
@@ -1013,7 +1016,7 @@ def reportes():
 
     compras_contado = (
         Compra.query.filter_by(forma_pago="contado")
-        .filter(db.func.date(Compra.fecha_compra) == fecha)   # ✅ filtro por fecha
+        .filter(db.func.date(Compra.fecha_compra) == fecha)
         .join(Lote)
         .filter(Lote.lotizacion_id == lotizacion_id)
         .all()
@@ -1021,7 +1024,7 @@ def reportes():
 
     compras_credito = (
         Compra.query.filter_by(forma_pago="credito")
-        .filter(db.func.date(Compra.fecha_compra) == fecha)   # ✅ filtro por fecha
+        .filter(db.func.date(Compra.fecha_compra) == fecha)
         .join(Lote)
         .filter(Lote.lotizacion_id == lotizacion_id)
         .all()
@@ -1029,7 +1032,7 @@ def reportes():
 
     cuotas_vencidas = (
         Cuota.query.filter(
-            Cuota.fecha_vencimiento < fecha,
+            Cuota.fecha_vencimiento < fecha_datetime,
             Cuota.pagada == False
         )
         .join(Compra)
@@ -1038,10 +1041,11 @@ def reportes():
         .all()
     )
 
+    fecha_limite = fecha_datetime + timedelta(days=7)
     cuotas_por_vencer = (
         Cuota.query.filter(
-            Cuota.fecha_vencimiento >= fecha,
-            Cuota.fecha_vencimiento <= fecha + timedelta(days=7),
+            Cuota.fecha_vencimiento >= fecha_datetime,
+            Cuota.fecha_vencimiento <= fecha_limite,
             Cuota.pagada == False
         )
         .join(Compra)
@@ -1053,6 +1057,7 @@ def reportes():
     return render_template(
         "reportes.html",
         fecha=fecha,
+        fecha_datetime=fecha_datetime,  # ✅ Pasar también como datetime
         separaciones=separaciones,
         compras_contado=compras_contado,
         compras_credito=compras_credito,

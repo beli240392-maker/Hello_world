@@ -68,7 +68,7 @@
       <td>Mz {{ s.lote.manzana }} - Lt {{ s.lote.numero }}</td>
       <td>S/ {{ "%.2f"|format(s.monto) }}</td>
       <td>{{ s.fecha.strftime("%d/%m/%Y") }}</td>
-      <td>{{ (fecha - s.fecha.date()).days }}</td>
+      <td>{{ (fecha_datetime - s.fecha).days }}</td>
       <td>{{ s.usuario.username if s.usuario else "No registrado" }}</td>
     </tr>
     {% else %}
@@ -162,7 +162,7 @@
       <td>{{ q.numero }}</td>
       <td>S/ {{ "%.2f"|format(q.monto) }}</td>
       <td>{{ q.fecha_vencimiento.strftime("%d/%m/%Y") }}</td>
-      <td>{{ (fecha - q.fecha_vencimiento).days }}</td>
+      <td>{{ (fecha_datetime - q.fecha_vencimiento).days }}</td>
     </tr>
     {% else %}
     <tr><td colspan="7" class="text-center">No hay cuotas vencidas</td></tr>
@@ -193,7 +193,7 @@
       <td>{{ q.numero }}</td>
       <td>S/ {{ "%.2f"|format(q.monto) }}</td>
       <td>{{ q.fecha_vencimiento.strftime("%d/%m/%Y") }}</td>
-      <td>{{ (q.fecha_vencimiento - fecha).days }}</td>
+      <td>{{ (q.fecha_vencimiento - fecha_datetime).days }}</td>
     </tr>
     {% else %}
     <tr><td colspan="7" class="text-center">No hay cuotas próximas a vencer</td></tr>
