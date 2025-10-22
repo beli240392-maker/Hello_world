@@ -820,6 +820,27 @@ def pagar_cuota():
     cuota = Cuota.query.get_or_404(cuota_id)
     compra = cuota.compra
     
+    # ✅ NUEVA VALIDACIÓN: Verificar que no haya cuotas anteriores sin pagar
+    cuotas_anteriores_pendientes = Cuota.query.filter(
+        Cuota.compra_id == cuota.compra_id,
+        Cuota.numero < cuota.numero,
+        Cuota.pagada == False
+    ).first()
+    
+    # Si hay cuotas pendientes anteriores y no se autorizó el pago forzado
+    if cuotas_anteriores_pendientes and not request.form.get('forzar_pago'):
+        flash(
+            f"❌ No puedes pagar la cuota #{cuota.numero}. "
+            f"Primero debes pagar la cuota #{cuotas_anteriores_pendientes.numero}.", 
+            "danger"
+        )
+        return redirect(url_for("detalle_cuotas", compra_id=cuota.compra_id))
+    
+    # Si ya está pagada
+    if cuota.pagada:
+        flash("⚠️ Esta cuota ya ha sido pagada.", "warning")
+        return redirect(url_for("detalle_cuotas", compra_id=cuota.compra_id))
+    
     # Guardar boucher
     boucher_file = request.files.get("boucher_cuota")
     boucher_path = guardar_boucher(boucher_file)

@@ -71,7 +71,7 @@
     </tr>
   </thead>
   <tbody>
-    {% for cuota in compra.cuotas %}
+    {% for cuota in compra.cuotas|sort(attribute='numero') %}
     <tr class="text-center">
       <td>{{ cuota.numero }}</td>
       <td>S/ {{ "%.2f"|format(cuota.monto) }}</td>
@@ -94,11 +94,20 @@
       </td>
       <td>
         {% if not cuota.pagada %}
-          <form method="POST" action="{{ url_for('pagar_cuota') }}" enctype="multipart/form-data" class="d-flex flex-column gap-1">
-            <input type="hidden" name="cuota_id" value="{{ cuota.id }}">
-            <input type="file" name="boucher_cuota" accept="image/*" required class="form-control form-control-sm">
-            <button type="submit" class="btn btn-sm btn-success">💰 Pagar</button>
-          </form>
+          {# ✅ Verificar si hay cuotas anteriores sin pagar #}
+          {% set hay_cuota_anterior_pendiente = compra.cuotas|selectattr('numero', 'lt', cuota.numero)|selectattr('pagada', 'equalto', False)|list|length > 0 %}
+          
+          {% if hay_cuota_anterior_pendiente %}
+            <button class="btn btn-sm btn-secondary" disabled title="Debes pagar las cuotas anteriores primero">
+              🔒 Pagar (Bloqueado)
+            </button>
+          {% else %}
+            <form method="POST" action="{{ url_for('pagar_cuota') }}" enctype="multipart/form-data" class="d-flex flex-column gap-1">
+              <input type="hidden" name="cuota_id" value="{{ cuota.id }}">
+              <input type="file" name="boucher_cuota" accept="image/*" required class="form-control form-control-sm">
+              <button type="submit" class="btn btn-sm btn-success">💰 Pagar</button>
+            </form>
+          {% endif %}
         {% else %}
           {% if cuota.pago and cuota.pago.boucher %}
             <a href="{{ url_for('static', filename=cuota.pago.boucher) }}" target="_blank" class="btn btn-sm btn-primary">
