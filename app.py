@@ -557,11 +557,11 @@ def registrar_compra():
             compra.cancelado = True
             compra.fecha_cancelacion = fecha_compra
 
-        # Generar cuotas
+       # Generar cuotas
         if forma_pago == "credito" and cuotas_total > 0:
-            fecha_vencimiento = fecha_compra
             for i in range(1, cuotas_total + 1):
-                fecha_vencimiento = fecha_vencimiento + timedelta(days=30)
+                # Calcula directamente desde fecha_compra
+                fecha_vencimiento = fecha_compra + timedelta(days=30 * i)
                 cuota = Cuota(
                     compra_id=compra.id,
                     numero=i,
