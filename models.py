@@ -201,6 +201,7 @@ class Voucher(db.Model):
     proyecto = db.Column(db.String(100))
     fecha_registro = db.Column(db.DateTime, default=lambda: datetime.now(pytz.timezone("America/Lima")))
     lote_id = db.Column(db.Integer, db.ForeignKey("lotes.id"))
+    lotizacion_id = db.Column(db.Integer, db.ForeignKey("lotizaciones.id"))
 
     # Relación con usuario que registró el voucher
     usuario_id = db.Column(db.Integer, db.ForeignKey("usuarios.id"), nullable=True)

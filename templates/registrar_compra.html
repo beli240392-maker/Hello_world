@@ -24,12 +24,12 @@
       <input type="text" class="form-control" name="apellidos" value="{{ cliente.apellidos if cliente else '' }}" required>
     </div>
     <div class="mb-3">
-  <label for="dni" class="form-label">DNI:</label>
-  <input type="text" class="form-control" name="dni"
-       value="{{ cliente.dni if cliente else '' }}"
-       required 
-       minlength="8" maxlength="15"
-       oninput="this.value=this.value.replace(/[^A-Za-z0-9]/g,'').slice(0,15)">
+      <label for="dni" class="form-label">DNI:</label>
+      <input type="text" class="form-control" name="dni"
+           value="{{ cliente.dni if cliente else '' }}"
+           required 
+           minlength="8" maxlength="15"
+           oninput="this.value=this.value.replace(/[^A-Za-z0-9]/g,'').slice(0,15)">
     </div>
     <div class="mb-3">
       <label for="estado_civil" class="form-label">Estado Civil</label>
@@ -83,7 +83,7 @@
     <div class="mb-3">
       <label for="precio" class="form-label">Precio del Lote:</label>
       <input type="number" step="0.01" class="form-control" name="precio" 
-             value="{{ separacion.monto if separacion else '' }}" required>
+             value="{{ lote.precio if lote else (separacion.monto if separacion else '') }}" required>
     </div>
 
     <div class="mb-3">
@@ -114,31 +114,55 @@
 
     <div class="mb-3">
       <label for="boucher_inicial" class="form-label">Boucher de pago (obligatorio):</label>
-      <input type="file" class="form-control" name="boucher_inicial" {% if not separacion %}required{% endif %}>
+      <input type="file" class="form-control" name="boucher_inicial" required>
       {% if separacion and separacion.boucher %}
-        <p class="text-muted">Ya existe un boucher de separación, puedes reemplazarlo si deseas.</p>
+        <div class="mt-2">
+          <p class="text-muted mb-1">Referencia - Boucher de separación anterior:</p>
+          <a href="{{ url_for('static', filename=separacion.boucher) }}" target="_blank" class="btn btn-sm btn-info">
+            📎 Ver Boucher de Separación (Referencia)
+          </a>
+          <p class="text-muted mt-1"><small>⚠️ Debes subir el boucher de la compra o inicial.</small></p>
+        </div>
       {% endif %}
     </div>
 
     <!-- 👇 Solo pedir fotos de DNI si no existen -->
-    {% if not cliente or not cliente.dni_frontal %}
+    {% if cliente and cliente.dni_frontal %}
+    <div class="mb-3">
+      <label class="form-label">Foto DNI Frontal (Ya registrada):</label>
+      <div class="border p-2 rounded">
+        <img src="{{ url_for('static', filename=cliente.dni_frontal) }}" 
+             class="img-thumbnail" style="max-height: 150px;" alt="DNI Frontal">
+        <p class="text-muted mb-0 mt-1"><small>Ya tienes una foto registrada. No es necesario volver a subirla.</small></p>
+      </div>
+    </div>
+    {% else %}
     <div class="mb-3">
       <label for="dni_frontal" class="form-label">Foto DNI (Frontal):</label>
       <input type="file" class="form-control" name="dni_frontal" accept="image/*" required>
     </div>
     {% endif %}
 
-    {% if not cliente or not cliente.dni_reverso %}
+    {% if cliente and cliente.dni_reverso %}
+    <div class="mb-3">
+      <label class="form-label">Foto DNI Reverso (Ya registrada):</label>
+      <div class="border p-2 rounded">
+        <img src="{{ url_for('static', filename=cliente.dni_reverso) }}" 
+             class="img-thumbnail" style="max-height: 150px;" alt="DNI Reverso">
+        <p class="text-muted mb-0 mt-1"><small>Ya tienes una foto registrada. No es necesario volver a subirla.</small></p>
+      </div>
+    </div>
+    {% else %}
     <div class="mb-3">
       <label for="dni_reverso" class="form-label">Foto DNI (Reverso):</label>
       <input type="file" class="form-control" name="dni_reverso" accept="image/*" required>
     </div>
     {% endif %}
-    <div class="mb-3">
-  <label for="fecha_compra" class="form-label">Fecha de Venta:</label>
-  <input type="date" id="fecha_compra" name="fecha_compra" class="form-control">
-</div>
 
+    <div class="mb-3">
+      <label for="fecha_compra" class="form-label">Fecha de Venta:</label>
+      <input type="date" id="fecha_compra" name="fecha_compra" class="form-control">
+    </div>
 
   </div>
 
@@ -146,6 +170,7 @@
 
   <div class="col-12">
     <button type="submit" class="btn btn-success">Registrar Compra</button>
+    <a href="javascript:history.back()" class="btn btn-secondary">Cancelar</a>
   </div>
 </form>
 

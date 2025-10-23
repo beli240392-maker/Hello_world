@@ -82,6 +82,71 @@
 </div>
 {% endif %}
 
+{% if separaciones %}
+<h3>🟡 Lotes Separados</h3>
+<div class="table-responsive">
+  <table class="table table-bordered table-striped">
+    <thead class="table-dark">
+      <tr>
+        <th>Lote</th>
+        <th>Monto</th>
+        <th>Fecha</th>
+        <th>Voucher</th>
+        <th>Acciones</th>
+        <th>Vendido por</th>  <!-- 👈 Nueva columna -->
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in separaciones %}
+      <tr>
+        <td>Mz {{ s.lote.manzana }} - Lt {{ s.lote.numero }}</td>
+        <td>S/ {{ "%.2f"|format(s.monto) }}</td>
+        <td>{{ s.fecha.strftime("%d/%m/%Y") }}</td>
+
+        <td>
+          {% if s.boucher %}
+            <a href="{{ url_for('static', filename=s.boucher) }}" target="_blank" class="btn btn-sm btn-info">
+              📎 Ver Voucher
+            </a>
+          {% else %}
+            <span class="text-muted">No disponible</span>
+          {% endif %}
+        </td>
+
+        <td>
+          <div class="d-flex flex-column gap-1">
+            <!-- ✅ Cambiar este form por un enlace -->
+            <a href="{{ url_for('registrar_compra', sep_id=s.id) }}" 
+              class="btn btn-success btn-sm">
+              💰 Convertir a Compra
+            </a>
+
+            {% if current_user.rol == 'admin' %}
+            <form action="{{ url_for('liberar_separacion', sep_id=s.id) }}" method="POST">
+              <button type="submit" class="btn btn-danger btn-sm" 
+                      onclick="return confirm('¿Eliminar esta separación?');">
+                🗑️ Eliminar
+              </button>
+            </form>
+            {% endif %}
+          </div>
+        </td>
+
+        <td>
+          {% if s.usuario %}
+            {{ s.usuario.username }}
+          {% else %}
+            <span class="text-muted">No registrado</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+
 <!-- ===============================
      COMPRAS AL CONTADO
 ================================ -->
