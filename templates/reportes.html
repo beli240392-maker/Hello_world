@@ -68,7 +68,10 @@
       <td>Mz {{ s.lote.manzana }} - Lt {{ s.lote.numero }}</td>
       <td>S/ {{ "%.2f"|format(s.monto) }}</td>
       <td>{{ s.fecha.strftime("%d/%m/%Y") }}</td>
-      <td>{{ (fecha_datetime - s.fecha).days }}</td>
+      <td>
+        {% set dias = (fecha_datetime - s.fecha).days %}
+        {{ dias if dias >= 0 else 0 }}
+      </td>
       <td>{{ s.usuario.username if s.usuario else "No registrado" }}</td>
     </tr>
     {% else %}
