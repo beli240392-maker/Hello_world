@@ -1018,13 +1018,17 @@ def reportes():
     lotizacion_id = session.get("lotizacion_id")
 
     # Obtener fecha desde query params, si no → hoy
+    # Obtener fecha desde query params, si no → hoy en hora de Perú
     fecha_str = request.args.get("fecha")
     try:
-        fecha = datetime.strptime(fecha_str, "%Y-%m-%d").date() if fecha_str else date.today()
+        if fecha_str:
+            fecha = datetime.strptime(fecha_str, "%Y-%m-%d").date()
+        else:
+            fecha = hora_local_peru().date()  # ✅ Fecha actual de Perú
     except ValueError:
-        fecha = date.today()
-    
-    # Convertir fecha a datetime para consistencia en el template
+        fecha = hora_local_peru().date()
+
+    # Convertir fecha a datetime SIN zona horaria (para mantener compatibilidad)
     fecha_datetime = datetime.combine(fecha, datetime.min.time())
 
     # === Consultas ===
