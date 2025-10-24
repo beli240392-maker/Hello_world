@@ -1161,10 +1161,11 @@ def autocomplete_clientes():
 
 
 # ------------------- VERIFICAR VOUCHER REPETIDO -------------------
+# ------------------- VERIFICAR VOUCHER REPETIDO -------------------
 @app.route("/vouchers", methods=["GET", "POST"])
 @login_required
 def vouchers():
-    from models import Voucher, Lote  # ✅ asegúrate de importar Lote
+    from models import Voucher, Lote
     codigo_buscar = request.args.get("codigo", "").strip()
     
     if request.method == "POST":
@@ -1174,7 +1175,7 @@ def vouchers():
         apellidos = request.form.get("apellidos")
         monto = float(request.form.get("monto") or 0)
         proyecto = request.form.get("proyecto")
-        lote_id = request.form.get("lote_id")  # ✅ usa get() por seguridad
+        lote_id = request.form.get("lote_id")
 
         # Verificar duplicado
         existe = Voucher.query.filter_by(codigo=codigo).first()
@@ -1188,10 +1189,9 @@ def vouchers():
                 apellidos=apellidos,
                 monto=monto,
                 proyecto=proyecto,  
-                lote_id=lote_id,  # ✅ ahora guarda el lote
+                lote_id=lote_id,
                 fecha_registro=datetime.now(lima),
                 usuario_id=current_user.id
-                
             )
             db.session.add(v)
             db.session.commit()
@@ -1207,16 +1207,15 @@ def vouchers():
 
     # ✅ Consulta de lotes
     lotes = Lote.query.order_by(Lote.manzana.asc(), Lote.numero.asc()).all()
-    print("Lotes cargados:", len(lotes))  # 👀 útil para depurar en consola
+    print("Lotes cargados:", len(lotes))
 
     return render_template(
         "vouchers.html",
         vouchers=vouchers,
         codigo_buscar=codigo_buscar,
-        lotes=lotes,  # ✅ ahora se envía correctamente al template
+        lotes=lotes,
         pytz=pytz
     )
-
 
 @app.route("/exportar_ventas")
 @login_required
