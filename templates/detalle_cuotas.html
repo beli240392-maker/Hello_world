@@ -109,13 +109,23 @@
             </form>
           {% endif %}
         {% else %}
-          {% if cuota.pago and cuota.pago.boucher %}
-            <a href="{{ url_for('static', filename=cuota.pago.boucher) }}" target="_blank" class="btn btn-sm btn-primary">
-              📄 Ver Boucher
-            </a>
-          {% else %}
-            <span class="text-muted small">Sin voucher</span>
-          {% endif %}
+          <div class="d-flex flex-column gap-1 align-items-center">
+            {% if cuota.pago and cuota.pago.boucher %}
+              <a href="{{ url_for('static', filename=cuota.pago.boucher) }}" target="_blank" class="btn btn-sm btn-primary">
+                📄 Ver Boucher
+              </a>
+              <!-- 🔴 NUEVO: Botón para eliminar voucher -->
+              <form method="POST" action="{{ url_for('eliminar_voucher_cuota', cuota_id=cuota.id) }}" 
+                    style="display:inline;" 
+                    onsubmit="return confirm('¿Eliminar este voucher?');">
+                <button type="submit" class="btn btn-sm btn-danger">
+                  🗑️ Eliminar
+                </button>
+              </form>
+            {% else %}
+              <span class="text-muted small">Sin voucher</span>
+            {% endif %}
+          </div>
         {% endif %}
       </td>
     </tr>

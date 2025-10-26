@@ -1443,6 +1443,40 @@ def editar_voucher(id):
     return render_template("editar_voucher.html", voucher=voucher, lotes=lotes)
 
 
+@app.route("/eliminar_voucher_cuota/<int:cuota_id>", methods=["POST"])
+@login_required
+@admin_required
+def eliminar_voucher_cuota(cuota_id):
+    cuota = Cuota.query.get_or_404(cuota_id)
+    
+    if not cuota.pago_id:
+        flash("⚠️ Esta cuota no tiene voucher registrado.", "warning")
+        return redirect(url_for("detalle_cuotas", compra_id=cuota.compra_id))
+    
+    # Obtener el pago asociado
+    pago = Pago.query.get(cuota.pago_id)
+    
+    if pago and pago.boucher:
+        # Eliminar archivo físico del voucher
+        boucher_path = os.path.join("static", pago.boucher)
+        try:
+            if os.path.exists(boucher_path):
+                os.remove(boucher_path)
+        except Exception as e:
+            print(f"Error al eliminar archivo: {e}")
+    
+    # Eliminar el registro del pago
+    if pago:
+        db.session.delete(pago)
+    
+    # Desmarcar la cuota como pagada
+    cuota.pagada = False
+    cuota.pago_id = None
+    
+    db.session.commit()
+    flash("✅ Voucher eliminado correctamente. Puedes subir uno nuevo.", "success")
+    
+    return redirect(url_for("detalle_cuotas", compra_id=cuota.compra_id))
 
 
 @app.route("/logout")
