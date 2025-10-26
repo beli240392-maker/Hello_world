@@ -115,12 +115,14 @@
                 📄 Ver Boucher
               </a>
               <!-- 🔴 NUEVO: Botón para eliminar voucher -->
+               {% if current_user.rol == "admin" %}
               <form method="POST" action="{{ url_for('eliminar_voucher_cuota', cuota_id=cuota.id) }}" 
                     style="display:inline;" 
                     onsubmit="return confirm('¿Eliminar este voucher?');">
                 <button type="submit" class="btn btn-sm btn-danger">
                   🗑️ Eliminar
                 </button>
+                {% endif %}
               </form>
             {% else %}
               <span class="text-muted small">Sin voucher</span>
