@@ -17,6 +17,10 @@
       <input type="text" name="dni" id="dni" value="{{ cliente.dni }}" required class="form-control">
     </div>
     <div class="col-md-6 mb-3">
+        <label>Correo electrónico:</label>
+        <input type="email" name="correo" value="{{ cliente.correo or '' }}" class="form-control" placeholder="ejemplo@correo.com">
+    </div>
+    <div class="col-md-6 mb-3">
   <label for="estado_civil" class="form-label">Estado Civil</label>
   <input type="text" name="estado_civil" class="form-control" 
          value="{{ cliente.estado_civil if cliente else '' }}">

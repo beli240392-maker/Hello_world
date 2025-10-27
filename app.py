@@ -180,6 +180,7 @@ def editar_cliente(cliente_id):
         cliente.ocupacion = request.form.get("ocupacion", "No registrada").strip().lower()
         cliente.ciudad = request.form["ciudad"].strip().lower()
         cliente.direccion = request.form["direccion"].strip().lower()
+        cliente.correo = request.form.get("correo", "").strip().lower()
 
         db.session.commit()
         flash("✅ Cliente actualizado correctamente.", "success")
@@ -447,6 +448,7 @@ def registrar_compra():
         nombre = request.form["nombre"].strip().lower()
         apellidos = request.form.get("apellidos", "").strip().lower()
         dni = request.form["dni"].strip()
+        correo = request.form.get("correo", "").strip().lower()
         telefono = request.form.get("telefono", "").strip()
         direccion = request.form.get("direccion", "").strip().lower()
         ciudad = request.form.get("ciudad", "").strip().lower()
@@ -470,7 +472,8 @@ def registrar_compra():
                 direccion=direccion,
                 ciudad=ciudad,
                 estado_civil=estado_civil,  
-                ocupacion=ocupacion
+                ocupacion=ocupacion,
+                correo=correo if correo else None 
             )
             db.session.add(cliente)
             db.session.commit()  # ✅ Commit para obtener el ID
@@ -482,6 +485,8 @@ def registrar_compra():
             cliente.ciudad = ciudad
             cliente.estado_civil = estado_civil
             cliente.ocupacion = ocupacion
+            if correo:  # 👈 NUEVO: Solo actualiza si hay correo
+                cliente.correo = correo
             db.session.commit()  # ✅ Commit para actualizar datos
 
         # ✅ Guardar fotos de DNI
@@ -618,6 +623,8 @@ def registrar_separacion():
         telefono = request.form.get("telefono").strip()
         direccion = request.form.get("direccion").strip().lower()
         ciudad = request.form.get("ciudad").strip().lower()
+        correo = request.form.get("correo", "").strip().lower()
+       
 
         # 🔹 Nuevos campos
         estado_civil = request.form.get("estado_civil").strip().lower()
@@ -637,7 +644,8 @@ def registrar_separacion():
                 direccion=direccion,
                 ciudad=ciudad,
                 estado_civil=estado_civil,   # 🔹 agregado
-                ocupacion=ocupacion          # 🔹 agregado
+                ocupacion=ocupacion,        # 🔹 agregado
+                correo=correo if correo else None
             )
             db.session.add(cliente)
             db.session.commit()  # 👈 ahora cliente.id está disponible
@@ -648,6 +656,7 @@ def registrar_separacion():
             cliente.telefono = telefono or cliente.telefono
             cliente.direccion = direccion or cliente.direccion
             cliente.ciudad = ciudad or cliente.ciudad
+            cliente.correo = correo or cliente.correo 
 
         # ✅ Subida de fotos de DNI
         dni_frontal_file = request.files.get("dni_frontal")
@@ -1238,7 +1247,7 @@ def exportar_ventas():
 
     # Encabezados
     encabezados = [
-        "Cliente", "DNI", "Teléfono", "Dirección", "Ciudad", 
+        "Cliente", "DNI","Correo", "Teléfono", "Dirección", "Ciudad", 
         "Estado Civil", "Ocupación",
         "Manzana", "Lote", "Forma de Pago", "Precio", "Inicial", 
         "Cuotas", "Interés", "Vendedor", "Fecha de Compra"
@@ -1259,6 +1268,7 @@ def exportar_ventas():
         fila = [
             compra.cliente.nombre + " " + compra.cliente.apellidos,
             compra.cliente.dni,
+            compra.cliente.correo or "",
             compra.cliente.telefono or "",
             compra.cliente.direccion or "",
             compra.cliente.ciudad or "",

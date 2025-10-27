@@ -18,12 +18,14 @@ class Cliente(db.Model):
     apellidos = db.Column(db.String(100), nullable=False)
     dni = db.Column(db.String(20), unique=True, nullable=False)
     telefono = db.Column(db.String(20))
+    correo = db.Column(db.String(150)) 
     estado_civil = db.Column(db.String(50), default="No registrada")
     ocupacion = db.Column(db.String(100), default="No registrada")
     ciudad = db.Column(db.String(50))
     direccion = db.Column(db.String(200))
     dni_frontal = db.Column(db.String(200), nullable=True)
     dni_reverso = db.Column(db.String(200), nullable=True)
+    
 
     # Relación con compras y separaciones
     compras = db.relationship("Compra", backref="cliente", lazy=True, cascade="all, delete-orphan")
