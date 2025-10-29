@@ -2,133 +2,197 @@
 {% block content %}
 <div class="container mt-4">
 
-  <h3 class="mb-3">📑 Control de Vouchers</h3>
+  <h3 class="mb-4">📑 Control de Vouchers</h3>
 
-  <!-- Formulario agregar voucher -->
-  <form method="POST" enctype="multipart/form-data" class="row g-2 mb-4">
-    <div class="col-md-2"><input name="codigo" class="form-control" placeholder="Código" required></div>
-    <div class="col-md-2"><input name="banco" class="form-control" placeholder="Banco" required></div>
-    <div class="col-md-2"><input name="nombres" class="form-control" placeholder="Nombres" required></div>
-    <div class="col-md-2"><input name="apellidos" class="form-control" placeholder="Apellidos" required></div>
-    <div class="col-md-2"><input name="monto" class="form-control" placeholder="Monto" required></div>
-    <div class="col-md-2"><input name="proyecto" class="form-control" placeholder="Proyecto" required></div>
-    <select name="lote_id" class="form-select" required>
-      <option value="">Seleccionar lote...</option>
-      {% for lote in lotes %}
-      <option value="{{ lote.id }}">Mz {{ lote.manzana }} - Lt {{ lote.numero }}</option>
-      {% endfor %}
-    </select>
-
-    <div class="col-12"><button class="btn btn-primary mt-2">➕ Registrar Voucher</button></div>
-  </form>
-
-  <!-- Formulario buscar voucher -->
-  <form method="GET" class="mb-3">
-    <div class="input-group">
-      <input name="codigo" value="{{ codigo_buscar }}" class="form-control" placeholder="Buscar por código">
-      <button class="btn btn-success">🔍 Buscar</button>
+  <!-- ✅ Formulario agregar voucher -->
+  <div class="card mb-4">
+    <div class="card-header bg-primary text-white">
+      <h5 class="mb-0">➕ Registrar Nuevo Voucher</h5>
     </div>
-  </form>
+    <div class="card-body">
+      <form method="POST" enctype="multipart/form-data">
+        <div class="row g-3">
+          <div class="col-md-3">
+            <label class="form-label">Código *</label>
+            <input name="codigo" class="form-control" placeholder="Código del voucher" required>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Banco *</label>
+            <input name="banco" class="form-control" placeholder="Ej: BCP, Interbank" required>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Nombres *</label>
+            <input name="nombres" class="form-control" placeholder="Nombres del cliente" required>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Apellidos *</label>
+            <input name="apellidos" class="form-control" placeholder="Apellidos del cliente" required>
+          </div>
+        </div>
 
-  <!-- Resultados -->
+        <div class="row g-3 mt-2">
+          <div class="col-md-3">
+            <label class="form-label">Monto (S/.) *</label>
+            <input name="monto" class="form-control" placeholder="0.00" type="number" step="0.01" required>
+          </div>
+          
+          <div class="col-md-3">
+            <label class="form-label">Tipo de Pago *</label>
+            <select name="tipo_pago" id="tipo_pago_nuevo" class="form-select" 
+                    onchange="mostrarCuotaNuevo()" required>
+              <option value="">Seleccionar...</option>
+              <option value="inicial">🏁 Inicial</option>
+              <option value="cuota">📋 Cuota</option>
+            </select>
+          </div>
+
+          <div class="col-md-2" id="div_cuota_nuevo" style="display: none;">
+            <label class="form-label"># Cuota *</label>
+            <input type="number" name="numero_cuota" id="numero_cuota_nuevo" 
+                   class="form-control" placeholder="1, 2, 3..." min="1">
+          </div>
+
+          <div class="col-md-4">
+            <label class="form-label">Lote *</label>
+            <select name="lote_id" class="form-select" required>
+              <option value="">Seleccionar lote...</option>
+              {% for lote in lotes %}
+              <option value="{{ lote.id }}">Mz {{ lote.manzana }} - Lt {{ lote.numero }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <div class="mt-3">
+          <button class="btn btn-success btn-lg">
+            <i class="bi bi-check-circle"></i> Registrar Voucher
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ✅ Formulario buscar voucher -->
+  <div class="card mb-4">
+    <div class="card-body">
+      <form method="GET">
+        <div class="row g-2">
+          <div class="col-md-10">
+            <input name="codigo" value="{{ codigo_buscar }}" class="form-control" 
+                   placeholder="🔍 Buscar voucher por código...">
+          </div>
+          <div class="col-md-2">
+            <button class="btn btn-success w-100">Buscar</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ✅ Tabla de vouchers -->
   {% if codigo_buscar %}
     {% if vouchers|length > 0 %}
-      <div class="alert alert-success">✅ Código encontrado.</div>
-      <table id="tablaVouchers" class="table table-striped table-bordered">
-        <thead class="table-dark">
-          <tr>
-            <th>Código</th>
-            <th>Banco</th>
-            <th>Nombres</th>
-            <th>Apellidos</th>
-            <th>Monto</th>
-            <th>Lote</th>
-            <th>Proyecto</th>
-            <th>Fecha</th>
-            {% if current_user.rol == 'admin' %}
-            <th>Acción</th>
-            {% endif %}
-          </tr>
-        </thead>
-        <tbody>
-          {% for v in vouchers %}
-            <tr>
-              <td>{{ v.codigo }}</td>
-              <td>{{ v.banco }}</td>
-              <td>{{ v.nombres }}</td>
-              <td>{{ v.apellidos }}</td>
-              <td>S/ {{ '%.2f'|format(v.monto or 0) }}</td>
-              <td>
-                {% if v.lote %}
-                  Mz {{ v.lote.manzana }} - Lt {{ v.lote.numero }}
-                {% else %}
-                  —
-                {% endif %}
-              </td> 
-              <td>{{ v.proyecto }}</td>
-              <td>{{ v.fecha_registro.strftime("%d/%m/%Y %H:%M") }}</td>
-              {% if current_user.rol == 'admin' %}
-              <td>
-                <a href="{{ url_for('editar_voucher', id=v.id) }}" class="btn btn-warning btn-sm">
-                    ✏️ Editar
-                </a>
-              </td>
-              {% endif %}
-             
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+      <div class="alert alert-success">
+        <i class="bi bi-check-circle"></i> Se encontró el código <strong>{{ codigo_buscar }}</strong>
+      </div>
     {% else %}
-      <div class="alert alert-danger">⚠️ No existe un voucher con ese código.</div>
+      <div class="alert alert-danger">
+        <i class="bi bi-exclamation-triangle"></i> No existe un voucher con el código <strong>{{ codigo_buscar }}</strong>
+      </div>
     {% endif %}
-  {% else %}
-    <!-- Mostrar todos los vouchers si no hay búsqueda -->
-    <table id="tablaVouchers" class="table table-striped table-bordered">
-      <thead class="table-dark">
-        <tr>
-          <th>Código</th>
-          <th>Banco</th>
-          <th>Nombres</th>
-          <th>Apellidos</th>
-          <th>Monto</th>
-          <th>Lote</th>
-          <th>Proyecto</th>
-          <th>Fecha</th>
-          {% if current_user.rol == 'admin' %}
-          <th>Acción</th>
-          {% endif %}
-          
-        </tr>
-      </thead>
-      <tbody>
-        {% for v in vouchers %}
-          <tr>
-            <td>{{ v.codigo }}</td>
-            <td>{{ v.banco }}</td>
-            <td>{{ v.nombres }}</td>
-            <td>{{ v.apellidos }}</td>
-            <td>S/ {{ '%.2f'|format(v.monto or 0) }}</td>
-            <td>
-              {% if v.lote %}
-                Mz {{ v.lote.manzana }} - Lt {{ v.lote.numero }}
-              {% else %}
-                  —
-              {% endif %}
-            </td>
-            <td>{{ v.proyecto }}</td>
-            <td>{{ v.fecha_registro.strftime("%d/%m/%Y %H:%M") }}</td>
-            {% if current_user.rol == 'admin' %}
-            <td>
-              <a href="{{ url_for('editar_voucher', id=v.id) }}" class="btn btn-warning btn-sm">✏️ Editar</a>
-            </td>
-            {% endif %}
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
   {% endif %}
+
+  <div class="card">
+    <div class="card-header bg-dark text-white">
+      <h5 class="mb-0">📋 Lista de Vouchers ({{ vouchers|length }})</h5>
+    </div>
+    <div class="card-body">
+      <div class="table-responsive">
+        <table id="tablaVouchers" class="table table-hover table-bordered">
+          <thead class="table-dark">
+            <tr>
+              <th>Código</th>
+              <th>Cliente</th>
+              <th>Banco</th>
+              <th>Lote</th>
+              <th>Tipo</th>
+              <th class="text-center">Cuota</th>
+              <th class="text-end">Monto</th>
+              <th>Proyecto</th>
+              <th>Fecha</th>
+              <th class="text-center">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for v in vouchers %}
+              <tr>
+                <td><strong>{{ v.codigo }}</strong></td>
+                <td>{{ v.nombres }} {{ v.apellidos }}</td>
+                <td>{{ v.banco }}</td>
+                <td>
+                  {% if v.lote %}
+                    <span class="badge bg-secondary">Mz {{ v.lote.manzana }} - Lt {{ v.lote.numero }}</span>
+                  {% else %}
+                    <span class="text-muted">—</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if v.tipo_pago == 'inicial' %}
+                    <span class="badge bg-success">🏁 Inicial</span>
+                  {% elif v.tipo_pago == 'cuota' %}
+                    <span class="badge bg-primary">📋 Cuota</span>
+                  {% else %}
+                    <span class="badge bg-warning text-dark">❓ Sin clasificar</span>
+                  {% endif %}
+                </td>
+                <td class="text-center">
+                  {% if v.numero_cuota %}
+                    <span class="badge bg-dark">#{{ v.numero_cuota }}</span>
+                  {% else %}
+                    <span class="text-muted">—</span>
+                  {% endif %}
+                </td>
+                <td class="text-end"><strong>S/ {{ '%.2f'|format(v.monto or 0) }}</strong></td>
+                <td>
+                  {% if v.proyecto %}
+                    {{ v.proyecto }}
+                  {% else %}
+                    <span class="text-muted">—</span>
+                  {% endif %}
+                </td>
+                <td>{{ v.fecha_registro.strftime("%d/%m/%Y") }}</td>
+                <td class="text-center">
+                  <a href="{{ url_for('editar_voucher', id=v.id) }}" 
+                     class="btn btn-warning btn-sm">
+                    ✏️ Editar
+                  </a>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
 </div>
+
+<!-- ✅ JavaScript -->
+<script>
+function mostrarCuotaNuevo() {
+  const tipo = document.getElementById('tipo_pago_nuevo').value;
+  const divCuota = document.getElementById('div_cuota_nuevo');
+  const inputCuota = document.getElementById('numero_cuota_nuevo');
+  
+  if (tipo === 'cuota') {
+    divCuota.style.display = 'block';
+    inputCuota.required = true;
+  } else {
+    divCuota.style.display = 'none';
+    inputCuota.required = false;
+    inputCuota.value = '';
+  }
+}
+</script>
 
 <!-- ✅ Scripts DataTables -->
 <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
@@ -137,17 +201,22 @@
 <script>
   $(document).ready(function() {
     $('#tablaVouchers').DataTable({
-      "pageLength": 10,            // Solo 10 entradas por página
-      "lengthChange": false,       // Quita el selector de cantidad
-      "searching": false,          // ❌ Quita el buscador
-      "info": false,               // ❌ Quita el texto "Mostrando X de Y"
-      "ordering": true,            // Permite ordenar columnas
+      "pageLength": 10,
+      "lengthChange": false,
+      "searching": false,
+      "info": true,
+      "ordering": true,
+      "order": [[8, "desc"]], // Ordenar por fecha descendente
       "language": {
         "paginate": {
-          "previous": "Anterior",
-          "next": "Siguiente"
+          "previous": "← Anterior",
+          "next": "Siguiente →"
         },
-        "emptyTable": "No hay datos disponibles"
+        "emptyTable": "No hay vouchers registrados",
+        "zeroRecords": "No se encontraron vouchers",
+        "info": "Mostrando _START_ a _END_ de _TOTAL_ vouchers",
+        "infoEmpty": "No hay vouchers",
+        "infoFiltered": "(filtrado de _MAX_ vouchers)"
       }
     });
   });

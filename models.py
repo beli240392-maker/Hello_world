@@ -3,6 +3,7 @@ from datetime import datetime,timedelta
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 import pytz
+from sqlalchemy import event
 
 
 db = SQLAlchemy()
@@ -204,11 +205,29 @@ class Voucher(db.Model):
     fecha_registro = db.Column(db.DateTime, default=lambda: datetime.now(pytz.timezone("America/Lima")))
     lote_id = db.Column(db.Integer, db.ForeignKey("lotes.id"))
     lotizacion_id = db.Column(db.Integer, db.ForeignKey("lotizaciones.id"))
+    tipo_pago = db.Column(db.String(20))
+    numero_cuota = db.Column(db.Integer, nullable=True)
 
     # Relación con usuario que registró el voucher
     usuario_id = db.Column(db.Integer, db.ForeignKey("usuarios.id"), nullable=True)
     usuario = db.relationship("Usuario", backref="vouchers")
     lote = db.relationship("Lote", back_populates="vouchers")
+
+
+
+@event.listens_for(Voucher, 'before_insert')
+@event.listens_for(Voucher, 'before_update')
+def sincronizar_proyecto(mapper, connection, target):
+    if target.lote_id:
+        lote = db.session.query(Lote).filter_by(id=target.lote_id).first()
+        if lote:
+            target.lotizacion_id = lote.lotizacion_id
+            if lote.lotizacion:
+                target.proyecto = lote.lotizacion.nombre
+
+
+
+
 
 
 class Usuario(UserMixin, db.Model):

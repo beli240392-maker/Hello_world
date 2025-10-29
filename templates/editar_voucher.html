@@ -26,18 +26,21 @@
             </div>
         </div>
 
-        <div>
-            <label>Seleccion un Lote: </label>
+        <div class="mb-3">
+            <label>Selección un Lote: </label>
             <select name="lote_id" class="form-select" required>
-            <option value="">Seleccionar lote...</option>
-            {% for lote in lotes %}
-                <option value="{{ lote.id }}" {% if voucher.lote_id == lote.id %}selected{% endif %}>
-                Mz {{ lote.manzana }} - Lt {{ lote.numero }}
-                </option>
-            {% endfor %}
+                <option value="">Seleccionar lote...</option>
+                {% for lote in lotes %}
+                    <option value="{{ lote.id }}" 
+                            {% if voucher.lote_id == lote.id %}selected{% endif %}>
+                        Mz {{ lote.manzana }} - Lt {{ lote.numero }}
+                        {% if lote.lotizacion %}
+                            ({{ lote.lotizacion.nombre }})
+                        {% endif %}
+                    </option>
+                {% endfor %}
             </select>
         </div>
-
 
         <div class="row">
             <div class="col-md-6 mb-3">
@@ -46,12 +49,122 @@
             </div>
             <div class="col-md-6 mb-3">
                 <label>Proyecto</label>
-                <input type="text" name="proyecto" value="{{ voucher.proyecto }}" class="form-control">
+                <input type="text" name="proyecto" value="{{ voucher.proyecto }}" class="form-control" readonly style="background-color: #e9ecef;">
             </div>
         </div>
 
-        <button type="submit" class="btn btn-success">💾 Guardar Cambios</button>
-        <a href="{{ url_for('vouchers') }}" class="btn btn-secondary">⬅ Volver</a>
+        <!-- ✅ SECCIÓN NUEVA: CLASIFICACIÓN DEL VOUCHER -->
+        <hr class="my-4">
+        <div class="card bg-light border-warning mb-4">
+            <div class="card-body">
+                <h5 class="card-title text-warning">
+                    🆕 Clasificación del Voucher 
+                    <span class="badge bg-warning text-dark">Requerido</span>
+                </h5>
+                
+                <div class="row">
+                    <!-- Tipo de Pago -->
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label"><strong>Tipo de Pago *</strong></label>
+                        <select class="form-select form-select-lg" 
+                                name="tipo_pago" 
+                                id="tipo_pago" 
+                                onchange="mostrarCampoCuota()" 
+                                required>
+                            <option value="">❓ Seleccionar tipo...</option>
+                            <option value="inicial" {% if voucher.tipo_pago == 'inicial' %}selected{% endif %}>
+                                🏁 Pago Inicial
+                            </option>
+                            <option value="cuota" {% if voucher.tipo_pago == 'cuota' %}selected{% endif %}>
+                                📋 Cuota
+                            </option>
+                        </select>
+                        <small class="text-muted">¿Para qué se usó este voucher?</small>
+                    </div>
+
+                    <!-- Número de Cuota (solo si tipo = cuota) -->
+                    <div class="col-md-6 mb-3" id="div_numero_cuota" 
+                         style="display: {% if voucher.tipo_pago == 'cuota' %}block{% else %}none{% endif %};">
+                        <label class="form-label"><strong>Número de Cuota *</strong></label>
+                        <input type="number" 
+                               class="form-select form-select-lg" 
+                               name="numero_cuota" 
+                               id="numero_cuota" 
+                               min="1" 
+                               value="{{ voucher.numero_cuota or '' }}"
+                               placeholder="Ej: 1, 2, 3...">
+                        <small class="text-muted">¿Qué número de cuota es?</small>
+                    </div>
+                </div>
+
+                <!-- Ayuda contextual -->
+                <div class="alert alert-info" id="ayuda_tipo" style="display: none;">
+                    <small id="texto_ayuda"></small>
+                </div>
+            </div>
+        </div>
+
+        <!-- Botones -->
+        <button type="submit" class="btn btn-success btn-lg">💾 Guardar Cambios</button>
+        <a href="{{ url_for('vouchers') }}" class="btn btn-secondary btn-lg">⬅ Volver</a>
     </form>
+
+    <!-- Info adicional del lote -->
+    {% if voucher.lote %}
+    <div class="card mt-4 border-info">
+        <div class="card-body">
+            <h6 class="text-info">📊 Información del Lote</h6>
+            <div class="row">
+                <div class="col-md-4">
+                    <small><strong>Lote:</strong> Mz {{ voucher.lote.manzana }} - Lt {{ voucher.lote.numero }}</small>
+                </div>
+                <div class="col-md-4">
+                    <small><strong>Estado:</strong> {{ voucher.lote.estado }}</small>
+                </div>
+                <div class="col-md-4">
+                    <small><strong>Total vouchers:</strong> {{ voucher.lote.vouchers|length }}</small>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 </div>
+
+<script>
+    function mostrarCampoCuota() {
+        const tipoPago = document.getElementById('tipo_pago').value;
+        const divCuota = document.getElementById('div_numero_cuota');
+        const inputCuota = document.getElementById('numero_cuota');
+        const ayuda = document.getElementById('ayuda_tipo');
+        const textoAyuda = document.getElementById('texto_ayuda');
+
+        // Mostrar/ocultar campo de número de cuota
+        if (tipoPago === 'cuota') {
+            divCuota.style.display = 'block';
+            inputCuota.required = true;
+            ayuda.style.display = 'block';
+            textoAyuda.innerHTML = '<strong>💡 Cuota:</strong> Ingresa el número de cuota que corresponde. Ejemplo: si es la primera cuota, pon "1".';
+        } else {
+            divCuota.style.display = 'none';
+            inputCuota.required = false;
+            inputCuota.value = '';
+            
+            if (tipoPago === 'separacion') {
+                ayuda.style.display = 'block';
+                textoAyuda.innerHTML = '<strong>💡 Separación:</strong> Este voucher se usó para separar/apartar el lote antes de la venta.';
+            } else if (tipoPago === 'inicial') {
+                ayuda.style.display = 'block';
+                textoAyuda.innerHTML = '<strong>💡 Pago Inicial:</strong> Este voucher es el pago inicial de la compra del lote.';
+            } else {
+                ayuda.style.display = 'none';
+            }
+        }
+    }
+
+    // Ejecutar al cargar la página para mostrar el campo correcto
+    window.addEventListener('DOMContentLoaded', function() {
+        mostrarCampoCuota();
+    });
+</script>
+
 {% endblock %}

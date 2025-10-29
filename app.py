@@ -1175,60 +1175,7 @@ def autocomplete_clientes():
 
 # ------------------- VERIFICAR VOUCHER REPETIDO -------------------
 # ------------------- VERIFICAR VOUCHER REPETIDO -------------------
-@app.route("/vouchers", methods=["GET", "POST"])
-@login_required
-def vouchers():
-    from models import Voucher, Lote
-    codigo_buscar = request.args.get("codigo", "").strip()
-    
-    if request.method == "POST":
-        codigo = request.form["codigo"].strip()
-        banco = request.form.get("banco")
-        nombres = request.form.get("nombres")
-        apellidos = request.form.get("apellidos")
-        monto = float(request.form.get("monto") or 0)
-        proyecto = request.form.get("proyecto")
-        lote_id = request.form.get("lote_id")
 
-        # Verificar duplicado
-        existe = Voucher.query.filter_by(codigo=codigo).first()
-        if existe:
-            flash("⚠️ El código ya está registrado.", "danger")
-        else:
-            v = Voucher(
-                codigo=codigo,
-                banco=banco,
-                nombres=nombres,
-                apellidos=apellidos,
-                monto=monto,
-                proyecto=proyecto,  
-                lote_id=lote_id,
-                fecha_registro=datetime.now(lima),
-                usuario_id=current_user.id
-            )
-            db.session.add(v)
-            db.session.commit()
-            flash("✅ Voucher registrado correctamente.", "success")
-        
-        return redirect(url_for("vouchers"))
-
-    # ✅ Si hay búsqueda → filtrar
-    if codigo_buscar:
-        vouchers = Voucher.query.filter_by(codigo=codigo_buscar).all()
-    else:
-        vouchers = Voucher.query.order_by(Voucher.fecha_registro.desc()).all()
-
-    # ✅ Consulta de lotes
-    lotes = Lote.query.order_by(Lote.manzana.asc(), Lote.numero.asc()).all()
-    print("Lotes cargados:", len(lotes))
-
-    return render_template(
-        "vouchers.html",
-        vouchers=vouchers,
-        codigo_buscar=codigo_buscar,
-        lotes=lotes,
-        pytz=pytz
-    )
 
 @app.route("/exportar_ventas")
 @login_required
@@ -1243,72 +1190,97 @@ def exportar_ventas():
     # Crear un libro de Excel
     wb = openpyxl.Workbook()
     ws = wb.active
-    ws.title = "Ventas"
+    ws.title = "Ventas"@app.route("/vouchers", methods=["GET", "POST"])
 
-    # Encabezados
-    encabezados = [
-        "Cliente", "DNI","Correo", "Teléfono", "Dirección", "Ciudad", 
-        "Estado Civil", "Ocupación",
-        "Manzana", "Lote", "Forma de Pago", "Precio", "Inicial", 
-        "Cuotas", "Interés", "Vendedor", "Fecha de Compra"
-    ]
-    ws.append(encabezados)
 
-    # 🔹 Filtramos solo las compras de la lotización activa
-    compras = (
-        Compra.query
-        .join(Cliente)
-        .join(Lote)
-        .filter(Lote.lotizacion_id == lotizacion_id)
-        .join(Usuario, isouter=True)
-        .all()
+@app.route("/vouchers", methods=["GET", "POST"])
+@login_required
+def vouchers():
+    from models import Voucher, Lote
+    codigo_buscar = request.args.get("codigo", "").strip()
+    
+    if request.method == "POST":
+        codigo = request.form["codigo"].strip()
+        banco = request.form.get("banco")
+        nombres = request.form.get("nombres")
+        apellidos = request.form.get("apellidos")
+        monto = float(request.form.get("monto") or 0)
+        lote_id = request.form.get("lote_id")
+        tipo_pago = request.form.get("tipo_pago")
+        numero_cuota = request.form.get("numero_cuota")
+
+        # Verificar duplicado de código
+        existe = Voucher.query.filter_by(codigo=codigo).first()
+        if existe:
+            flash("⚠️ El código ya está registrado.", "danger")
+            return redirect(url_for("vouchers"))
+        
+        # ✅ VALIDACIÓN: Verificar si ya existe un pago inicial para este lote
+        if tipo_pago == "inicial" and lote_id:
+            inicial_existente = Voucher.query.filter_by(
+                lote_id=lote_id,
+                tipo_pago="inicial"
+            ).first()
+            
+            if inicial_existente:
+                lote = Lote.query.get(lote_id)
+                flash(f"⚠️ El lote Mz {lote.manzana} - Lt {lote.numero} ya tiene un pago inicial registrado (voucher {inicial_existente.codigo}).", "danger")
+                return redirect(url_for("vouchers"))
+        
+        # ✅ VALIDACIÓN: Verificar que no se repita el número de cuota para este lote
+        if tipo_pago == "cuota" and lote_id and numero_cuota:
+            cuota_existente = Voucher.query.filter_by(
+                lote_id=lote_id,
+                tipo_pago="cuota",
+                numero_cuota=int(numero_cuota)
+            ).first()
+            
+            if cuota_existente:
+                lote = Lote.query.get(lote_id)
+                flash(f"⚠️ La cuota #{numero_cuota} del lote Mz {lote.manzana} - Lt {lote.numero} ya está registrada (voucher {cuota_existente.codigo}).", "danger")
+                return redirect(url_for("vouchers"))
+        
+        # Si todo está bien, registrar el voucher
+        v = Voucher(
+            codigo=codigo,
+            banco=banco,
+            nombres=nombres,
+            apellidos=apellidos,
+            monto=monto,
+            lote_id=lote_id,
+            fecha_registro=datetime.now(lima),
+            usuario_id=current_user.id,
+            tipo_pago=tipo_pago,
+            numero_cuota=int(numero_cuota) if numero_cuota else None
+        )
+        db.session.add(v)
+        db.session.commit()
+        flash("✅ Voucher registrado correctamente.", "success")
+        
+        return redirect(url_for("vouchers"))
+
+    # Búsqueda
+    if codigo_buscar:
+        vouchers_list = Voucher.query.filter_by(codigo=codigo_buscar).all()
+    else:
+        vouchers_list = Voucher.query.order_by(Voucher.fecha_registro.desc()).all()
+
+    # Eliminar lotes duplicados
+    todos_los_lotes = Lote.query.order_by(Lote.manzana.asc(), Lote.numero.asc()).all()
+    lotes_unicos = {}
+    for lote in todos_los_lotes:
+        clave = f"{lote.manzana}-{lote.numero}"
+        if clave not in lotes_unicos:
+            lotes_unicos[clave] = lote
+    lotes = list(lotes_unicos.values())
+
+    return render_template(
+        "vouchers.html",
+        vouchers=vouchers_list,
+        codigo_buscar=codigo_buscar,
+        lotes=lotes,
+        pytz=pytz
     )
-
-    for compra in compras:
-        fila = [
-            compra.cliente.nombre + " " + compra.cliente.apellidos,
-            compra.cliente.dni,
-            compra.cliente.correo or "",
-            compra.cliente.telefono or "",
-            compra.cliente.direccion or "",
-            compra.cliente.ciudad or "",
-            compra.cliente.estado_civil or "",
-            compra.cliente.ocupacion or "",
-            compra.lote.manzana,
-            compra.lote.numero,
-            compra.forma_pago,
-            compra.precio,
-            compra.inicial,
-            compra.cuotas_total,
-            compra.interes,
-            compra.usuario.username if compra.usuario else "No registrado",
-            compra.fecha_compra.strftime("%d/%m/%Y %H:%M"),
-        ]
-        ws.append(fila)
-
-    # Ajustar ancho de columnas
-    for columna in ws.columns:
-        max_length = 0
-        columna_letra = columna[0].column_letter
-        for celda in columna:
-            if celda.value:
-                max_length = max(max_length, len(str(celda.value)))
-        ws.column_dimensions[columna_letra].width = max_length + 2
-
-    # Guardar en memoria y enviar al usuario
-    output = io.BytesIO()
-    wb.save(output)
-    output.seek(0)
-
-    nombre_archivo = f"ventas_lotizacion_{lotizacion_id}.xlsx"
-
-    return send_file(
-        output,
-        as_attachment=True,
-        download_name=nombre_archivo,
-        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
-
 # ------------------- SUBIR DOCUMENTOS -------------------
 # ------------------- SUBIR DOCUMENTOS -------------------
 @app.route("/subir_documentos/<int:compra_id>", methods=["POST"])
@@ -1432,23 +1404,67 @@ def eliminar_documento(compra_id, tipo):
 @login_required
 @admin_required
 def editar_voucher(id):
-    from models import Voucher
+    from models import Voucher, Lote
     voucher = Voucher.query.get_or_404(id)
-    lotes = Lote.query.order_by(Lote.manzana.asc(), Lote.numero.asc()).all() 
-
+    
     if request.method == "POST":
         voucher.codigo = request.form["codigo"]
         voucher.banco = request.form["banco"]
         voucher.nombres = request.form["nombres"]
         voucher.apellidos = request.form["apellidos"]
         voucher.monto = float(request.form["monto"])
-        voucher.proyecto = request.form["proyecto"]
-        voucher.lote_id = request.form.get("lote_id") or None 
-
+        lote_id = request.form.get("lote_id") or None
+        tipo_pago = request.form.get("tipo_pago")
+        numero_cuota = request.form.get("numero_cuota")
+        
+        # ✅ VALIDACIÓN: Si cambió el tipo a "inicial", verificar que no exista otro
+        if tipo_pago == "inicial" and lote_id:
+            inicial_existente = Voucher.query.filter(
+                Voucher.lote_id == lote_id,
+                Voucher.tipo_pago == "inicial",
+                Voucher.id != voucher.id  # Excluir el voucher actual
+            ).first()
+            
+            if inicial_existente:
+                lote = Lote.query.get(lote_id)
+                flash(f"⚠️ El lote Mz {lote.manzana} - Lt {lote.numero} ya tiene un pago inicial (voucher {inicial_existente.codigo}).", "danger")
+                return redirect(url_for("editar_voucher", id=id))
+        
+        # ✅ VALIDACIÓN: Si es cuota, verificar que no se repita el número
+        if tipo_pago == "cuota" and lote_id and numero_cuota:
+            cuota_existente = Voucher.query.filter(
+                Voucher.lote_id == lote_id,
+                Voucher.tipo_pago == "cuota",
+                Voucher.numero_cuota == int(numero_cuota),
+                Voucher.id != voucher.id  # Excluir el voucher actual
+            ).first()
+            
+            if cuota_existente:
+                lote = Lote.query.get(lote_id)
+                flash(f"⚠️ La cuota #{numero_cuota} del lote ya existe (voucher {cuota_existente.codigo}).", "danger")
+                return redirect(url_for("editar_voucher", id=id))
+        
+        # Actualizar campos
+        voucher.lote_id = lote_id
+        voucher.tipo_pago = tipo_pago
+        
+        if tipo_pago == "cuota":
+            voucher.numero_cuota = int(numero_cuota) if numero_cuota else None
+        else:
+            voucher.numero_cuota = None
+        
         db.session.commit()
-        flash("Voucher actualizado correctamente.", "success")
-        return redirect(url_for("vouchers"))  # Ajusta si tu ruta principal tiene otro nombre
-    
+        flash("✅ Voucher actualizado correctamente.", "success")
+        return redirect(url_for("vouchers"))
+
+    # Cargar lotes únicos
+    todos_los_lotes = Lote.query.order_by(Lote.manzana.asc(), Lote.numero.asc()).all()
+    lotes_unicos = {}
+    for lote in todos_los_lotes:
+        clave = f"{lote.manzana}-{lote.numero}"
+        if clave not in lotes_unicos:
+            lotes_unicos[clave] = lote
+    lotes = list(lotes_unicos.values())
 
     return render_template("editar_voucher.html", voucher=voucher, lotes=lotes)
 
