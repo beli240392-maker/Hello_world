@@ -1402,7 +1402,6 @@ def eliminar_documento(compra_id, tipo):
 
 @app.route("/editar_voucher/<int:id>", methods=["GET", "POST"])
 @login_required
-@admin_required
 def editar_voucher(id):
     from models import Voucher, Lote
     voucher = Voucher.query.get_or_404(id)
