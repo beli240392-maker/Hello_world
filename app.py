@@ -1176,22 +1176,201 @@ def autocomplete_clientes():
 # ------------------- VERIFICAR VOUCHER REPETIDO -------------------
 # ------------------- VERIFICAR VOUCHER REPETIDO -------------------
 
-
-@app.route("/exportar_ventas")
+@app.route("/exportar_ventas", methods=["GET"])
 @login_required
 @lotizacion_required
 def exportar_ventas():
+    """Exporta las ventas a Excel con TODA la información del cliente"""
+    
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
+    from openpyxl.utils import get_column_letter
+    from io import BytesIO
+    
     lotizacion_id = session.get("lotizacion_id")
 
     if not lotizacion_id:
         flash("No hay una lotización activa seleccionada.", "warning")
         return redirect(url_for("home"))
 
+    # Obtener parámetro de fecha si existe, sino traer TODAS las compras
+    fecha_str = request.args.get("fecha")
+    
+    if fecha_str:
+        try:
+            fecha = datetime.strptime(fecha_str, "%Y-%m-%d").date()
+            # Filtrar por fecha específica
+            compras = (
+                Compra.query
+                .filter(db.func.date(Compra.fecha_compra) == fecha)
+                .join(Lote)
+                .filter(Lote.lotizacion_id == lotizacion_id)
+                .order_by(Compra.fecha_compra.desc())
+                .all()
+            )
+            titulo_fecha = f" - {fecha.strftime('%d/%m/%Y')}"
+        except:
+            # Si la fecha es inválida, traer todas
+            compras = (
+                Compra.query
+                .join(Lote)
+                .filter(Lote.lotizacion_id == lotizacion_id)
+                .order_by(Compra.fecha_compra.desc())
+                .all()
+            )
+            titulo_fecha = " - Todas"
+    else:
+        # Traer TODAS las compras de la lotización
+        compras = (
+            Compra.query
+            .join(Lote)
+            .filter(Lote.lotizacion_id == lotizacion_id)
+            .order_by(Compra.fecha_compra.desc())
+            .all()
+        )
+        titulo_fecha = " - Todas"
+
     # Crear un libro de Excel
     wb = openpyxl.Workbook()
     ws = wb.active
-    ws.title = "Ventas"@app.route("/vouchers", methods=["GET", "POST"])
+    ws.title = "Ventas"
 
+    # Estilos
+    header_fill = PatternFill(start_color="1a5f3a", end_color="1a5f3a", fill_type="solid")
+    header_font = Font(bold=True, color="FFFFFF", size=10)
+    border = Border(
+        left=Side(style='thin'),
+        right=Side(style='thin'),
+        top=Side(style='thin'),
+        bottom=Side(style='thin')
+    )
+    
+    # Título en la primera fila
+    title_cell = ws.cell(row=1, column=1, value=f"📊 REPORTE DE VENTAS{titulo_fecha}")
+    title_cell.font = Font(bold=True, size=14, color="1a5f3a")
+    ws.merge_cells("A1:Z1")
+    
+    # Fila vacía
+    ws.row_dimensions[2].height = 5
+
+    # ✨ TODOS LOS ENCABEZADOS DEL CLIENTE + COMPRA
+    headers = [
+        # Información del Cliente
+        "Nombres", "Apellidos", "DNI", "Teléfono", "Correo", 
+        "Dirección", "Ciudad", "Estado Civil", "Ocupación",
+        
+        # Información de la Compra
+        "Lote", "Forma Pago", "Precio Total", "Inicial", 
+        "Cuota Monto", "Cuotas Total", "Cuotas Pagadas",
+        
+        # Fechas y Vendedor
+        "Fecha Compra", "Vendedor"
+    ]
+
+    for col, header in enumerate(headers, 1):
+        cell = ws.cell(row=3, column=col, value=header)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.border = border
+        cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+
+    # Datos de ventas
+    for row_idx, compra in enumerate(compras, 4):
+        col = 1
+        
+        # ✨ INFORMACIÓN DEL CLIENTE
+        ws.cell(row=row_idx, column=col, value=compra.cliente.nombre or "").border = border
+        col += 1
+        ws.cell(row=row_idx, column=col, value=compra.cliente.apellidos or "").border = border
+        col += 1
+        ws.cell(row=row_idx, column=col, value=compra.cliente.dni or "").border = border
+        col += 1
+        ws.cell(row=row_idx, column=col, value=compra.cliente.telefono or "").border = border
+        col += 1
+        ws.cell(row=row_idx, column=col, value=compra.cliente.correo or "").border = border
+        col += 1
+        ws.cell(row=row_idx, column=col, value=compra.cliente.direccion or "").border = border
+        col += 1
+        ws.cell(row=row_idx, column=col, value=compra.cliente.ciudad or "").border = border
+        col += 1
+        ws.cell(row=row_idx, column=col, value=compra.cliente.estado_civil or "").border = border
+        col += 1
+        ws.cell(row=row_idx, column=col, value=compra.cliente.ocupacion or "").border = border
+        col += 1
+        
+        # ✨ INFORMACIÓN DE LA COMPRA
+        ws.cell(row=row_idx, column=col, value=f"Mz {compra.lote.manzana} - Lt {compra.lote.numero}").border = border
+        col += 1
+        ws.cell(row=row_idx, column=col, value=compra.forma_pago.upper()).border = border
+        col += 1
+        ws.cell(row=row_idx, column=col, value=compra.precio).border = border
+        col += 1
+        ws.cell(row=row_idx, column=col, value=compra.inicial if compra.forma_pago == "credito" else compra.precio).border = border
+        col += 1
+        ws.cell(row=row_idx, column=col, value=compra.cuota_monto if compra.forma_pago == "credito" else 0).border = border
+        col += 1
+        ws.cell(row=row_idx, column=col, value=compra.cuotas_total if compra.forma_pago == "credito" else 0).border = border
+        col += 1
+        
+        # Contar cuotas pagadas
+        cuotas_pagadas = len([c for c in compra.cuotas if c.pagada]) if compra.cuotas else 0
+        ws.cell(row=row_idx, column=col, value=cuotas_pagadas).border = border
+        col += 1
+        
+        # ✨ FECHAS Y VENDEDOR
+        ws.cell(row=row_idx, column=col, value=compra.fecha_compra.strftime('%d/%m/%Y %H:%M')).border = border
+        col += 1
+        ws.cell(row=row_idx, column=col, value=compra.usuario.username if compra.usuario else "").border = border
+
+    # Añadir fila de totales
+    if compras:
+        total_row = len(compras) + 4
+        
+        total_precio = sum([c.precio for c in compras])
+        total_inicial = sum([c.inicial if c.forma_pago == "credito" else c.precio for c in compras])
+        total_cuota_monto = sum([c.cuota_monto if c.forma_pago == "credito" else 0 for c in compras])
+        
+        ws.cell(row=total_row, column=1, value="TOTAL").font = Font(bold=True, size=11)
+        ws.cell(row=total_row, column=11, value=total_precio).font = Font(bold=True, size=11)
+        ws.cell(row=total_row, column=12, value=total_inicial).font = Font(bold=True, size=11)
+        ws.cell(row=total_row, column=13, value=total_cuota_monto).font = Font(bold=True, size=11)
+        
+        for col in range(1, len(headers) + 1):
+            ws.cell(row=total_row, column=col).border = border
+            ws.cell(row=total_row, column=col).fill = PatternFill(start_color="e8f0ff", end_color="e8f0ff", fill_type="solid")
+
+    # Ajustar ancho de columnas
+    for col in range(1, len(headers) + 1):
+        max_length = 0
+        column_letter = get_column_letter(col)
+        for cell in ws[column_letter]:
+            try:
+                if len(str(cell.value)) > max_length:
+                    max_length = len(str(cell.value))
+            except:
+                pass
+        adjusted_width = min(max_length + 2, 50)
+        ws.column_dimensions[column_letter].width = adjusted_width
+
+    # Guardar en memoria
+    excel_buffer = BytesIO()
+    wb.save(excel_buffer)
+    excel_buffer.seek(0)
+
+    # Descargar
+    from flask import send_file
+    
+    if fecha_str:
+        nombre_archivo = f'ventas_{fecha_str}.xlsx'
+    else:
+        nombre_archivo = f'ventas_todas_{datetime.now().strftime("%d%m%Y")}.xlsx'
+    
+    return send_file(
+        excel_buffer,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name=nombre_archivo
+    )
 
 @app.route("/vouchers", methods=["GET", "POST"])
 @login_required
