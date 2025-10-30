@@ -1331,9 +1331,9 @@ def exportar_ventas():
         total_cuota_monto = sum([c.cuota_monto if c.forma_pago == "credito" else 0 for c in compras])
         
         ws.cell(row=total_row, column=1, value="TOTAL").font = Font(bold=True, size=11)
-        ws.cell(row=total_row, column=11, value=total_precio).font = Font(bold=True, size=11)
-        ws.cell(row=total_row, column=12, value=total_inicial).font = Font(bold=True, size=11)
-        ws.cell(row=total_row, column=13, value=total_cuota_monto).font = Font(bold=True, size=11)
+        ws.cell(row=total_row, column=12, value=total_precio).font = Font(bold=True, size=11)
+        ws.cell(row=total_row, column=13, value=total_inicial).font = Font(bold=True, size=11)
+        ws.cell(row=total_row, column=14, value=total_cuota_monto).font = Font(bold=True, size=11)
         
         for col in range(1, len(headers) + 1):
             ws.cell(row=total_row, column=col).border = border
