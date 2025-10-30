@@ -1600,7 +1600,7 @@ def editar_voucher(id):
             inicial_existente = Voucher.query.filter(
                 Voucher.lote_id == lote_id,
                 Voucher.tipo_pago == "inicial",
-                Voucher.id != voucher.id  # Excluir el voucher actual
+                Voucher.id != voucher.id
             ).first()
             
             if inicial_existente:
@@ -1614,7 +1614,7 @@ def editar_voucher(id):
                 Voucher.lote_id == lote_id,
                 Voucher.tipo_pago == "cuota",
                 Voucher.numero_cuota == int(numero_cuota),
-                Voucher.id != voucher.id  # Excluir el voucher actual
+                Voucher.id != voucher.id
             ).first()
             
             if cuota_existente:
@@ -1635,14 +1635,9 @@ def editar_voucher(id):
         flash("✅ Voucher actualizado correctamente.", "success")
         return redirect(url_for("vouchers"))
 
-    # Cargar lotes únicos
-    todos_los_lotes = Lote.query.order_by(Lote.manzana.asc(), Lote.numero.asc()).all()
-    lotes_unicos = {}
-    for lote in todos_los_lotes:
-        clave = f"{lote.manzana}-{lote.numero}"
-        if clave not in lotes_unicos:
-            lotes_unicos[clave] = lote
-    lotes = list(lotes_unicos.values())
+    # ✅ CARGAR TODOS LOS LOTES (sin filtrar por unicidad)
+    # Esto mostrará todos los lotes de todas las lotizaciones
+    lotes = Lote.query.order_by(Lote.manzana.asc(), Lote.numero.asc()).all()
 
     return render_template("editar_voucher.html", voucher=voucher, lotes=lotes)
 
