@@ -459,8 +459,8 @@ def registrar_compra():
         forma_pago = request.form["forma_pago"]
         inicial = float(request.form.get("inicial", 0)) if forma_pago == "credito" else 0
         cuotas_total = int(request.form.get("cuotas", 0)) if forma_pago == "credito" else 0
-        interes = float(request.form.get("interes", 0)) if forma_pago == "credito" else 0
-
+        interes = float(request.form.get("interes") or 0) if forma_pago == "credito" else 0
+       
         # Cliente
         cliente = Cliente.query.filter_by(dni=dni).first()
         if not cliente:
