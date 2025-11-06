@@ -33,6 +33,7 @@
     {% endif %}
     <li class="list-group-item"><strong>Fecha de compra:</strong> {{ compra.fecha_compra.strftime("%d/%m/%Y") }}</li>
   </ul>
+  <a href="{{ url_for('ver_cliente', cliente_id=compra.cliente.id) }}" class="btn btn-info">👤 Ver Cliente</a>
 {% elif separacion %}
   <h3>🔴 Información de la Separación</h3>
   <ul class="list-group mb-3">
@@ -40,6 +41,7 @@
     <li class="list-group-item"><strong>Monto separación:</strong> S/ {{ "%.2f"|format(separacion.monto) }}</li>
     <li class="list-group-item"><strong>Fecha:</strong> {{ separacion.fecha.strftime("%d/%m/%Y") }}</li>
   </ul>
+  <a href="{{ url_for('ver_cliente', cliente_id=separacion.cliente.id) }}" class="btn btn-info">👤 Ver Cliente</a>
 {% endif %}
 
 <a href="{{ url_for('lotes_disponibles') }}" class="btn btn-secondary">⬅ Volver</a>
