@@ -40,8 +40,12 @@
             <p><strong>Ciudad:</strong> {{ cliente.ciudad }}</p>
           </div>
         </div>
-        <a href="{{ url_for('editar_cliente', cliente_id=cliente.id) }}" 
-           class="btn btn-primary btn-sm mt-2">✏️ Editar Cliente</a>
+        <div class="d-flex gap-2 mt-2">
+          <a href="{{ url_for('editar_cliente', cliente_id=cliente.id) }}" 
+             class="btn btn-primary btn-sm">✏️ Editar Cliente</a>
+          <a href="{{ url_for('registrar_compra', cliente_id=cliente.id) }}" 
+             class="btn btn-success btn-sm">➕ Agregar Lote</a>
+        </div>
       </div>
 
       <!-- Fotos DNI -->

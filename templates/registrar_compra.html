@@ -11,53 +11,110 @@
 </div>
 {% endif %}
 
+{% if cliente and cliente.id and not sep_id %}
+<div class="alert alert-success">
+  ✅ Estás agregando un nuevo lote al cliente: <strong>{{ cliente.nombre }} {{ cliente.apellidos }}</strong> (DNI: {{ cliente.dni }})
+</div>
+{% endif %}
+
 <form method="POST" enctype="multipart/form-data" class="row g-4">
   <!-- Datos del Cliente -->
   <div class="col-md-6">
     <h5>Datos del Cliente</h5>
-    <div class="mb-3">
-      <label for="nombre" class="form-label">Nombre:</label>
-      <input type="text" class="form-control" name="nombre" value="{{ cliente.nombre if cliente else '' }}" required>
-    </div>
-    <div class="mb-3">
-      <label for="apellidos" class="form-label">Apellidos:</label>
-      <input type="text" class="form-control" name="apellidos" value="{{ cliente.apellidos if cliente else '' }}" required>
-    </div>
-    <div class="mb-3">
-      <label for="dni" class="form-label">DNI:</label>
-      <input type="text" class="form-control" name="dni"
-           value="{{ cliente.dni if cliente else '' }}"
-           required 
-           minlength="8" maxlength="15"
-           oninput="this.value=this.value.replace(/[^A-Za-z0-9]/g,'').slice(0,15)">
-    </div>
-    <div class="form-group">
-        <label>Correo electrónico:</label>
-        <input type="email" name="correo" class="form-control" placeholder="ejemplo@correo.com">
-    </div>
-    <div class="mb-3">
-      <label for="estado_civil" class="form-label">Estado Civil</label>
-      <input type="text" name="estado_civil" class="form-control" 
-             value="{{ cliente.estado_civil if cliente else '' }}" required>
-    </div>
-
-    <div class="mb-3">
-      <label for="ocupacion" class="form-label">Ocupación</label>
-      <input type="text" name="ocupacion" class="form-control" 
-             value="{{ cliente.ocupacion if cliente else '' }}" required>
-    </div>
-    <div class="mb-3">
-      <label for="telefono" class="form-label">Teléfono:</label>
-      <input type="text" class="form-control" name="telefono" value="{{ cliente.telefono if cliente else '' }}" required>
-    </div>
-    <div class="mb-3">
-      <label for="direccion" class="form-label">Dirección:</label>
-      <input type="text" class="form-control" name="direccion" value="{{ cliente.direccion if cliente else '' }}" required>
-    </div>
-    <div class="mb-3">
-      <label for="ciudad" class="form-label">Ciudad:</label>
-      <input type="text" class="form-control" name="ciudad" value="{{ cliente.ciudad if cliente else '' }}" required>
-    </div>
+    {% if cliente and cliente.id and not sep_id %}
+      {# Cliente existente - mostrar como readonly #}
+      <div class="mb-3">
+        <label class="form-label">Nombre:</label>
+        <input type="text" class="form-control" value="{{ cliente.nombre }}" readonly style="background-color: #e9ecef;">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Apellidos:</label>
+        <input type="text" class="form-control" value="{{ cliente.apellidos }}" readonly style="background-color: #e9ecef;">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">DNI:</label>
+        <input type="text" class="form-control" value="{{ cliente.dni }}" readonly style="background-color: #e9ecef;">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Correo electrónico:</label>
+        <input type="email" class="form-control" value="{{ cliente.correo or '' }}" readonly style="background-color: #e9ecef;">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Estado Civil:</label>
+        <input type="text" class="form-control" value="{{ cliente.estado_civil or '' }}" readonly style="background-color: #e9ecef;">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Ocupación:</label>
+        <input type="text" class="form-control" value="{{ cliente.ocupacion or '' }}" readonly style="background-color: #e9ecef;">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Teléfono:</label>
+        <input type="text" class="form-control" value="{{ cliente.telefono or '' }}" readonly style="background-color: #e9ecef;">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Dirección:</label>
+        <input type="text" class="form-control" value="{{ cliente.direccion or '' }}" readonly style="background-color: #e9ecef;">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Ciudad:</label>
+        <input type="text" class="form-control" value="{{ cliente.ciudad or '' }}" readonly style="background-color: #e9ecef;">
+      </div>
+      {# Campos hidden para enviar los datos del cliente #}
+      <input type="hidden" name="cliente_id" value="{{ cliente.id }}">
+      <input type="hidden" name="nombre" value="{{ cliente.nombre }}">
+      <input type="hidden" name="apellidos" value="{{ cliente.apellidos }}">
+      <input type="hidden" name="dni" value="{{ cliente.dni }}">
+      <input type="hidden" name="correo" value="{{ cliente.correo or '' }}">
+      <input type="hidden" name="estado_civil" value="{{ cliente.estado_civil or '' }}">
+      <input type="hidden" name="ocupacion" value="{{ cliente.ocupacion or '' }}">
+      <input type="hidden" name="telefono" value="{{ cliente.telefono or '' }}">
+      <input type="hidden" name="direccion" value="{{ cliente.direccion or '' }}">
+      <input type="hidden" name="ciudad" value="{{ cliente.ciudad or '' }}">
+    {% else %}
+      {# Nuevo cliente - campos editables #}
+      <div class="mb-3">
+        <label for="nombre" class="form-label">Nombre:</label>
+        <input type="text" class="form-control" name="nombre" value="{{ cliente.nombre if cliente else '' }}" required>
+      </div>
+      <div class="mb-3">
+        <label for="apellidos" class="form-label">Apellidos:</label>
+        <input type="text" class="form-control" name="apellidos" value="{{ cliente.apellidos if cliente else '' }}" required>
+      </div>
+      <div class="mb-3">
+        <label for="dni" class="form-label">DNI:</label>
+        <input type="text" class="form-control" name="dni"
+             value="{{ cliente.dni if cliente else '' }}"
+             required 
+             minlength="8" maxlength="15"
+             oninput="this.value=this.value.replace(/[^A-Za-z0-9]/g,'').slice(0,15)">
+      </div>
+      <div class="form-group">
+          <label>Correo electrónico:</label>
+          <input type="email" name="correo" class="form-control" value="{{ cliente.correo if cliente else '' }}" placeholder="ejemplo@correo.com">
+      </div>
+      <div class="mb-3">
+        <label for="estado_civil" class="form-label">Estado Civil</label>
+        <input type="text" name="estado_civil" class="form-control" 
+               value="{{ cliente.estado_civil if cliente else '' }}" required>
+      </div>
+      <div class="mb-3">
+        <label for="ocupacion" class="form-label">Ocupación</label>
+        <input type="text" name="ocupacion" class="form-control" 
+               value="{{ cliente.ocupacion if cliente else '' }}" required>
+      </div>
+      <div class="mb-3">
+        <label for="telefono" class="form-label">Teléfono:</label>
+        <input type="text" class="form-control" name="telefono" value="{{ cliente.telefono if cliente else '' }}" required>
+      </div>
+      <div class="mb-3">
+        <label for="direccion" class="form-label">Dirección:</label>
+        <input type="text" class="form-control" name="direccion" value="{{ cliente.direccion if cliente else '' }}" required>
+      </div>
+      <div class="mb-3">
+        <label for="ciudad" class="form-label">Ciudad:</label>
+        <input type="text" class="form-control" name="ciudad" value="{{ cliente.ciudad if cliente else '' }}" required>
+      </div>
+    {% endif %}
   </div>
 
   <!-- Datos de la Compra -->
@@ -143,7 +200,7 @@
     {% else %}
     <div class="mb-3">
       <label for="dni_frontal" class="form-label">Foto DNI (Frontal):</label>
-      <input type="file" class="form-control" name="dni_frontal" accept="image/*" required>
+      <input type="file" class="form-control" name="dni_frontal" accept="image/*" {% if not cliente or not cliente.id %}required{% endif %}>
     </div>
     {% endif %}
 
@@ -159,7 +216,7 @@
     {% else %}
     <div class="mb-3">
       <label for="dni_reverso" class="form-label">Foto DNI (Reverso):</label>
-      <input type="file" class="form-control" name="dni_reverso" accept="image/*" required>
+      <input type="file" class="form-control" name="dni_reverso" accept="image/*" {% if not cliente or not cliente.id %}required{% endif %}>
     </div>
     {% endif %}
 

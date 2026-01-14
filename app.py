@@ -430,10 +430,15 @@ def registrar_compra():
             lotes = Lote.query.filter_by(lotizacion_id=lotizacion.id, estado="disponible").all()
 
     sep_id = request.args.get("sep_id")
+    cliente_id_param = request.args.get("cliente_id")
     lote = None
     cliente = None
     separacion = None
 
+    # ✅ Si viene cliente_id, cargar el cliente existente
+    if cliente_id_param:
+        cliente = Cliente.query.get(int(cliente_id_param))
+    
     if sep_id:
         separacion = Separacion.query.get(sep_id)
         if separacion:
@@ -462,7 +467,26 @@ def registrar_compra():
         interes = float(request.form.get("interes") or 0) if forma_pago == "credito" else 0
        
         # Cliente
-        cliente = Cliente.query.filter_by(dni=dni).first()
+        # ✅ Si viene cliente_id en el formulario (hidden), usar ese cliente
+        cliente_id_form = request.form.get("cliente_id")
+        if cliente_id_form:
+            cliente = Cliente.query.get(int(cliente_id_form))
+            # Actualizar datos del cliente si es necesario
+            if cliente:
+                cliente.nombre = nombre
+                cliente.apellidos = apellidos
+                cliente.telefono = telefono
+                cliente.direccion = direccion
+                cliente.ciudad = ciudad
+                cliente.estado_civil = estado_civil
+                cliente.ocupacion = ocupacion
+                if correo:
+                    cliente.correo = correo
+                db.session.commit()
+        else:
+            # Buscar por DNI si no viene cliente_id
+            cliente = Cliente.query.filter_by(dni=dni).first()
+        
         if not cliente:
             cliente = Cliente(
                 nombre=nombre,
@@ -489,7 +513,7 @@ def registrar_compra():
                 cliente.correo = correo
             db.session.commit()  # ✅ Commit para actualizar datos
 
-        # ✅ Guardar fotos de DNI
+        # ✅ Guardar fotos de DNI (solo si se suben nuevas)
         dni_frontal_file = request.files.get("dni_frontal")
         dni_reverso_file = request.files.get("dni_reverso")
 
@@ -509,7 +533,8 @@ def registrar_compra():
             dni_reverso_file.save(save_path)
             cliente.dni_reverso = f"dni/{filename}".replace("\\", "/")
 
-        db.session.commit()  # ✅ Commit para guardar las fotos
+        if dni_frontal_file and dni_frontal_file.filename or dni_reverso_file and dni_reverso_file.filename:
+            db.session.commit()  # ✅ Commit para guardar las fotos solo si se subieron
 
         # Lote
         lote_id = request.form.get("lote")
