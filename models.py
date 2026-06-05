@@ -236,6 +236,7 @@ class Usuario(UserMixin, db.Model):
     username = db.Column(db.String(50), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
     rol = db.Column(db.String(20), nullable=False, default="user")
+    activo = db.Column(db.Boolean, default=True)
 
     def set_password(self, password):
         """Encripta y guarda la contraseña"""

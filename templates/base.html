@@ -86,15 +86,20 @@
           <li class="nav-item"><a class="nav-link" href="{{ url_for('registrar_compra') }}">Registrar Compra</a></li>
           <li class="nav-item"><a class="nav-link" href="{{ url_for('buscar_cliente') }}">Buscar Cliente</a></li>
           
-          {% if current_user.is_authenticated and current_user.rol == 'admin' %}
+          {% if current_user.is_authenticated and current_user.rol in ('admin', 'superadmin') %}
           <li class="nav-item"><a class="nav-link" href="{{ url_for('agregar_lotes') }}">Agregar Lotes</a></li>
           {% endif %}
 
           
           <li class="nav-item"><a class="nav-link" href="{{ url_for('reportes') }}">📊 Reportes</a></li>
-          
 
+          
           <li class="nav-item"><a class="nav-link" href="{{ url_for('vouchers') }}">📑 Vouchers</a></li>
+          {% if current_user.is_authenticated and current_user.rol == 'superadmin' %}
+          <li class="nav-item">
+            <a class="nav-link text-warning fw-bold" href="{{ url_for('panel_superadmin') }}">🛡️ Superadmin</a>
+          </li>
+          {% endif %}
         </ul>
 
         <!-- Lado derecho -->

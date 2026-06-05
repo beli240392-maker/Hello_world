@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="container mt-4">
+  <h2>💰 Pagar Todas las Cuotas Restantes</h2>
+  
+  <!-- Información de la compra -->
+  <div class="card mb-4">
+    <div class="card-header bg-primary text-white">
+      <h5 class="mb-0">Información de la Compra</h5>
+    </div>
+    <div class="card-body row">
+      <div class="col-md-6">
+        <p><strong>Cliente:</strong> {{ compra.cliente.nombre }} {{ compra.cliente.apellidos }}</p>
+        <p><strong>DNI:</strong> {{ compra.cliente.dni }}</p>
+        <p><strong>Lote:</strong> Mz {{ compra.lote.manzana }} - Lt {{ compra.lote.numero }}</p>
+      </div>
+      <div class="col-md-6">
+        <p><strong>Precio Total:</strong> S/ {{ "%.2f"|format(compra.precio) }}</p>
+        <p><strong>Inicial Pagado:</strong> S/ {{ "%.2f"|format(compra.inicial) }}</p>
+        <p><strong>Fecha de Compra:</strong> {{ compra.fecha_compra.strftime("%d/%m/%Y") }}</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Resumen de cuotas a pagar -->
+  <div class="card mb-4">
+    <div class="card-header bg-warning text-dark">
+      <h5 class="mb-0">🔔 Cuotas a Pagar</h5>
+    </div>
+    <div class="card-body">
+      <table class="table table-sm table-bordered">
+        <thead class="table-light">
+          <tr>
+            <th>#</th>
+            <th>Monto</th>
+            <th>Vencimiento</th>
+            <th>Estado</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for cuota in cuotas_pendientes|sort(attribute='numero') %}
+          <tr>
+            <td class="text-center"><strong>{{ cuota.numero }}</strong></td>
+            <td class="text-end">S/ {{ "%.2f"|format(cuota.monto) }}</td>
+            <td>{{ cuota.fecha_vencimiento.strftime("%d/%m/%Y") }}</td>
+            <td class="text-center">
+              <span class="badge bg-warning text-dark">⏳ Pendiente</span>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ✨ NUEVO: Desglose de cálculo con descuento -->
+  <div class="card mb-4 border-success">
+    <div class="card-header bg-success text-white">
+      <h5 class="mb-0">💵 Desglose de Pagos</h5>
+    </div>
+    <div class="card-body">
+      <div class="row mb-3">
+        <div class="col-md-6">
+          <h6 class="text-muted">Monto sin descuento:</h6>
+          <h4 class="text-dark">S/ {{ "%.2f"|format(monto_total) }}</h4>
+        </div>
+        <div class="col-md-6">
+          <h6 class="text-muted">Descuento por pago anticipado:</h6>
+          <h4 class="text-danger">-S/ {{ "%.2f"|format(interes_proporcional) }}</h4>
+          <small class="text-muted">(Interés proporcional a {{ cuotas_pendientes|length }} cuota(s))</small>
+        </div>
+      </div>
+      
+      <hr>
+      
+      <div class="row">
+        <div class="col-md-12">
+          <h5 class="text-success">
+            💚 <strong>Monto Final a Pagar:</strong> S/ {{ "%.2f"|format(monto_final) }}
+          </h5>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Información adicional -->
+  <div class="alert alert-info">
+    <h6 class="alert-heading">ℹ️ Información Importante</h6>
+    <ul class="mb-0">
+      <li>Al pagar todas las cuotas restantes de una vez, <strong>se descuenta el interés proporcional</strong>.</li>
+      <li>Las cuotas restantes son: <strong>{{ numeros_cuotas|join(', ') }}</strong></li>
+      <li>Una vez confirmado, se marcará la compra como <strong>TOTALMENTE CANCELADA</strong>.</li>
+      <li>El descuento es automático: <strong>S/ {{ "%.2f"|format(interes_proporcional) }}</strong></li>
+    </ul>
+  </div>
+
+  <!-- Formulario para pagar -->
+  <div class="card mb-4">
+    <div class="card-header bg-primary text-white">
+      <h5 class="mb-0">📸 Subir Voucher de Pago</h5>
+    </div>
+    <div class="card-body">
+      <form method="POST" enctype="multipart/form-data">
+        <div class="mb-3">
+          <label for="boucher_todas" class="form-label">Seleccionar archivo</label>
+          <input type="file" 
+                 class="form-control form-control-lg" 
+                 id="boucher_todas" 
+                 name="boucher_todas" 
+                 accept="image/*" 
+                 required
+                 onchange="previewImage(this)">
+          <small class="text-muted d-block mt-2">
+            📋 Soportados: JPG, PNG, GIF | Tamaño máximo: 5MB
+          </small>
+        </div>
+
+        <!-- Preview de imagen -->
+        <div id="imagePreview" class="mb-3" style="display:none; text-align: center;">
+          <img id="preview" src="" alt="Preview" style="max-width: 100%; max-height: 300px; border: 2px solid #ddd; padding: 10px; border-radius: 5px;">
+        </div>
+
+        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+          <a href="{{ url_for('detalle_cuotas', compra_id=compra.id) }}" class="btn btn-secondary">⬅ Cancelar</a>
+          <button type="submit" class="btn btn-success btn-lg">
+            ✅ Confirmar Pago de S/ {{ "%.2f"|format(monto_final) }}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+function previewImage(input) {
+  const preview = document.getElementById('preview');
+  const previewDiv = document.getElementById('imagePreview');
+  
+  if (input.files && input.files[0]) {
+    const reader = new FileReader();
+    
+    reader.onload = function(e) {
+      preview.src = e.target.result;
+      previewDiv.style.display = 'block';
+    };
+    
+    reader.readAsDataURL(input.files[0]);
+  } else {
+    previewDiv.style.display = 'none';
+  }
+}
+</script>
+
+{% endblock %}

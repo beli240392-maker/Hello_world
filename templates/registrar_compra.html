@@ -73,6 +73,16 @@
     {% else %}
       {# Nuevo cliente - campos editables #}
       <div class="mb-3">
+        <label for="dni" class="form-label">DNI:</label>
+        <input type="text" class="form-control" name="dni"
+             value="{{ cliente.dni if cliente else '' }}"
+             required 
+             minlength="8" maxlength="8"
+             oninput="this.value=this.value.replace(/[^A-Za-z0-9]/g,'').slice(0,15)">
+        <small class="text-muted">💡 Si el cliente ya existe, los datos se completarán automáticamente al salir del campo.</small>
+        <div id="msg_cliente" class="alert mt-2" style="display:none;"></div>
+      </div>
+      <div class="mb-3">
         <label for="nombre" class="form-label">Nombre:</label>
         <input type="text" class="form-control" name="nombre" value="{{ cliente.nombre if cliente else '' }}" required>
       </div>
@@ -80,14 +90,7 @@
         <label for="apellidos" class="form-label">Apellidos:</label>
         <input type="text" class="form-control" name="apellidos" value="{{ cliente.apellidos if cliente else '' }}" required>
       </div>
-      <div class="mb-3">
-        <label for="dni" class="form-label">DNI:</label>
-        <input type="text" class="form-control" name="dni"
-             value="{{ cliente.dni if cliente else '' }}"
-             required 
-             minlength="8" maxlength="15"
-             oninput="this.value=this.value.replace(/[^A-Za-z0-9]/g,'').slice(0,15)">
-      </div>
+      
       <div class="form-group">
           <label>Correo electrónico:</label>
           <input type="email" name="correo" class="form-control" value="{{ cliente.correo if cliente else '' }}" placeholder="ejemplo@correo.com">
@@ -293,6 +296,52 @@
 
   toggleCreditoFields();
   formaPagoSelect.addEventListener("change", toggleCreditoFields);
+
+  // Autocompletar cliente por DNI
+const dniInput = document.querySelector("input[name='dni']");
+
+dniInput.addEventListener("blur", function() {
+    const dni = this.value.trim();
+    if (dni.length < 8) return;
+
+    fetch(`/get_cliente_por_dni?dni=${dni}`)
+        .then(res => res.json())
+        .then(data => {
+            const msg = document.getElementById("msg_cliente");
+            
+            if (data) {
+                document.querySelector("input[name='nombre']").value = data.nombre;
+                document.querySelector("input[name='apellidos']").value = data.apellidos;
+                document.querySelector("input[name='correo']").value = data.correo;
+                document.querySelector("input[name='estado_civil']").value = data.estado_civil;
+                document.querySelector("input[name='ocupacion']").value = data.ocupacion;
+                document.querySelector("input[name='telefono']").value = data.telefono;
+                document.querySelector("input[name='direccion']").value = data.direccion;
+                document.querySelector("input[name='ciudad']").value = data.ciudad;
+
+                let hiddenId = document.querySelector("input[name='cliente_id']");
+                if (!hiddenId) {
+                    hiddenId = document.createElement("input");
+                    hiddenId.type = "hidden";
+                    hiddenId.name = "cliente_id";
+                    document.querySelector("form").appendChild(hiddenId);
+                }
+                hiddenId.value = data.id;
+
+                // ✅ Mensaje de éxito
+                msg.className = "alert alert-success mt-2";
+                msg.innerHTML = `✅ Cliente encontrado: <strong>${data.nombre} ${data.apellidos}</strong>`;
+                msg.style.display = "block";
+
+            } else {
+                // 🆕 Mensaje cliente nuevo
+                msg.className = "alert alert-info mt-2";
+                msg.innerHTML = "🆕 Cliente nuevo, completa los datos manualmente.";
+                msg.style.display = "block";
+            }
+        });
+});
+  
 </script>
 
 {% endblock %}

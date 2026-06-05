@@ -1,0 +1,252 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h2>🛡️ Panel Superadmin</h2>
+  <span class="badge bg-danger fs-6">Solo tú puedes ver esto</span>
+</div>
+
+<!-- ══════════════════════════════════════════
+     TARJETAS DE RESUMEN
+══════════════════════════════════════════ -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-2">
+    <div class="card text-center border-primary h-100">
+      <div class="card-body py-3">
+        <div class="fs-2 fw-bold text-primary">{{ total_usuarios }}</div>
+        <div class="text-muted small">Usuarios</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="card text-center border-success h-100">
+      <div class="card-body py-3">
+        <div class="fs-2 fw-bold text-success">{{ total_lotizaciones }}</div>
+        <div class="text-muted small">Lotizaciones</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="card text-center border-info h-100">
+      <div class="card-body py-3">
+        <div class="fs-2 fw-bold text-info">{{ total_clientes }}</div>
+        <div class="text-muted small">Clientes</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="card text-center border-secondary h-100">
+      <div class="card-body py-3">
+        <div class="fs-2 fw-bold text-secondary">{{ total_lotes }}</div>
+        <div class="text-muted small">Lotes totales</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="card text-center border-dark h-100">
+      <div class="card-body py-3">
+        <div class="fs-2 fw-bold text-dark">{{ total_compras }}</div>
+        <div class="text-muted small">Compras</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="card text-center border-warning h-100">
+      <div class="card-body py-3">
+        <div class="fs-2 fw-bold text-warning">{{ total_separaciones }}</div>
+        <div class="text-muted small">Separaciones</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4">
+
+  <!-- ══════════════════════════════════════════
+       COLUMNA IZQUIERDA
+  ══════════════════════════════════════════ -->
+  <div class="col-md-6">
+
+    <!-- Actividad por vendedor -->
+    <div class="card mb-4 shadow-sm">
+      <div class="card-header bg-dark text-white">📊 Actividad por usuario</div>
+      <div class="card-body p-0">
+        <table class="table table-sm table-hover mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Usuario</th>
+              <th class="text-center">Ventas</th>
+              <th class="text-center">Separaciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for v in ventas_por_usuario %}
+            {% set sep = separaciones_por_usuario | selectattr('0', 'equalto', v[0]) | first %}
+            <tr>
+              <td>{{ v[0] }}</td>
+              <td class="text-center">
+                <span class="badge bg-success">{{ v[1] }}</span>
+              </td>
+              <td class="text-center">
+                <span class="badge bg-warning text-dark">{{ sep[1] if sep else 0 }}</span>
+              </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="3" class="text-center text-muted">Sin datos</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Últimas compras registradas -->
+    <div class="card shadow-sm">
+      <div class="card-header bg-success text-white">🕐 Últimas 10 compras</div>
+      <div class="card-body p-0">
+        <table class="table table-sm table-hover mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Cliente</th>
+              <th>Lote</th>
+              <th>Precio</th>
+              <th>Registró</th>
+              <th>Fecha</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for c in ultimas_compras %}
+            <tr>
+              <td>{{ c.cliente.apellidos }}</td>
+              <td>Mz {{ c.lote.manzana }} Lt {{ c.lote.numero }}</td>
+              <td>S/ {{ "%.0f"|format(c.precio) }}</td>
+              <td>{{ c.usuario.username if c.usuario else "—" }}</td>
+              <td>{{ c.fecha_compra.strftime("%d/%m/%Y") }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5" class="text-center text-muted">Sin compras</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       COLUMNA DERECHA
+  ══════════════════════════════════════════ -->
+  <div class="col-md-6">
+
+    <!-- Gestión de usuarios -->
+    <div class="card mb-4 shadow-sm">
+      <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+        <span>👤 Usuarios del sistema</span>
+        <a href="{{ url_for('crear_usuario') }}" class="btn btn-light btn-sm">➕ Nuevo</a>
+      </div>
+      <div class="card-body p-0">
+        <table class="table table-sm table-hover mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Usuario</th>
+              <th class="text-center">Rol</th>
+              <th class="text-center">Estado</th>
+              <th class="text-center">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for u in usuarios %}
+            <tr>
+              <td>
+                {{ u.username }}
+                {% if u.id == current_user.id %}
+                  <span class="badge bg-secondary ms-1">Tú</span>
+                {% endif %}
+              </td>
+              <td class="text-center">
+                {% if u.id == current_user.id %}
+                  <span class="badge bg-danger">{{ u.rol }}</span>
+                {% else %}
+                  <form method="POST" action="{{ url_for('cambiar_rol', usuario_id=u.id) }}" class="d-inline">
+                    <select name="rol" class="form-select form-select-sm d-inline-block w-auto"
+                            onchange="this.form.submit()">
+                      <option value="vendedor"   {% if u.rol == 'vendedor'   %}selected{% endif %}>vendedor</option>
+                      <option value="admin"      {% if u.rol == 'admin'      %}selected{% endif %}>admin</option>
+                      <option value="superadmin" {% if u.rol == 'superadmin' %}selected{% endif %}>superadmin</option>
+                    </select>
+                  </form>
+                {% endif %}
+              </td>
+              <td class="text-center">
+                {% set activo = u.activo if u.activo is defined else True %}
+                {% if activo %}
+                  <span class="badge bg-success">Activo</span>
+                {% else %}
+                  <span class="badge bg-secondary">Inactivo</span>
+                {% endif %}
+              </td>
+              <td class="text-center">
+                {% if u.id != current_user.id %}
+                <form method="POST" action="{{ url_for('toggle_usuario', usuario_id=u.id) }}"
+                      onsubmit="return confirm('¿Cambiar estado de {{ u.username }}?');">
+                  {% set activo = u.activo if u.activo is defined else True %}
+                  <button type="submit"
+                          class="btn btn-sm {{ 'btn-warning' if activo else 'btn-success' }}">
+                    {{ '🔒 Desactivar' if activo else '🔓 Activar' }}
+                  </button>
+                </form>
+                {% else %}
+                  <span class="text-muted">—</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Gestión de lotizaciones -->
+    <div class="card shadow-sm">
+      <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
+        <span>🏘️ Lotizaciones</span>
+        <a href="{{ url_for('crear_lotizacion') }}" class="btn btn-light btn-sm">➕ Nueva</a>
+      </div>
+      <div class="card-body p-0">
+        <table class="table table-sm table-hover mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Nombre</th>
+              <th class="text-center">Lotes</th>
+              <th class="text-center">Eliminar</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for lot in lotizaciones %}
+            {% set n_lotes = lot.lotes | length %}
+            <tr>
+              <td>{{ lot.nombre }}</td>
+              <td class="text-center">
+                <span class="badge bg-secondary">{{ n_lotes }}</span>
+              </td>
+              <td class="text-center">
+                {% if n_lotes == 0 %}
+                <form method="POST"
+                      action="{{ url_for('eliminar_lotizacion', lot_id=lot.id) }}"
+                      onsubmit="return confirm('¿Eliminar lotización {{ lot.nombre }}?');">
+                  <button type="submit" class="btn btn-danger btn-sm">🗑️</button>
+                </form>
+                {% else %}
+                  <span class="text-muted small">Tiene lotes</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+{% endblock %}

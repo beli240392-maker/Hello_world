@@ -1,7 +1,7 @@
 import os
 import uuid
-from utils import lotizacion_required, admin_required
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
+from utils import lotizacion_required, admin_required, superadmin_required 
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session,current_app
 from werkzeug.utils import secure_filename
 from models import db, Cliente, Lote, Compra, Pago, Cuota, Separacion, Historial, Lotizacion, Voucher
 from datetime import datetime, timedelta, date
@@ -61,8 +61,10 @@ login_manager.login_view = "login"
 
 @login_manager.user_loader
 def load_user(user_id):
-    return Usuario.query.get(int(user_id))
-
+    u = Usuario.query.get(int(user_id))
+    if u and not getattr(u, 'activo', True):
+        return None  # fuerza logout si está desactivado
+    return u
 
 
 
@@ -254,6 +256,7 @@ patron_manzana = re.compile(r"^[A-ZÑ]{1}[´]?$")
 @login_required
 @admin_required
 @lotizacion_required
+@superadmin_required
 def agregar_lotes():
     # Verifica lotización activa
     lotizacion_id = session.get("lotizacion_id")
@@ -553,7 +556,9 @@ def registrar_compra():
         # Calcular precio total con interés
         monto_total = precio
         if forma_pago == "credito" and interes > 0:
-            monto_total = precio * (1 + interes / 100)
+            saldo_a_financiar = precio - inicial
+            interes_monto = saldo_a_financiar * (interes / 100)
+            monto_total = precio + interes_monto
         
         # ✅ Fecha de compra (si no se ingresa, usa la actual)
         fecha_compra_str = request.form.get("fecha_compra")
@@ -897,6 +902,99 @@ def pagar_cuota():
         flash("✅ Cuota pagada correctamente.", "success")
     
     return redirect(url_for("detalle_cuotas", compra_id=cuota.compra_id))
+
+@app.route("/pagar_todas_cuotas/<int:compra_id>", methods=["GET", "POST"])
+def pagar_todas_cuotas(compra_id):
+    compra = Compra.query.get_or_404(compra_id)
+    
+    # Obtener solo las cuotas pendientes
+    cuotas_pendientes = Cuota.query.filter(
+        Cuota.compra_id == compra_id,
+        Cuota.pagada == False
+    ).order_by(Cuota.numero).all()
+    
+    # Si no hay cuotas pendientes
+    if not cuotas_pendientes:
+        flash("⚠️ No hay cuotas pendientes para pagar.", "warning")
+        return redirect(url_for("detalle_cuotas", compra_id=compra_id))
+    
+    if request.method == "POST":
+        # Validar que se subió un boucher
+        boucher_file = request.files.get("boucher_todas")
+        if not boucher_file or not boucher_file.filename:
+            flash("❌ Debes subir un voucher para proceder.", "danger")
+            return redirect(url_for("pagar_todas_cuotas", compra_id=compra_id))
+        
+        # Guardar boucher una sola vez
+        boucher_path = guardar_boucher(boucher_file)
+        
+        try:
+            # Calcular monto total SIN descuento
+            monto_total_cuotas = sum([c.monto for c in cuotas_pendientes])
+            
+            # ✨ NUEVO: Calcular descuento de interés proporcional
+            cuotas_pagadas = len([c for c in compra.cuotas if c.pagada])
+            cuotas_totales = compra.cuotas_total
+            cuotas_faltantes = len(cuotas_pendientes)
+            
+            saldo_financiar = compra.precio - compra.inicial
+            interes_total = saldo_financiar * (compra.interes / 100)
+            interes_proporcional = interes_total * (cuotas_faltantes / compra.cuotas_total)
+            # Monto final CON descuento de interés
+            monto_final = monto_total_cuotas - interes_proporcional
+            
+            pago = Pago(
+                compra_id=compra_id,
+                monto=monto_final,  # ✨ Usa el monto con descuento
+                boucher=boucher_path
+            )
+            db.session.add(pago)
+            db.session.flush()  # Obtener pago.id
+            
+            # Marcar todas las cuotas pendientes como pagadas
+            for cuota in cuotas_pendientes:
+                cuota.pagada = True
+                cuota.pago_id = pago.id
+            
+            # Verificar si se completó el pago total
+            if compra.verificar_cancelacion():
+                db.session.commit()
+                flash(f"🎉 ¡Felicidades! Todas las cuotas pagadas y compra TOTALMENTE CANCELADA. Descuento por pago anticipado: S/ {interes_proporcional:.2f}", "success")
+            else:
+                db.session.commit()
+                flash(f"✅ {len(cuotas_pendientes)} cuota(s) pagada(s) correctamente. Descuento aplicado: S/ {interes_proporcional:.2f}", "success")
+            
+            return redirect(url_for("detalle_cuotas", compra_id=compra_id))
+        
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.error(f"Error al pagar todas las cuotas: {e}")
+            flash("❌ Error al procesar el pago", "danger")
+            return redirect(url_for("pagar_todas_cuotas", compra_id=compra_id))
+    
+    # GET - Mostrar resumen de cuotas a pagar
+    monto_total_sin_descuento = sum([c.monto for c in cuotas_pendientes])
+    
+    # ✨ NUEVO: Calcular descuento de interés
+    cuotas_faltantes = len(cuotas_pendientes)
+    saldo_financiar = compra.precio - compra.inicial
+    interes_total = saldo_financiar * (compra.interes / 100)
+    interes_proporcional = interes_total * (cuotas_faltantes / compra.cuotas_total)
+
+    monto_total_con_descuento = monto_total_sin_descuento - interes_proporcional
+    
+    numeros_cuotas = [c.numero for c in cuotas_pendientes]
+    
+    return render_template(
+        "pagar_todas_cuotas.html",
+        compra=compra,
+        cuotas_pendientes=cuotas_pendientes,
+        monto_total=monto_total_sin_descuento,
+        monto_final=monto_total_con_descuento,
+        interes_proporcional=interes_proporcional,
+        numeros_cuotas=numeros_cuotas
+    )
+
 # ------------------- LIBERAR LOTE -------------------
 @app.route("/liberar_lote/<int:id>/<string:tipo>", methods=["POST"])
 @login_required
@@ -1198,8 +1296,44 @@ def autocomplete_clientes():
     return jsonify(results)
 
 
-# ------------------- VERIFICAR VOUCHER REPETIDO -------------------
-# ------------------- VERIFICAR VOUCHER REPETIDO -------------------
+@app.route("/get_cliente_por_dni")
+@login_required
+def get_cliente_por_dni():
+    dni = request.args.get("dni", "").strip()
+    lotizacion_id = session.get("lotizacion_id")
+    
+    if not dni:
+        return jsonify(None)
+    
+    # Buscar cliente que tenga compra o separación en la lotización actual
+    cliente = (
+        Cliente.query
+        .filter_by(dni=dni)
+        .join(Compra, isouter=True)
+        .join(Separacion, isouter=True)
+        .join(Lote, or_(
+            Lote.id == Compra.lote_id,
+            Lote.id == Separacion.lote_id
+        ), isouter=True)
+        .filter(Lote.lotizacion_id == lotizacion_id)
+        .first()
+    )
+
+    if not cliente:
+        return jsonify(None)
+    
+    return jsonify({
+        "id": cliente.id,
+        "nombre": cliente.nombre,
+        "apellidos": cliente.apellidos,
+        "dni": cliente.dni,
+        "correo": cliente.correo or "",
+        "estado_civil": cliente.estado_civil or "",
+        "ocupacion": cliente.ocupacion or "",
+        "telefono": cliente.telefono or "",
+        "direccion": cliente.direccion or "",
+        "ciudad": cliente.ciudad or ""
+    })
 
 @app.route("/exportar_ventas", methods=["GET"])
 @login_required
@@ -1710,6 +1844,176 @@ def logout():
     session.pop("lotizacion_id", None)  # 👈 borra la lotización activa
     flash("Sesión cerrada correctamente.", "info")
     return redirect(url_for("login"))
+
+
+@app.route("/superadmin")
+@login_required
+@superadmin_required
+def panel_superadmin():
+    """Dashboard principal del superadmin."""
+    # Estadísticas generales
+    total_usuarios   = Usuario.query.count()
+    total_lotizaciones = Lotizacion.query.count()
+    total_clientes   = Cliente.query.count()
+    total_lotes      = Lote.query.count()
+    total_compras    = Compra.query.count()
+    total_separaciones = Separacion.query.filter_by(activa=True).count()
+ 
+    # Actividad por vendedor: compras registradas
+    from sqlalchemy import func
+    ventas_por_usuario = (
+        db.session.query(Usuario.username, func.count(Compra.id).label("ventas"))
+        .outerjoin(Compra, Compra.usuario_id == Usuario.id)
+        .group_by(Usuario.id, Usuario.username)
+        .order_by(func.count(Compra.id).desc())
+        .all()
+    )
+ 
+    separaciones_por_usuario = (
+        db.session.query(Usuario.username, func.count(Separacion.id).label("separaciones"))
+        .outerjoin(Separacion, Separacion.usuario_id == Usuario.id)
+        .group_by(Usuario.id, Usuario.username)
+        .order_by(func.count(Separacion.id).desc())
+        .all()
+    )
+ 
+    # Últimas 10 compras registradas (cualquier lotización)
+    ultimas_compras = (
+        Compra.query
+        .order_by(Compra.fecha_compra.desc())
+        .limit(10)
+        .all()
+    )
+ 
+    # Usuarios del sistema
+    usuarios = Usuario.query.order_by(Usuario.rol).all()
+    lotizaciones = Lotizacion.query.all()
+ 
+    return render_template(
+        "panel_superadmin.html",
+        total_usuarios=total_usuarios,
+        total_lotizaciones=total_lotizaciones,
+        total_clientes=total_clientes,
+        total_lotes=total_lotes,
+        total_compras=total_compras,
+        total_separaciones=total_separaciones,
+        ventas_por_usuario=ventas_por_usuario,
+        separaciones_por_usuario=separaciones_por_usuario,
+        ultimas_compras=ultimas_compras,
+        usuarios=usuarios,
+        lotizaciones=lotizaciones,
+    )
+ 
+ 
+# ------------------- CREAR USUARIO (solo superadmin) -------------------
+@app.route("/superadmin/crear_usuario", methods=["GET", "POST"])
+@login_required
+@superadmin_required
+def crear_usuario():
+    if request.method == "POST":
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "").strip()
+        rol      = request.form.get("rol", "vendedor")
+ 
+        if not username or not password:
+            flash("Usuario y contraseña son obligatorios.", "danger")
+            return redirect(url_for("crear_usuario"))
+ 
+        if Usuario.query.filter_by(username=username).first():
+            flash("Ya existe un usuario con ese nombre.", "warning")
+            return redirect(url_for("crear_usuario"))
+ 
+        nuevo = Usuario(username=username, rol=rol)
+        nuevo.set_password(password)
+        db.session.add(nuevo)
+        db.session.commit()
+        flash(f"✅ Usuario '{username}' creado con rol '{rol}'.", "success")
+        return redirect(url_for("panel_superadmin"))
+ 
+    return render_template("crear_usuario.html", desde_superadmin=True)
+ 
+ 
+# ------------------- DESACTIVAR / ACTIVAR USUARIO -------------------
+@app.route("/superadmin/toggle_usuario/<int:usuario_id>", methods=["POST"])
+@login_required
+@superadmin_required
+def toggle_usuario(usuario_id):
+    usuario = Usuario.query.get_or_404(usuario_id)
+ 
+    if usuario.id == current_user.id:
+        flash("No puedes desactivarte a ti mismo.", "warning")
+        return redirect(url_for("panel_superadmin"))
+ 
+    usuario.activo = not getattr(usuario, "activo", True)
+    db.session.commit()
+    estado = "activado" if usuario.activo else "desactivado"
+    flash(f"✅ Usuario '{usuario.username}' {estado}.", "success")
+    return redirect(url_for("panel_superadmin"))
+ 
+ 
+# ------------------- CAMBIAR ROL DE USUARIO -------------------
+@app.route("/superadmin/cambiar_rol/<int:usuario_id>", methods=["POST"])
+@login_required
+@superadmin_required
+def cambiar_rol(usuario_id):
+    usuario = Usuario.query.get_or_404(usuario_id)
+ 
+    if usuario.id == current_user.id:
+        flash("No puedes cambiar tu propio rol.", "warning")
+        return redirect(url_for("panel_superadmin"))
+ 
+    nuevo_rol = request.form.get("rol")
+    if nuevo_rol not in ("vendedor", "admin", "superadmin"):
+        flash("Rol inválido.", "danger")
+        return redirect(url_for("panel_superadmin"))
+ 
+    usuario.rol = nuevo_rol
+    db.session.commit()
+    flash(f"✅ Rol de '{usuario.username}' cambiado a '{nuevo_rol}'.", "success")
+    return redirect(url_for("panel_superadmin"))
+ 
+ 
+# ------------------- CREAR LOTIZACIÓN (solo superadmin) -------------------
+@app.route("/superadmin/crear_lotizacion", methods=["GET", "POST"])
+@login_required
+@superadmin_required
+def crear_lotizacion():
+    if request.method == "POST":
+        nombre = request.form.get("nombre", "").strip()
+        if not nombre:
+            flash("El nombre es obligatorio.", "danger")
+            return redirect(url_for("crear_lotizacion"))
+ 
+        if Lotizacion.query.filter_by(nombre=nombre).first():
+            flash("Ya existe una lotización con ese nombre.", "warning")
+            return redirect(url_for("crear_lotizacion"))
+ 
+        nueva = Lotizacion(nombre=nombre)
+        db.session.add(nueva)
+        db.session.commit()
+        flash(f"✅ Lotización '{nombre}' creada.", "success")
+        return redirect(url_for("panel_superadmin"))
+ 
+    return render_template("crear_lotizacion.html", desde_superadmin=True)
+ 
+ 
+# ------------------- ELIMINAR LOTIZACIÓN (solo superadmin) -------------------
+@app.route("/superadmin/eliminar_lotizacion/<int:lot_id>", methods=["POST"])
+@login_required
+@superadmin_required
+def eliminar_lotizacion(lot_id):
+    lot = Lotizacion.query.get_or_404(lot_id)
+    lotes_activos = Lote.query.filter_by(lotizacion_id=lot_id).count()
+ 
+    if lotes_activos > 0:
+        flash(f"⚠️ No se puede eliminar '{lot.nombre}': tiene {lotes_activos} lotes asociados.", "danger")
+        return redirect(url_for("panel_superadmin"))
+ 
+    db.session.delete(lot)
+    db.session.commit()
+    flash(f"✅ Lotización '{lot.nombre}' eliminada.", "success")
+    return redirect(url_for("panel_superadmin"))
+ 
 
 
 
