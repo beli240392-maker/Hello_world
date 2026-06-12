@@ -1265,7 +1265,27 @@ def buscar_cliente():
 )
     return render_template("buscar_cliente.html", query=query, clientes=clientes)
 
-
+@app.route("/buscar_cliente_json")
+@login_required
+def buscar_cliente_json():
+    q = request.args.get("q", "").strip()
+    if len(q) < 2:
+        return jsonify([])
+    
+    term = f"%{q.lower()}%"
+    clientes = Cliente.query.filter(
+        or_(
+            db.func.lower(Cliente.apellidos).like(term),
+            db.func.lower(Cliente.dni).like(term)
+        )
+    ).limit(10).all()
+    
+    return jsonify([{
+        "id": c.id,
+        "nombre": c.nombre,
+        "apellidos": c.apellidos,
+        "dni": c.dni
+    } for c in clientes])
 
 @app.route("/autocomplete_clientes")
 @login_required
@@ -2014,6 +2034,163 @@ def eliminar_lotizacion(lot_id):
     flash(f"✅ Lotización '{lot.nombre}' eliminada.", "success")
     return redirect(url_for("panel_superadmin"))
  
+# ============================================================
+# GESTOR DE DOCUMENTOS
+# ============================================================
+from file_helper import subir_archivo, eliminar_archivo, get_ruta_empresa, get_ruta_lote, get_ruta_lotizacion_general
+from models import Documento
+
+@app.route("/documentos")
+@login_required
+def documentos():
+    if current_user.rol not in ("admin", "superadmin"):
+        flash("No tienes permisos para acceder.", "danger")
+        return redirect(url_for("home"))
+    lotizaciones = Lotizacion.query.all()
+    return render_template("documentos.html", lotizaciones=lotizaciones)
+
+
+@app.route("/documentos/empresa")
+@login_required
+def documentos_empresa():
+    if current_user.rol not in ("admin", "superadmin"):
+        flash("No tienes permisos para acceder.", "danger")
+        return redirect(url_for("home"))
+    
+    tipo = request.args.get("tipo", "")
+    nombre = request.args.get("nombre", "")
+    
+    docs = Documento.query.filter_by(lotizacion_id=None, lote_id=None)
+    if tipo:
+        docs = docs.filter_by(tipo=tipo)
+    if nombre:
+        docs = docs.filter(Documento.nombre.ilike(f"%{nombre}%"))
+    docs = docs.order_by(Documento.fecha_subida.desc()).all()
+    
+    return render_template("documentos_empresa.html", docs=docs, tipo=tipo, nombre=nombre)
+
+
+@app.route("/documentos/lotizacion/<int:lotizacion_id>")
+@login_required
+def documentos_lotizacion(lotizacion_id):
+    if current_user.rol not in ("admin", "superadmin"):
+        flash("No tienes permisos para acceder.", "danger")
+        return redirect(url_for("home"))
+    lotizacion = Lotizacion.query.get_or_404(lotizacion_id)
+    manzana = request.args.get("manzana", "")
+    apellido = request.args.get("apellido", "")
+
+    manzanas = db.session.query(Lote.manzana).filter_by(
+        lotizacion_id=lotizacion_id
+    ).distinct().order_by(Lote.manzana).all()
+    manzanas = [m[0] for m in manzanas]
+
+    docs = Documento.query.filter_by(lotizacion_id=lotizacion_id)
+
+    if manzana:
+        lotes_manzana = Lote.query.filter_by(lotizacion_id=lotizacion_id, manzana=manzana).all()
+        lote_ids = [l.id for l in lotes_manzana]
+        docs = docs.filter(Documento.lote_id.in_(lote_ids))
+
+    if apellido:
+        clientes = Cliente.query.filter(Cliente.apellidos.ilike(f"%{apellido}%")).all()
+        cliente_ids = [c.id for c in clientes]
+        docs = docs.filter(Documento.cliente_id.in_(cliente_ids))
+
+    docs = docs.order_by(Documento.fecha_subida.desc()).all()
+
+    return render_template(
+        "documentos_lotizacion.html",
+        lotizacion=lotizacion,
+        docs=docs,
+        manzanas=manzanas,
+        manzana_sel=manzana,
+        apellido=apellido
+    )
+
+@app.route("/documentos/subir", methods=["POST"])
+@login_required
+def subir_documento():
+    if current_user.rol not in ("admin", "superadmin"):
+        flash("No tienes permisos.", "danger")
+        return redirect(url_for("documentos"))
+
+    archivo = request.files.get("archivo")
+    tipo = request.form.get("tipo", "otro")
+    lotizacion_id = request.form.get("lotizacion_id") or None
+    lote_id = request.form.get("lote_id") or None
+    cliente_id = request.form.get("cliente_id") or None
+    nombre_personalizado = request.form.get("nombre_personalizado", "").strip()
+
+    if not archivo or archivo.filename == "":
+        flash("Debes seleccionar un archivo.", "danger")
+        return redirect(request.referrer)
+
+    try:
+        import datetime as dt
+        fecha_str = dt.datetime.now().strftime("%d%m%Y")
+        ext = os.path.splitext(archivo.filename)[1]
+
+        if lotizacion_id:
+            lotizacion = Lotizacion.query.get(lotizacion_id)
+            if lote_id:
+                lote = Lote.query.get(lote_id)
+                ruta_carpeta = get_ruta_lote(lotizacion.nombre, lote.manzana, lote.numero)
+                if cliente_id:
+                    cliente = Cliente.query.get(cliente_id)
+                    nombre_base = f"{cliente.apellidos}_Mz{lote.manzana}_Lt{lote.numero}_{tipo}_{fecha_str}{ext}"
+                else:
+                    nombre_base = f"Mz{lote.manzana}_Lt{lote.numero}_{tipo}_{fecha_str}{ext}"
+            else:
+                ruta_carpeta = get_ruta_lotizacion_general(lotizacion.nombre)
+                nombre_base = f"{lotizacion.nombre}_{tipo}_{fecha_str}{ext}"
+        else:
+            ruta_carpeta = get_ruta_empresa(tipo)
+            if nombre_personalizado:
+                nombre_base = f"{nombre_personalizado}{ext}"
+            else:
+                nombre_base = f"{tipo}_{fecha_str}{ext}"
+
+        nombre_base = nombre_base.replace(" ", "_")
+
+        nombre_guardado, ruta_relativa = subir_archivo(archivo, nombre_base, ruta_carpeta)
+
+        doc = Documento(
+            nombre=nombre_guardado,
+            ruta=ruta_relativa,
+            tipo=tipo,
+            lotizacion_id=int(lotizacion_id) if lotizacion_id else None,
+            lote_id=int(lote_id) if lote_id else None,
+            cliente_id=int(cliente_id) if cliente_id else None,
+            usuario_id=current_user.id
+        )
+        db.session.add(doc)
+        db.session.commit()
+        flash("✅ Documento subido correctamente.", "success")
+
+    except Exception as e:
+        flash(f"❌ Error al subir: {str(e)}", "danger")
+
+    return redirect(request.referrer)
+
+
+@app.route("/documentos/eliminar/<int:doc_id>", methods=["POST"])
+@login_required
+def eliminar_documento_drive(doc_id):
+    if current_user.rol not in ("admin", "superadmin"):
+        flash("No tienes permisos.", "danger")
+        return redirect(url_for("documentos"))
+
+    doc = Documento.query.get_or_404(doc_id)
+    try:
+        eliminar_archivo(doc.ruta)
+        db.session.delete(doc)
+        db.session.commit()
+        flash("✅ Documento eliminado.", "success")
+    except Exception as e:
+        flash(f"❌ Error al eliminar: {str(e)}", "danger")
+
+    return redirect(request.referrer)
 
 
 

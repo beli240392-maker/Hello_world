@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2>🏘️ {{ lotizacion.nombre }}</h2>
+  <a href="{{ url_for('documentos') }}" class="btn btn-secondary btn-sm">⬅ Volver</a>
+</div>
+
+<div class="card mb-3 shadow-sm">
+  <div class="card-body">
+    <form method="GET" class="row g-2 align-items-end">
+      <div class="col-md-4">
+        <label class="form-label">Filtrar por Manzana</label>
+        <select name="manzana" class="form-select">
+          <option value="">Todas las manzanas</option>
+          {% for mz in manzanas %}
+          <option value="{{ mz }}" {% if manzana_sel == mz %}selected{% endif %}>Manzana {{ mz }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Buscar por Apellido</label>
+        <input type="text" name="apellido" class="form-control" placeholder="Apellido del cliente..." value="{{ apellido }}">
+      </div>
+      <div class="col-md-2">
+        <button type="submit" class="btn btn-primary w-100">🔍 Filtrar</button>
+      </div>
+      <div class="col-md-2">
+        <a href="{{ url_for('documentos_lotizacion', lotizacion_id=lotizacion.id) }}" class="btn btn-outline-secondary w-100">Limpiar</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card mb-4 shadow-sm">
+  <div class="card-header bg-success text-white">➕ Subir Documento</div>
+  <div class="card-body">
+    <form method="POST" action="{{ url_for('subir_documento') }}" enctype="multipart/form-data" class="row g-3">
+      <input type="hidden" name="lotizacion_id" value="{{ lotizacion.id }}">
+      <div class="col-md-3">
+        <label class="form-label">Archivo</label>
+        <input type="file" name="archivo" class="form-control" required>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Tipo</label>
+        <select name="tipo" class="form-select">
+          <option value="contrato">📝 Contrato</option>
+          <option value="escritura">📜 Escritura</option>
+          <option value="dni">🪪 DNI</option>
+          <option value="plano">📐 Plano</option>
+          <option value="otro">📄 Otro</option>
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Cliente </label>
+        <input type="text" id="buscar_cliente_doc" class="form-control" 
+                placeholder="Buscar por apellido..." autocomplete="off">
+        <input type="hidden" name="cliente_id" id="cliente_id_doc">
+        <div id="resultados_cliente" class="list-group mt-1" 
+            style="position:absolute; z-index:999; width:250px;"></div>
+        </div>
+      <div class="col-md-2">
+        <label class="form-label">Manzana</label>
+        <select name="manzana_sel" id="manzana_subir" class="form-select" onchange="cargarLotesSubir(this.value)">
+          <option value="">General</option>
+          {% for mz in manzanas %}
+          <option value="{{ mz }}">Manzana {{ mz }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Lote</label>
+        <select name="lote_id" id="lote_subir" class="form-select">
+          <option value="">Sin lote específico</option>
+        </select>
+      </div>
+      <div class="col-md-2 d-flex align-items-end">
+        <button type="submit" class="btn btn-success w-100">📤 Subir</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card shadow-sm">
+  <div class="card-header bg-dark text-white">📋 Documentos ({{ docs|length }})</div>
+  <div class="card-body p-0">
+    <table class="table table-hover table-sm mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>Nombre</th>
+          <th>Tipo</th>
+          <th>Lote</th>
+          <th>Cliente</th>
+          <th>Subido por</th>
+          <th>Fecha</th>
+          <th class="text-center">Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for doc in docs %}
+        <tr>
+          <td>{{ doc.nombre }}</td>
+          <td>
+            {% if doc.tipo == 'contrato' %}<span class="badge bg-success">📝 Contrato</span>
+            {% elif doc.tipo == 'escritura' %}<span class="badge bg-warning text-dark">📜 Escritura</span>
+            {% elif doc.tipo == 'dni' %}<span class="badge bg-info text-dark">🪪 DNI</span>
+            {% elif doc.tipo == 'plano' %}<span class="badge bg-primary">📐 Plano</span>
+            {% else %}<span class="badge bg-secondary">📄 Otro</span>{% endif %}
+          </td>
+          <td>
+            {% if doc.lote %}Mz {{ doc.lote.manzana }} Lt {{ doc.lote.numero }}
+            {% else %}<span class="text-muted">General</span>{% endif %}
+          </td>
+          <td>{{ doc.cliente.apellidos ~ ' ' ~ doc.cliente.nombre if doc.cliente else "—" }}</td>
+          <td>{{ doc.usuario.username if doc.usuario else "—" }}</td>
+          <td>{{ doc.fecha_subida.strftime("%d/%m/%Y") }}</td>
+          <td class="text-center">
+            <a href="{{ url_for('static', filename=doc.ruta.replace('static/', '')) }}" target="_blank" class="btn btn-sm btn-primary">👁️ Ver</a>
+            <a href="{{ url_for('static', filename=doc.ruta.replace('static/', '')) }}" download class="btn btn-sm btn-secondary">⬇️ Descargar</a>
+            {% if current_user.rol == 'superadmin' %}
+            <form method="POST" action="{{ url_for('eliminar_documento_drive', doc_id=doc.id) }}"
+                  class="d-inline" onsubmit="return confirm('¿Eliminar este documento?');">
+              <button type="submit" class="btn btn-sm btn-danger">🗑️</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="text-center text-muted py-3">No hay documentos subidos.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+const lotesData = {};
+{% for mz in manzanas %}
+lotesData["{{ mz }}"] = [
+  {% for lote in lotizacion.lotes if lote.manzana == mz %}
+  { id: {{ lote.id }}, numero: "{{ lote.numero }}" },
+  {% endfor %}
+];
+{% endfor %}
+
+function cargarLotesSubir(mz) {
+  const select = document.getElementById("lote_subir");
+  select.innerHTML = '<option value="">Sin lote específico</option>';
+  if (mz && lotesData[mz]) {
+    lotesData[mz].forEach(l => {
+      const opt = document.createElement("option");
+      opt.value = l.id;
+      opt.textContent = "Lt " + l.numero;
+      select.appendChild(opt);
+    });
+  }
+}
+
+document.getElementById('buscar_cliente_doc').addEventListener('input', function() {
+    const q = this.value.trim();
+    if (q.length < 2) {
+        document.getElementById('resultados_cliente').innerHTML = '';
+        return;
+    }
+    fetch(`/buscar_cliente_json?q=${q}`)
+        .then(res => res.json())
+        .then(data => {
+            const lista = document.getElementById('resultados_cliente');
+            lista.innerHTML = '';
+            data.forEach(c => {
+                const item = document.createElement('a');
+                item.href = '#';
+                item.className = 'list-group-item list-group-item-action';
+                item.textContent = `${c.apellidos} ${c.nombre} - ${c.dni}`;
+                item.onclick = function(e) {
+                    e.preventDefault();
+                    document.getElementById('buscar_cliente_doc').value = `${c.apellidos} ${c.nombre}`;
+                    document.getElementById('cliente_id_doc').value = c.id;
+                    lista.innerHTML = '';
+                };
+                lista.appendChild(item);
+            });
+        });
+});
+</script>
+
+{% endblock %}

@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2>🏢 Documentos de la Empresa</h2>
+  <a href="{{ url_for('documentos') }}" class="btn btn-secondary btn-sm">⬅ Volver</a>
+</div>
+
+<div class="mb-3 d-flex gap-2 flex-wrap align-items-center">
+  <a href="{{ url_for('documentos_empresa') }}" class="btn btn-sm {{ 'btn-dark' if not tipo else 'btn-outline-dark' }}">Todos</a>
+  <a href="{{ url_for('documentos_empresa', tipo='legal', nombre=nombre) }}" class="btn btn-sm {{ 'btn-dark' if tipo == 'legal' else 'btn-outline-dark' }}">⚖️ Legales</a>
+  <a href="{{ url_for('documentos_empresa', tipo='plano', nombre=nombre) }}" class="btn btn-sm {{ 'btn-dark' if tipo == 'plano' else 'btn-outline-dark' }}">📐 Planos</a>
+  <a href="{{ url_for('documentos_empresa', tipo='otro', nombre=nombre) }}" class="btn btn-sm {{ 'btn-dark' if tipo == 'otro' else 'btn-outline-dark' }}">📄 Otros</a>
+
+  <form method="GET" class="d-flex gap-2 ms-auto">
+    <input type="hidden" name="tipo" value="{{ tipo }}">
+    <input type="text" name="nombre" value="{{ nombre }}" class="form-control form-control-sm" placeholder="Buscar por nombre...">
+    <button type="submit" class="btn btn-sm btn-primary">🔍</button>
+    <a href="{{ url_for('documentos_empresa') }}" class="btn btn-sm btn-outline-secondary">✕</a>
+  </form>
+</div>
+
+<div class="card mb-4 shadow-sm">
+  <div class="card-header bg-primary text-white">➕ Subir Documento</div>
+  <div class="card-body">
+    <form method="POST" action="{{ url_for('subir_documento') }}" enctype="multipart/form-data" class="row g-3">
+      <div class="col-md-3">
+        <label class="form-label">Archivo</label>
+        <input type="file" name="archivo" class="form-control" required>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Nombre del documento</label>
+        <input type="text" name="nombre_personalizado" class="form-control" placeholder="Ej: Contrato de arrendamiento">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Tipo</label>
+        <select name="tipo" class="form-select">
+          <option value="legal">⚖️ Legal</option>
+          <option value="plano">📐 Plano</option>
+          <option value="otro">📄 Otro</option>
+        </select>
+      </div>
+      <div class="col-md-2 d-flex align-items-end">
+        <button type="submit" class="btn btn-success w-100">📤 Subir</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card shadow-sm">
+  <div class="card-header bg-dark text-white">📋 Documentos ({{ docs|length }})</div>
+  <div class="card-body p-0">
+    <table class="table table-hover table-sm mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>Nombre</th>
+          <th>Tipo</th>
+          <th>Subido por</th>
+          <th>Fecha</th>
+          <th class="text-center">Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for doc in docs %}
+        <tr>
+          <td>{{ doc.nombre }}</td>
+          <td>
+            {% if doc.tipo == 'legal' %}<span class="badge bg-danger">⚖️ Legal</span>
+            {% elif doc.tipo == 'plano' %}<span class="badge bg-info text-dark">📐 Plano</span>
+            {% else %}<span class="badge bg-secondary">📄 Otro</span>{% endif %}
+          </td>
+          <td>{{ doc.usuario.username if doc.usuario else "—" }}</td>
+          <td>{{ doc.fecha_subida.strftime("%d/%m/%Y") }}</td>
+          <td class="text-center">
+            <a href="{{ url_for('static', filename=doc.ruta.replace('static/', '')) }}" target="_blank" class="btn btn-sm btn-primary">👁️ Ver</a>
+            <a href="{{ url_for('static', filename=doc.ruta.replace('static/', '')) }}" download class="btn btn-sm btn-secondary">⬇️ Descargar</a>
+            {% if current_user.rol == 'superadmin' %}
+            <form method="POST" action="{{ url_for('eliminar_documento_drive', doc_id=doc.id) }}"
+                  class="d-inline" onsubmit="return confirm('¿Eliminar este documento?');">
+              <button type="submit" class="btn btn-sm btn-danger">🗑️</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-center text-muted py-3">No hay documentos subidos.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}

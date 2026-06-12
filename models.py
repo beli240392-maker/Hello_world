@@ -245,3 +245,24 @@ class Usuario(UserMixin, db.Model):
     def check_password(self, password):
         """Valida la contraseña ingresada contra la encriptada"""
         return check_password_hash(self.password_hash, password)
+    
+
+# ---------------- DOCUMENTO ----------------
+class Documento(db.Model):
+    __tablename__ = "documentos"
+
+    id = db.Column(db.Integer, primary_key=True)
+    nombre = db.Column(db.String(200), nullable=False)
+    ruta = db.Column(db.String(500), nullable=False)
+    tipo = db.Column(db.String(50))
+    fecha_subida = db.Column(db.DateTime, default=lambda: datetime.now(pytz.timezone("America/Lima")))
+
+    lotizacion_id = db.Column(db.Integer, db.ForeignKey("lotizaciones.id"), nullable=True)
+    lote_id = db.Column(db.Integer, db.ForeignKey("lotes.id"), nullable=True)
+    cliente_id = db.Column(db.Integer, db.ForeignKey("clientes.id"), nullable=True)
+    usuario_id = db.Column(db.Integer, db.ForeignKey("usuarios.id"), nullable=True)
+
+    lotizacion = db.relationship("Lotizacion", backref="documentos")
+    lote = db.relationship("Lote", backref="documentos")
+    cliente = db.relationship("Cliente", backref="documentos")
+    usuario = db.relationship("Usuario", backref="documentos")

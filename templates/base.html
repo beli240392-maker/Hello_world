@@ -100,6 +100,11 @@
             <a class="nav-link text-warning fw-bold" href="{{ url_for('panel_superadmin') }}">🛡️ Superadmin</a>
           </li>
           {% endif %}
+          {% if current_user.is_authenticated and current_user.rol in ('admin', 'superadmin') %}
+          <li class="nav-item">
+            <a class="nav-link" href="{{ url_for('documentos') }}">📁 Documentos</a>
+          </li>
+          {% endif %}
         </ul>
 
         <!-- Lado derecho -->
