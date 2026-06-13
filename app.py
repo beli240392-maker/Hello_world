@@ -2095,7 +2095,12 @@ def documentos_lotizacion(lotizacion_id):
     if apellido:
         clientes = Cliente.query.filter(Cliente.apellidos.ilike(f"%{apellido}%")).all()
         cliente_ids = [c.id for c in clientes]
-        docs = docs.filter(Documento.cliente_id.in_(cliente_ids))
+        docs = docs.filter(
+            or_(
+                Documento.cliente_id.in_(cliente_ids),
+                Documento.nombre.ilike(f"%{apellido}%")
+            )
+        )
 
     docs = docs.order_by(Documento.fecha_subida.desc()).all()
 
@@ -2120,10 +2125,19 @@ def subir_documento():
     lotizacion_id = request.form.get("lotizacion_id") or None
     lote_id = request.form.get("lote_id") or None
     cliente_id = request.form.get("cliente_id") or None
+    nombre_cliente_libre = request.form.get("nombre_cliente_libre", "").strip()
     nombre_personalizado = request.form.get("nombre_personalizado", "").strip()
 
     if not archivo or archivo.filename == "":
         flash("Debes seleccionar un archivo.", "danger")
+        return redirect(request.referrer)
+
+    if not lotizacion_id and not nombre_personalizado:
+        flash("Debes ingresar un nombre para el documento.", "danger")
+        return redirect(request.referrer)
+
+    if lotizacion_id and not lote_id and not cliente_id and not nombre_cliente_libre:
+        flash("Debes seleccionar un lote, un cliente o ingresar un nombre.", "danger")
         return redirect(request.referrer)
 
     try:
@@ -2131,19 +2145,29 @@ def subir_documento():
         fecha_str = dt.datetime.now().strftime("%d%m%Y")
         ext = os.path.splitext(archivo.filename)[1]
 
+        # Nombre del cliente: de BD o libre
+        nombre_cli = None
+        if cliente_id:
+            cliente = Cliente.query.get(cliente_id)
+            nombre_cli = cliente.apellidos if cliente else None
+        elif nombre_cliente_libre:
+            nombre_cli = nombre_cliente_libre
+
         if lotizacion_id:
             lotizacion = Lotizacion.query.get(lotizacion_id)
             if lote_id:
                 lote = Lote.query.get(lote_id)
                 ruta_carpeta = get_ruta_lote(lotizacion.nombre, lote.manzana, lote.numero)
-                if cliente_id:
-                    cliente = Cliente.query.get(cliente_id)
-                    nombre_base = f"{cliente.apellidos}_Mz{lote.manzana}_Lt{lote.numero}_{tipo}_{fecha_str}{ext}"
+                if nombre_cli:
+                    nombre_base = f"{nombre_cli}_Mz{lote.manzana}_Lt{lote.numero}_{tipo}_{fecha_str}{ext}"
                 else:
                     nombre_base = f"Mz{lote.manzana}_Lt{lote.numero}_{tipo}_{fecha_str}{ext}"
             else:
                 ruta_carpeta = get_ruta_lotizacion_general(lotizacion.nombre)
-                nombre_base = f"{lotizacion.nombre}_{tipo}_{fecha_str}{ext}"
+                if nombre_cli:
+                    nombre_base = f"{nombre_cli}_{tipo}_{fecha_str}{ext}"
+                else:
+                    nombre_base = f"{lotizacion.nombre}_{tipo}_{fecha_str}{ext}"
         else:
             ruta_carpeta = get_ruta_empresa(tipo)
             if nombre_personalizado:
@@ -2152,7 +2176,6 @@ def subir_documento():
                 nombre_base = f"{tipo}_{fecha_str}{ext}"
 
         nombre_base = nombre_base.replace(" ", "_")
-
         nombre_guardado, ruta_relativa = subir_archivo(archivo, nombre_base, ruta_carpeta)
 
         doc = Documento(

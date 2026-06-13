@@ -35,52 +35,65 @@
 <div class="card mb-4 shadow-sm">
   <div class="card-header bg-success text-white">➕ Subir Documento</div>
   <div class="card-body">
-    <form method="POST" action="{{ url_for('subir_documento') }}" enctype="multipart/form-data" class="row g-3">
+    <form id="form_subir_doc" method="POST" action="{{ url_for('subir_documento') }}" enctype="multipart/form-data">
       <input type="hidden" name="lotizacion_id" value="{{ lotizacion.id }}">
-      <div class="col-md-3">
-        <label class="form-label">Archivo</label>
-        <input type="file" name="archivo" class="form-control" required>
-      </div>
-      <div class="col-md-2">
-        <label class="form-label">Tipo</label>
-        <select name="tipo" class="form-select">
-          <option value="contrato">📝 Contrato</option>
-          <option value="escritura">📜 Escritura</option>
-          <option value="dni">🪪 DNI</option>
-          <option value="plano">📐 Plano</option>
-          <option value="otro">📄 Otro</option>
-        </select>
-      </div>
-      <div class="col-md-3">
-        <label class="form-label">Cliente </label>
-        <input type="text" id="buscar_cliente_doc" class="form-control" 
-                placeholder="Buscar por apellido..." autocomplete="off">
-        <input type="hidden" name="cliente_id" id="cliente_id_doc">
-        <div id="resultados_cliente" class="list-group mt-1" 
-            style="position:absolute; z-index:999; width:250px;"></div>
+      
+      <!-- Fila 1 -->
+      <div class="row g-3 mb-2">
+        <div class="col-md-4">
+          <label class="form-label">Archivo</label>
+          <input type="file" name="archivo" class="form-control" required>
         </div>
-      <div class="col-md-2">
-        <label class="form-label">Manzana</label>
-        <select name="manzana_sel" id="manzana_subir" class="form-select" onchange="cargarLotesSubir(this.value)">
-          <option value="">General</option>
-          {% for mz in manzanas %}
-          <option value="{{ mz }}">Manzana {{ mz }}</option>
-          {% endfor %}
-        </select>
+        <div class="col-md-2">
+          <label class="form-label">Tipo</label>
+          <select name="tipo" class="form-select">
+            <option value="contrato">📝 Contrato</option>
+            <option value="escritura">📜 Escritura</option>
+            <option value="dni">🪪 DNI</option>
+            <option value="plano">📐 Plano</option>
+            <option value="otro">📄 Otro</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Manzana</label>
+          <select name="manzana_sel" id="manzana_subir" class="form-select" onchange="cargarLotesSubir(this.value)">
+            <option value="">General</option>
+            {% for mz in manzanas %}
+            <option value="{{ mz }}">Manzana {{ mz }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Lote</label>
+          <select name="lote_id" id="lote_subir" class="form-select">
+            <option value="">Sin lote específico</option>
+          </select>
+        </div>
       </div>
-      <div class="col-md-2">
-        <label class="form-label">Lote</label>
-        <select name="lote_id" id="lote_subir" class="form-select">
-          <option value="">Sin lote específico</option>
-        </select>
+
+      <!-- Fila 2 -->
+      <div class="row g-3 align-items-end">
+        <div class="col-md-4">
+          <label class="form-label">Cliente (buscar por apellido)</label>
+          <input type="text" id="buscar_cliente_doc" class="form-control" 
+                 placeholder="Buscar por apellido..." autocomplete="off">
+          <input type="hidden" name="cliente_id" id="cliente_id_doc">
+          <div id="resultados_cliente" class="list-group mt-1" 
+               style="position:absolute; z-index:999; width:300px;"></div>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">O escribir nombre libre</label>
+          <input type="text" name="nombre_cliente_libre" class="form-control" 
+                 placeholder="Nombre libre...">
+        </div>
+        <div class="col-md-4 d-flex align-items-end">
+          <button type="submit" class="btn btn-success w-100">📤 Subir</button>
+        </div>
       </div>
-      <div class="col-md-2 d-flex align-items-end">
-        <button type="submit" class="btn btn-success w-100">📤 Subir</button>
-      </div>
+
     </form>
   </div>
 </div>
-
 <div class="card shadow-sm">
   <div class="card-header bg-dark text-white">📋 Documentos ({{ docs|length }})</div>
   <div class="card-body p-0">
@@ -111,7 +124,13 @@
             {% if doc.lote %}Mz {{ doc.lote.manzana }} Lt {{ doc.lote.numero }}
             {% else %}<span class="text-muted">General</span>{% endif %}
           </td>
-          <td>{{ doc.cliente.apellidos ~ ' ' ~ doc.cliente.nombre if doc.cliente else "—" }}</td>
+          <td>
+            {% if doc.cliente %}
+              {{ doc.cliente.apellidos }} {{ doc.cliente.nombre }}
+            {% else %}
+              {{ doc.nombre.split('_')[0] }}
+            {% endif %}
+          </td>
           <td>{{ doc.usuario.username if doc.usuario else "—" }}</td>
           <td>{{ doc.fecha_subida.strftime("%d/%m/%Y") }}</td>
           <td class="text-center">
@@ -181,6 +200,61 @@ document.getElementById('buscar_cliente_doc').addEventListener('input', function
                 lista.appendChild(item);
             });
         });
+});
+const inputClienteLibre = document.querySelector("input[name='nombre_cliente_libre']");
+const inputBuscarCliente = document.getElementById('buscar_cliente_doc');
+const selectLote = document.getElementById('lote_subir');
+const selectManzana = document.getElementById('manzana_subir');
+
+// Cuando escribe nombre libre, bloquea cliente y lote
+inputClienteLibre.addEventListener('input', function() {
+    if (this.value.trim() !== '') {
+        inputBuscarCliente.value = '';
+        inputBuscarCliente.disabled = true;
+        document.getElementById('cliente_id_doc').value = '';
+        selectLote.disabled = true;
+        selectManzana.disabled = true;
+    } else {
+        inputBuscarCliente.disabled = false;
+        selectLote.disabled = false;
+        selectManzana.disabled = false;
+    }
+});
+
+// Cuando elige cliente, bloquea nombre libre
+inputBuscarCliente.addEventListener('input', function() {
+    if (this.value.trim() !== '') {
+        inputClienteLibre.value = '';
+        inputClienteLibre.disabled = true;
+    } else {
+        inputClienteLibre.disabled = false;
+    }
+});
+// Validar que si hay cliente de BD, debe elegir lote
+document.getElementById('form_subir_doc').addEventListener('submit', function(e) {
+    const clienteId = document.getElementById('cliente_id_doc').value;
+    const loteId = document.getElementById('lote_subir').value;
+    const nombreLibre = inputClienteLibre.value.trim();
+
+    if (clienteId && !loteId) {
+        e.preventDefault();
+        alert('⚠️ Debes seleccionar un lote para el cliente.');
+        return;
+    }
+});
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('#buscar_cliente_doc') && !e.target.closest('#resultados_cliente')) {
+        document.getElementById('resultados_cliente').innerHTML = '';
+    }
+});
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('#buscar_cliente_doc') && !e.target.closest('#resultados_cliente')) {
+        document.getElementById('resultados_cliente').innerHTML = '';
+        // Si no hay cliente seleccionado, limpia el input
+        if (!document.getElementById('cliente_id_doc').value) {
+            document.getElementById('buscar_cliente_doc').value = '';
+        }
+    }
 });
 </script>
 
