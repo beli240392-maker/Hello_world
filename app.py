@@ -67,6 +67,49 @@ def load_user(user_id):
     return u
 
 
+def lotizaciones_permitidas_para(usuario):
+    """Devuelve únicamente las lotizaciones que el usuario puede utilizar."""
+    if usuario.rol == "superadmin":
+        return Lotizacion.query.order_by(Lotizacion.nombre.asc()).all()
+    return sorted(usuario.lotizaciones, key=lambda lot: (lot.nombre or "").lower())
+
+
+def usuario_puede_acceder_lotizacion(usuario, lotizacion_id):
+    if not usuario or not usuario.is_authenticated:
+        return False
+    try:
+        lotizacion_id = int(lotizacion_id)
+    except (TypeError, ValueError):
+        return False
+
+    if usuario.rol == "superadmin":
+        return Lotizacion.query.get(lotizacion_id) is not None
+
+    return usuario.puede_acceder_lotizacion(lotizacion_id)
+
+
+def bloquear_si_no_es_lotizacion_activa(lotizacion_id):
+    """Bloquea IDs directos de registros que pertenecen a otra lotización."""
+    if current_user.rol == "superadmin":
+        return None
+
+    activa = session.get("lotizacion_id")
+    try:
+        permitido = (
+            activa
+            and int(activa) == int(lotizacion_id)
+            and usuario_puede_acceder_lotizacion(current_user, lotizacion_id)
+        )
+    except (TypeError, ValueError):
+        permitido = False
+
+    if permitido:
+        return None
+
+    flash("No tienes acceso a ese registro en la lotización activa.", "danger")
+    return redirect(url_for("home"))
+
+
 
 # ------------------- FUNCIONES AUXILIARES -------------------
 def guardar_boucher(file):
@@ -98,17 +141,41 @@ def generar_cuotas_para_compra(compra):
 # ------------------- HOME -------------------
 @app.route("/login", methods=["GET", "POST"])
 def login():
-    lotizaciones = Lotizacion.query.all()  # 👈 Traer todas las lotizaciones
+    # Se mantiene la lista para no romper el login.html actual.
+    # El permiso real se valida en backend antes de iniciar sesión.
+    lotizaciones = Lotizacion.query.order_by(Lotizacion.nombre.asc()).all()
 
     if request.method == "POST":
         usuario = Usuario.query.filter_by(username=request.form["usuario"]).first()
-        if usuario and usuario.check_password(request.form["password"]):
-            login_user(usuario)
-            # Guardar la lotización elegida en la sesión
-            session["lotizacion_id"] = request.form.get("lotizacion_id")
-            return redirect(url_for("home"))
-        else:
+
+        if not usuario or not usuario.check_password(request.form["password"]):
             flash("Usuario o contraseña incorrectos", "danger")
+            return render_template("login.html", lotizaciones=lotizaciones)
+
+        lotizacion_id = request.form.get("lotizacion_id")
+        lot = Lotizacion.query.get(lotizacion_id) if lotizacion_id else None
+
+        if not lot:
+            flash("Debes seleccionar una lotización válida.", "warning")
+            return render_template("login.html", lotizaciones=lotizaciones)
+
+        if usuario.rol != "superadmin" and not usuario.puede_acceder_lotizacion(lot.id):
+            lotizaciones_permitidas = lotizaciones_permitidas_para(usuario)
+
+            flash(
+                f"No tienes acceso a '{lot.nombre}'. Selecciona una de las lotizaciones que tienes permitidas.",
+                "danger"
+            )
+
+            return render_template(
+                "login.html",
+                lotizaciones=lotizaciones_permitidas
+            )
+
+        login_user(usuario)
+        session["lotizacion_id"] = lot.id
+        session["lotizacion_nombre"] = lot.nombre
+        return redirect(url_for("home"))
 
     return render_template("login.html", lotizaciones=lotizaciones)
 
@@ -192,7 +259,10 @@ def editar_cliente(cliente_id):
 
 # ------------------- API para obtener lotes por manzana -------------------
 @app.route("/get_lotes/<int:lotizacion_id>")
+@login_required
 def get_lotes(lotizacion_id):
+    if not usuario_puede_acceder_lotizacion(current_user, lotizacion_id):
+        return jsonify({"error": "No tienes acceso a esa lotización."}), 403
     lotes = Lote.query.filter_by(lotizacion_id=lotizacion_id, estado="disponible").all()
 
     data = [
@@ -207,8 +277,14 @@ def get_lotes(lotizacion_id):
     return jsonify(data)
 
 @app.route("/detalle_lote/<int:lote_id>")
+@login_required
+@lotizacion_required
 def detalle_lote(lote_id):
     lote = Lote.query.get_or_404(lote_id)
+
+    bloqueo = bloquear_si_no_es_lotizacion_activa(lote.lotizacion_id)
+    if bloqueo:
+        return bloqueo
     compra = None
     separacion = None
     if lote.estado == "vendido":
@@ -371,6 +447,10 @@ def agregar_lotes():
 def editar_area(lote_id):
     lote = Lote.query.get_or_404(lote_id)
 
+    bloqueo = bloquear_si_no_es_lotizacion_activa(lote.lotizacion_id)
+    if bloqueo:
+        return bloqueo
+
     if request.method == "POST":
         nueva_area = request.form.get("area")
         if nueva_area:
@@ -390,6 +470,10 @@ def editar_area(lote_id):
 @login_required
 def agregar_comentario(compra_id):
     compra = Compra.query.get_or_404(compra_id)
+
+    bloqueo = bloquear_si_no_es_lotizacion_activa(compra.lote.lotizacion_id)
+    if bloqueo:
+        return bloqueo
     comentario = request.form.get("comentario", "").strip()
 
     if comentario:
@@ -841,8 +925,14 @@ def ver_cliente():
 
 # ------------------- DETALLE CUOTAS -------------------
 @app.route("/detalle_cuotas/<int:compra_id>")
+@login_required
+@lotizacion_required
 def detalle_cuotas(compra_id):
     compra = Compra.query.get_or_404(compra_id)
+
+    bloqueo = bloquear_si_no_es_lotizacion_activa(compra.lote.lotizacion_id)
+    if bloqueo:
+        return bloqueo
     now = datetime.utcnow()
 
     lotizacion = None
@@ -854,10 +944,16 @@ def detalle_cuotas(compra_id):
 
 # ------------------- PAGAR CUOTA -------------------
 @app.route("/pagar_cuota", methods=["POST"])
+@login_required
+@lotizacion_required
 def pagar_cuota():
     cuota_id = request.form["cuota_id"]
     cuota = Cuota.query.get_or_404(cuota_id)
     compra = cuota.compra
+
+    bloqueo = bloquear_si_no_es_lotizacion_activa(compra.lote.lotizacion_id)
+    if bloqueo:
+        return bloqueo
     
     # ✅ NUEVA VALIDACIÓN: Verificar que no haya cuotas anteriores sin pagar
     cuotas_anteriores_pendientes = Cuota.query.filter(
@@ -904,8 +1000,14 @@ def pagar_cuota():
     return redirect(url_for("detalle_cuotas", compra_id=cuota.compra_id))
 
 @app.route("/pagar_todas_cuotas/<int:compra_id>", methods=["GET", "POST"])
+@login_required
+@lotizacion_required
 def pagar_todas_cuotas(compra_id):
     compra = Compra.query.get_or_404(compra_id)
+
+    bloqueo = bloquear_si_no_es_lotizacion_activa(compra.lote.lotizacion_id)
+    if bloqueo:
+        return bloqueo
     
     # Obtener solo las cuotas pendientes
     cuotas_pendientes = Cuota.query.filter(
@@ -1002,6 +1104,10 @@ def pagar_todas_cuotas(compra_id):
 @admin_required
 def liberar_lote(id, tipo):
     lote = Lote.query.get_or_404(id)
+
+    bloqueo = bloquear_si_no_es_lotizacion_activa(lote.lotizacion_id)
+    if bloqueo:
+        return bloqueo
     cliente_id = None  # para redireccionar luego
 
     if tipo == "separacion":
@@ -1048,8 +1154,14 @@ def liberar_lote(id, tipo):
 
 
 @app.route("/liberar_separacion/<int:sep_id>", methods=["POST"])
+@login_required
+@lotizacion_required
 def liberar_separacion(sep_id):
     sep = Separacion.query.get_or_404(sep_id)
+
+    bloqueo = bloquear_si_no_es_lotizacion_activa(sep.lote.lotizacion_id)
+    if bloqueo:
+        return bloqueo
     lote = sep.lote
     lote.estado = "disponible"
     historial = Historial(cliente_id=sep.cliente_id, lote_id=sep.lote_id, tipo="Separación liberada",
@@ -1063,8 +1175,14 @@ def liberar_separacion(sep_id):
 
 
 @app.route("/convertir_separacion/<int:sep_id>", methods=["POST"])
+@login_required
+@lotizacion_required
 def convertir_separacion(sep_id):
     sep = Separacion.query.get_or_404(sep_id)
+
+    bloqueo = bloquear_si_no_es_lotizacion_activa(sep.lote.lotizacion_id)
+    if bloqueo:
+        return bloqueo
     if not sep.activa:
         flash("La separación ya no está activa.", "danger")
         return redirect(url_for("ver_cliente"))
@@ -1087,8 +1205,9 @@ def convertir_separacion(sep_id):
 @app.route("/seleccionar_lotizacion", methods=["GET", "POST"])
 @login_required
 def seleccionar_lotizacion():
+    lotizaciones = lotizaciones_permitidas_para(current_user)
+
     if request.method == "POST":
-        # NO usar indexación directa para evitar KeyError
         lotizacion_id = request.form.get("lotizacion_id")
 
         if not lotizacion_id:
@@ -1106,7 +1225,10 @@ def seleccionar_lotizacion():
             flash("La lotización seleccionada no existe.", "danger")
             return redirect(url_for("seleccionar_lotizacion"))
 
-        # Guardar en sesión SIN tocar nada más del flujo
+        if not usuario_puede_acceder_lotizacion(current_user, lot.id):
+            flash("No tienes acceso a esa lotización.", "danger")
+            return redirect(url_for("seleccionar_lotizacion"))
+
         session["lotizacion_id"] = lot.id
         session["lotizacion_nombre"] = lot.nombre
 
@@ -1114,15 +1236,18 @@ def seleccionar_lotizacion():
         next_url = request.args.get("next") or url_for("home")
         return redirect(next_url)
 
-    # GET → mostrar selector
-    lotizaciones = Lotizacion.query.all()
     return render_template("seleccionar_lotizacion.html", lotizaciones=lotizaciones)
+
 
 @app.route("/subir_acta/<int:compra_id>", methods=["POST"])
 @login_required
 @lotizacion_required
 def subir_acta(compra_id):
     compra = Compra.query.get_or_404(compra_id)
+
+    bloqueo = bloquear_si_no_es_lotizacion_activa(compra.lote.lotizacion_id)
+    if bloqueo:
+        return bloqueo
 
     # Archivo subido
     acta_file = request.files.get("acta_file")
@@ -1647,6 +1772,10 @@ def vouchers():
 def subir_documentos(compra_id):
     compra = Compra.query.get_or_404(compra_id)
 
+    bloqueo = bloquear_si_no_es_lotizacion_activa(compra.lote.lotizacion_id)
+    if bloqueo:
+        return bloqueo
+
     tipo_documento = request.form.get("tipo_documento")
     archivo = request.files.get("archivo")
 
@@ -1862,6 +1991,7 @@ def eliminar_voucher_cuota(cuota_id):
 def logout():
     logout_user()
     session.pop("lotizacion_id", None)  # 👈 borra la lotización activa
+    session.pop("lotizacion_nombre", None)
     flash("Sesión cerrada correctamente.", "info")
     return redirect(url_for("login"))
 
@@ -1946,13 +2076,67 @@ def crear_usuario():
         nuevo = Usuario(username=username, rol=rol)
         nuevo.set_password(password)
         db.session.add(nuevo)
+        db.session.flush()
+
+        # Si el formulario ya envía lotizacion_ids, los toma.
+        # Si no, el superadmin los asigna después en la pantalla de permisos.
+        if rol != "superadmin":
+            lotizacion_ids = request.form.getlist("lotizacion_ids")
+            if lotizacion_ids:
+                nuevo.lotizaciones = Lotizacion.query.filter(
+                    Lotizacion.id.in_(lotizacion_ids)
+                ).all()
+
         db.session.commit()
         flash(f"✅ Usuario '{username}' creado con rol '{rol}'.", "success")
+
+        if rol != "superadmin":
+            flash("Ahora asigna las lotizaciones permitidas para este usuario.", "info")
+            return redirect(url_for("permisos_lotizaciones"))
+
         return redirect(url_for("panel_superadmin"))
  
     return render_template("crear_usuario.html", desde_superadmin=True)
  
  
+
+# ------------------- PERMISOS DE LOTIZACIONES POR USUARIO -------------------
+@app.route("/superadmin/permisos_lotizaciones", methods=["GET", "POST"])
+@login_required
+@superadmin_required
+def permisos_lotizaciones():
+    if request.method == "POST":
+        usuario_id = request.form.get("usuario_id")
+        usuario = Usuario.query.get_or_404(usuario_id)
+
+        if usuario.rol == "superadmin":
+            flash("El superadmin ya tiene acceso a todas las lotizaciones.", "info")
+            return redirect(url_for("permisos_lotizaciones"))
+
+        ids = request.form.getlist("lotizacion_ids")
+        seleccionadas = (
+            Lotizacion.query
+            .filter(Lotizacion.id.in_(ids))
+            .order_by(Lotizacion.nombre.asc())
+            .all()
+            if ids else []
+        )
+
+        usuario.lotizaciones = seleccionadas
+        db.session.commit()
+        flash(f"✅ Permisos actualizados para '{usuario.username}'.", "success")
+        return redirect(url_for("panel_superadmin"))
+
+    usuarios = Usuario.query.order_by(Usuario.rol.asc(), Usuario.username.asc()).all()
+    lotizaciones = Lotizacion.query.order_by(Lotizacion.nombre.asc()).all()
+
+    return render_template(
+        "permisos_lotizaciones.html",
+        usuarios=usuarios,
+        lotizaciones=lotizaciones
+    )
+
+
 # ------------------- DESACTIVAR / ACTIVAR USUARIO -------------------
 @app.route("/superadmin/toggle_usuario/<int:usuario_id>", methods=["POST"])
 @login_required
@@ -2046,7 +2230,7 @@ def documentos():
     if current_user.rol not in ("admin", "superadmin"):
         flash("No tienes permisos para acceder.", "danger")
         return redirect(url_for("home"))
-    lotizaciones = Lotizacion.query.all()
+    lotizaciones = lotizaciones_permitidas_para(current_user)
     return render_template("documentos.html", lotizaciones=lotizaciones)
 
 
@@ -2076,6 +2260,10 @@ def documentos_lotizacion(lotizacion_id):
     if current_user.rol not in ("admin", "superadmin"):
         flash("No tienes permisos para acceder.", "danger")
         return redirect(url_for("home"))
+
+    if not usuario_puede_acceder_lotizacion(current_user, lotizacion_id):
+        flash("No tienes acceso a esa lotización.", "danger")
+        return redirect(url_for("documentos"))
     lotizacion = Lotizacion.query.get_or_404(lotizacion_id)
     manzana = request.args.get("manzana", "")
     apellido = request.args.get("apellido", "")
@@ -2125,6 +2313,10 @@ def subir_documento():
     lotizacion_id = request.form.get("lotizacion_id") or None
     lote_id = request.form.get("lote_id") or None
     cliente_id = request.form.get("cliente_id") or None
+
+    if lotizacion_id and not usuario_puede_acceder_lotizacion(current_user, lotizacion_id):
+        flash("No tienes acceso a esa lotización.", "danger")
+        return redirect(url_for("documentos"))
     nombre_cliente_libre = request.form.get("nombre_cliente_libre", "").strip()
     nombre_personalizado = request.form.get("nombre_personalizado", "").strip()
 
@@ -2205,6 +2397,10 @@ def eliminar_documento_drive(doc_id):
         return redirect(url_for("documentos"))
 
     doc = Documento.query.get_or_404(doc_id)
+
+    if doc.lotizacion_id and not usuario_puede_acceder_lotizacion(current_user, doc.lotizacion_id):
+        flash("No tienes acceso a ese documento.", "danger")
+        return redirect(url_for("documentos"))
     try:
         eliminar_archivo(doc.ruta)
         db.session.delete(doc)

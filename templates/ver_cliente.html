@@ -1,505 +1,1465 @@
 {% extends "base.html" %}
 {% block content %}
-<h2>🔍 Buscar Cliente</h2>
 
-<!-- 🔄 Buscador -->
-<form method="POST" class="mb-3">
-  <div class="input-group" style="max-width: 400px;">
-    <input type="text" id="criterio" name="q" class="form-control"
-           placeholder="Ingrese DNI o Apellidos" required autocomplete="off">
-    <button type="submit" class="btn btn-primary">Buscar</button>
-  </div>
-</form>
+<style>
+  .cliente-page{
+    max-width: 1180px;
+    margin: 0 auto;
+  }
 
-{% if cliente %}
-  {% if not separaciones and not compras_contado and not compras_credito and not historial %}
-    <div class="alert alert-warning text-center">
-      Este cliente no tiene lotes activos ni historial.
+  /* ENCABEZADO */
+  .cliente-page .page-head{
+    background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+    border: 1px solid #e9ecef;
+    border-radius: 20px;
+    padding: 24px 26px;
+    box-shadow: 0 10px 30px rgba(15, 23, 42, .06);
+    margin-bottom: 22px;
+  }
+
+  .cliente-page .page-head-inner{
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .cliente-page .page-icon{
+    width: 54px;
+    height: 54px;
+    border-radius: 16px;
+    display: grid;
+    place-items: center;
+    background: #0d6efd;
+    color: #fff;
+    font-size: 24px;
+    flex: 0 0 auto;
+  }
+
+  .cliente-page .page-kicker{
+    text-transform: uppercase;
+    color: #0d6efd;
+    font-weight: 700;
+    font-size: .78rem;
+    margin-bottom: 2px;
+  }
+
+  .cliente-page .page-title{
+    font-size: 1.9rem;
+    font-weight: 800;
+    letter-spacing: -.025em;
+    margin: 0;
+    color: #172033;
+  }
+
+  .cliente-page .page-subtitle{
+    color: #64748b;
+    margin: .25rem 0 0;
+    font-size: .95rem;
+  }
+
+  /* BUSCADOR */
+  .cliente-page .search-panel{
+    padding: 20px;
+    background: #fff;
+    border: 1px solid #e9ecef;
+    border-radius: 18px;
+    box-shadow: 0 10px 28px rgba(15, 23, 42, .06);
+  }
+
+  .cliente-page .search-panel .input-group-text{
+    border-radius: 12px 0 0 12px;
+    background: #f8fafc;
+    border-color: #d7dee8;
+  }
+
+  .cliente-page .search-panel .form-control{
+    min-height: 50px;
+    border-color: #d7dee8;
+  }
+
+  .cliente-page .search-panel .form-control:focus{
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 .2rem rgba(13,110,253,.10);
+  }
+
+  .cliente-page .search-panel .btn{
+    min-height: 50px;
+    border-radius: 12px;
+    font-weight: 700;
+  }
+
+  /* PERFIL */
+  .cliente-page .profile-card,
+  .cliente-page .summary-card,
+  .cliente-page .section-card{
+    background: #fff;
+    border: 1px solid #e9ecef;
+    border-radius: 20px;
+    box-shadow: 0 12px 35px rgba(15, 23, 42, .07);
+  }
+
+  .cliente-page .profile-card{
+    overflow: hidden;
+  }
+
+  .cliente-page .profile-head{
+    padding: 20px 22px;
+    background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+    border-top: 4px solid #0d6efd;
+    border-bottom: 1px solid #e9ecef;
+    color: #1e293b;
+  }
+
+  .cliente-page .client-name{
+    font-size: 1.4rem;
+    font-weight: 800;
+    margin: 0;
+    text-transform: capitalize;
+    color: #172033;
+  }
+
+  .cliente-page .client-meta{
+    color: #64748b;
+    margin-top: .25rem;
+    font-size: .92rem;
+  }
+
+  .cliente-page .client-actions .btn{
+    border-radius: 11px;
+    font-weight: 700;
+    min-height: 40px;
+  }
+
+  .cliente-page .client-actions .btn-light{
+    border: 1px solid #d7dee8;
+    background: #fff;
+  }
+
+  .cliente-page .info-label{
+    color: #64748b;
+    font-size: .76rem;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    margin-bottom: .18rem;
+    font-weight: 700;
+  }
+
+  .cliente-page .info-value{
+    font-weight: 650;
+    color: #334155;
+    margin-bottom: 1rem;
+    word-break: break-word;
+  }
+
+  /* DNI */
+  .cliente-page .dni-card{
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 12px;
+    height: 100%;
+    background: #f8fafc;
+  }
+
+  .cliente-page .dni-card img{
+    width: 100%;
+    height: 145px;
+    object-fit: cover;
+    border-radius: 12px;
+    transition: transform .15s ease;
+  }
+
+  .cliente-page .dni-card img:hover{
+    transform: scale(1.015);
+  }
+
+  /* RESUMEN */
+  .cliente-page .summary-card{
+    padding: 18px 20px;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  .cliente-page .row.g-3.mb-4 > div:nth-child(1) .summary-card{
+    border-top: 4px solid #ffc107;
+  }
+
+  .cliente-page .row.g-3.mb-4 > div:nth-child(2) .summary-card{
+    border-top: 4px solid #198754;
+  }
+
+  .cliente-page .row.g-3.mb-4 > div:nth-child(3) .summary-card{
+    border-top: 4px solid #fd7e14;
+  }
+
+  .cliente-page .row.g-3.mb-4 > div:nth-child(4) .summary-card{
+    border-top: 4px solid #0d6efd;
+  }
+
+  .cliente-page .summary-number{
+    font-size: 1.9rem;
+    font-weight: 800;
+    line-height: 1;
+    color: #172033;
+  }
+
+  .cliente-page .summary-label{
+    color: #64748b;
+    margin-top: .45rem;
+    font-size: .88rem;
+    font-weight: 600;
+  }
+
+  /* SECCIONES Y TABLAS */
+  .cliente-page .section-card{
+    overflow: hidden;
+    margin-bottom: 1.5rem;
+  }
+
+  .cliente-page .section-card .section-header{
+    padding: 17px 20px;
+    border-bottom: 1px solid #e9ecef;
+    background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  }
+
+  .cliente-page .section-title{
+    font-weight: 800;
+    margin: 0;
+    font-size: 1.12rem;
+    color: #1e293b;
+  }
+
+  .cliente-page .table{
+    margin-bottom: 0;
+    vertical-align: middle;
+  }
+
+  .cliente-page .table thead th{
+    white-space: nowrap;
+    font-size: .78rem;
+    text-transform: uppercase;
+    letter-spacing: .035em;
+    color: #64748b;
+    background: #f8fafc;
+    border-bottom: 1px solid #e2e8f0;
+    padding: 13px 14px;
+  }
+
+  .cliente-page .table td{
+    padding: 13px 14px;
+  }
+
+  .cliente-page .lot-pill{
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    padding: .4rem .7rem;
+    border-radius: 999px;
+    font-weight: 700;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    white-space: nowrap;
+    color: #334155;
+  }
+
+  .cliente-page .table .btn{
+    border-radius: 9px;
+    font-weight: 650;
+  }
+
+  /* DOCUMENTOS */
+  .cliente-page .doc-zone{
+    border-top: 1px dashed #d7dee8;
+    background: #f8fafc;
+  }
+
+  .cliente-page .documents-panel{
+    border: 1px solid #e2e8f0;
+    border-radius: 18px;
+    overflow: hidden;
+    background: #fff;
+  }
+
+  .cliente-page .documents-head{
+    padding: 14px 16px;
+    background: #f8fafc;
+    border-bottom: 1px solid #e2e8f0;
+  }
+
+  .cliente-page .document-card{
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 16px;
+    background: #fff;
+    height: 100%;
+  }
+
+  .cliente-page .document-icon{
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 42px;
+    font-size: 1.2rem;
+    background: #eef4ff;
+  }
+
+  .cliente-page .document-item{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+    padding: .7rem .8rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 11px;
+    background: #f8fafc;
+  }
+
+  .cliente-page .document-item + .document-item{
+    margin-top: .5rem;
+  }
+
+  .cliente-page .document-empty{
+    padding: 1rem;
+    text-align: center;
+    color: #64748b;
+    border: 1px dashed #cbd5e1;
+    border-radius: 11px;
+    background: #f8fafc;
+  }
+
+  .cliente-page .document-actions{
+    display: flex;
+    gap: .35rem;
+    flex: 0 0 auto;
+  }
+
+  .cliente-page .comment-box{
+    min-width: 230px;
+  }
+
+  .cliente-page .action-stack{
+    min-width: 150px;
+  }
+
+  .cliente-page .badge{
+    font-weight: 700;
+  }
+
+  .cliente-page .alert{
+    border: 0;
+    border-radius: 16px;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, .05);
+  }
+
+  /* AUTOCOMPLETE */
+  .ui-autocomplete{
+    z-index: 2000 !important;
+    border: 0 !important;
+    border-radius: 14px !important;
+    box-shadow: 0 12px 30px rgba(15, 23, 42, .14) !important;
+    padding: 7px !important;
+    max-height: 320px;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  .ui-menu .ui-menu-item-wrapper{
+    border: 0 !important;
+    border-radius: 10px !important;
+    padding: 10px 12px !important;
+    color: #334155 !important;
+  }
+
+  .ui-menu .ui-state-active{
+    background: #eef4ff !important;
+    color: #0d6efd !important;
+    margin: 0 !important;
+  }
+
+  @media (max-width: 767.98px){
+    .cliente-page .page-head{
+      padding: 20px;
+    }
+
+    .cliente-page .page-title{
+      font-size: 1.55rem;
+    }
+
+    .cliente-page .profile-head,
+    .cliente-page .card-body{
+      padding-left: 1rem;
+      padding-right: 1rem;
+    }
+
+    .cliente-page .client-actions{
+      width: 100%;
+    }
+
+    .cliente-page .client-actions .btn{
+      flex: 1 1 auto;
+    }
+
+    .cliente-page .dni-card img{
+      height: 115px;
+    }
+
+    .cliente-page .summary-number{
+      font-size: 1.55rem;
+    }
+  }
+
+  @media (max-width: 575.98px){
+    .cliente-page .document-item{
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .cliente-page .document-actions .btn{
+      flex: 1 1 auto;
+    }
+
+    .cliente-page .search-panel .btn{
+      width: 100%;
+    }
+  }
+</style>
+
+<div class="container-fluid cliente-page px-0 px-md-2">
+
+  <!-- ENCABEZADO -->
+  <div class="page-head">
+    <div class="page-head-inner">
+      <div class="page-icon">👤</div>
+      <div>
+        <div class="page-kicker">Gestión de clientes</div>
+        <h2 class="page-title">Ficha del cliente</h2>
+        <p class="page-subtitle">Consulta y administra la información comercial del cliente.</p>
+      </div>
     </div>
-  {% else %}
-    {% if separaciones or compras_contado or compras_credito %}
-  <div class="card mb-4">
-  <div class="card-header bg-primary text-white">Información del Cliente</div>
-  <div class="card-body">
-    <div class="row">
-      
-      <!-- Información del cliente -->
-      <div class="col-md-7">
-        <div class="row">
-          <div class="col-md-6">
-            <p><strong>Nombre:</strong> {{ cliente.nombre }}</p>
-            <p><strong>Apellidos:</strong> {{ cliente.apellidos }}</p>
-            <p><strong>DNI:</strong> {{ cliente.dni }}</p>
-            <p><strong>Teléfono:</strong> {{ cliente.telefono }}</p>
-            <p><strong>Correo:</strong> {{ cliente.correo }}</p>
-          </div>
-          <div class="col-md-6">
-            <p><strong>Estado Civil:</strong> {{ cliente.estado_civil or "No registrada" }}</p>
-            <p><strong>Ocupación:</strong> {{ cliente.ocupacion or "No registrada" }}</p>
-            <p><strong>Dirección:</strong> {{ cliente.direccion }}</p>
-            <p><strong>Ciudad:</strong> {{ cliente.ciudad }}</p>
+  </div>
+
+  <!-- BUSCADOR -->
+  <div class="search-panel mb-4">
+    <form method="POST">
+      <div class="row g-2 align-items-center">
+        <div class="col-12 col-md">
+          <div class="input-group">
+            <span class="input-group-text">🔎</span>
+            <input type="text"
+                   id="criterio"
+                   name="criterio"
+                   class="form-control"
+                   placeholder="Ingrese DNI o apellidos"
+                   required
+                   autocomplete="off">
           </div>
         </div>
-        <div class="d-flex gap-2 mt-2">
-          <a href="{{ url_for('editar_cliente', cliente_id=cliente.id) }}" 
-             class="btn btn-primary btn-sm">✏️ Editar Cliente</a>
-          <a href="{{ url_for('registrar_compra', cliente_id=cliente.id) }}" 
-             class="btn btn-success btn-sm">➕ Agregar Lote</a>
+        <div class="col-12 col-md-auto d-grid">
+          <button type="submit" class="btn btn-primary px-4">Buscar Cliente</button>
         </div>
       </div>
-
-      <!-- Fotos DNI -->
-      <div class="col-md-5 text-center">
-        <div class="d-flex justify-content-center gap-3">
-          {% if cliente.dni_frontal %}
-            <div>
-              <a href="{{ url_for('static', filename=cliente.dni_frontal) }}" target="_blank">
-                <img src="{{ url_for('static', filename=cliente.dni_frontal) }}" 
-                     class="img-thumbnail" style="max-width: 120px;">
-              </a>
-              <p class="text-muted small mt-1">DNI Frontal</p>
-            </div>
-          {% endif %}
-          {% if cliente.dni_reverso %}
-            <div>
-              <a href="{{ url_for('static', filename=cliente.dni_reverso) }}" target="_blank">
-                <img src="{{ url_for('static', filename=cliente.dni_reverso) }}" 
-                     class="img-thumbnail" style="max-width: 120px;">
-              </a>
-              <p class="text-muted small mt-1">DNI Reverso</p>
-            </div>
-          {% endif %}
-        </div>
-      </div>
-    </div>
+    </form>
   </div>
-</div>
 
-<!-- Modal DNI Reverso -->
-<div class="modal fade" id="modalReverso" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered modal-lg">
-    <div class="modal-content">
-      <div class="modal-body text-center">
-        <img src="{{ url_for('static', filename=cliente.dni_reverso) }}" class="img-fluid" alt="DNI Reverso">
+  {% if cliente %}
+    {% if not separaciones and not compras_contado and not compras_credito and not historial %}
+      <div class="alert alert-warning text-center rounded-4 shadow-sm">
+        Este cliente no tiene lotes activos ni historial en la lotización actual.
       </div>
-    </div>
-  </div>
-</div>
-{% endif %}
-
-{% if separaciones %}
-<h3>🟡 Lotes Separados</h3>
-<div class="table-responsive">
-  <table class="table table-bordered table-striped">
-    <thead class="table-dark">
-      <tr>
-        <th>Lote</th>
-        <th>Monto</th>
-        <th>Fecha</th>
-        <th>Voucher</th>
-        <th>Acciones</th>
-        <th>Vendido por</th>  <!-- 👈 Nueva columna -->
-      </tr>
-    </thead>
-    <tbody>
-      {% for s in separaciones %}
-      <tr>
-        <td>Mz {{ s.lote.manzana }} - Lt {{ s.lote.numero }}</td>
-        <td>S/ {{ "%.2f"|format(s.monto) }}</td>
-        <td>{{ s.fecha.strftime("%d/%m/%Y") }}</td>
-
-        <td>
-          {% if s.boucher %}
-            <a href="{{ url_for('static', filename=s.boucher) }}" target="_blank" class="btn btn-sm btn-info">
-              📎 Ver Voucher
-            </a>
-          {% else %}
-            <span class="text-muted">No disponible</span>
-          {% endif %}
-        </td>
-
-        <td>
-          <div class="d-flex flex-column gap-1">
-            <!-- ✅ Cambiar este form por un enlace -->
-            <a href="{{ url_for('registrar_compra', sep_id=s.id) }}" 
-              class="btn btn-success btn-sm">
-              💰 Convertir a Compra
-            </a>
-
-            {% if current_user.rol == 'admin' %}
-            <form action="{{ url_for('liberar_separacion', sep_id=s.id) }}" method="POST">
-              <button type="submit" class="btn btn-danger btn-sm" 
-                      onclick="return confirm('¿Eliminar esta separación?');">
-                🗑️ Eliminar
-              </button>
-            </form>
-            {% endif %}
-          </div>
-        </td>
-
-        <td>
-          {% if s.usuario %}
-            {{ s.usuario.username }}
-          {% else %}
-            <span class="text-muted">No registrado</span>
-          {% endif %}
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
-{% endif %}
-
-
-<!-- ===============================
-     COMPRAS AL CONTADO
-================================ -->
-{% if compras_contado %}
-<h3>🟢 Compras al Contado</h3>
-<div class="table-responsive">
-<table class="table table-bordered table-striped">
-<thead class="table-dark">
-<tr>
-  <th>Lote</th>
-  <th>Estado</th>
-  <th>Precio</th>
-  <th>Fecha</th>
-  <th>Boucher</th>
-  <th>Acta de Entrega</th>
-  <th>Comentario</th>
-  <th>Vendedor</th>
-</tr>
-</thead>
-<tbody>
-{% for c in compras_contado %}
-<tr>
-  <td>Mz {{ c.lote.manzana }} - Lt {{ c.lote.numero }}</td>
-  <td>
-    <span class="badge bg-success">✅ CANCELADO</span>
-    {% if c.fecha_cancelacion %}
-      <br><small class="text-muted">{{ c.fecha_cancelacion.astimezone(pytz.timezone('America/Lima')).strftime('%d/%m/%Y') }}</small>
-    {% endif %}
-  </td>
-  <td>S/ {{ "%.2f"|format(c.precio) }}</td>
-  <td>{{ c.fecha_compra.strftime("%d/%m/%Y") }}</td>
-  <td>
-    {% if c.boucher_inicial %}
-      <a href="{{ url_for('static', filename=c.boucher_inicial) }}" target="_blank" class="btn btn-sm btn-primary">Ver Boucher</a>
-      {% if current_user.rol == "admin" %}
-      <form action="{{ url_for('liberar_lote', id=c.lote_id, tipo='compra') }}" method="POST" style="display:inline;">
-        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('¿Seguro que deseas liberar esta compra?');">Liberar</button>
-      </form>
-      {% endif %}
     {% else %}
-      <span class="text-muted">No disponible</span>
-    {% endif %}
-  </td>
-  <td>
-  {% if c.acta_entrega %}
-    <a href="{{ url_for('static', filename=c.acta_entrega) }}" target="_blank" class="btn btn-success btn-sm mb-1 w-100">
-      ✅ Ver Acta
-    </a>
-  {% else %}
-    <form action="{{ url_for('subir_acta', compra_id=c.id) }}" method="POST" enctype="multipart/form-data" class="d-flex flex-column align-items-start gap-1">
-      <input type="file" name="acta_file" class="form-control form-control-sm" required>
-      <button type="submit" class="btn btn-warning btn-sm w-100">
-        📄 Subir Acta
-      </button>
-    </form>
-  {% endif %}
-  {% if c.entregado %}
-    <span class="badge bg-success mt-1">Entregado</span>
-  {% else %}
-    <span class="badge bg-secondary mt-1">Pendiente</span>
-  {% endif %}
-</td>
-  <td>
-    <form action="{{ url_for('agregar_comentario', compra_id=c.id) }}" method="POST" class="d-flex">
-      <textarea name="comentario" rows="3" class="form-control form-control-sm me-2"
-      placeholder="Escribe un comentario">{{ c.comentario or '' }}</textarea>
-      <button type="submit" class="btn btn-primary btn-sm">💾</button>
-    </form>
-  </td>
-  <td>{{ c.usuario.username if c.usuario else "No registrado" }}</td>
-</tr>
 
-<!-- 🎨 DOCUMENTOS ADICIONALES - CONTADO -->
-<tr>
-  <td colspan="8" class="bg-light">
-    <div class="p-3 rounded shadow-sm bg-white border">
-      <h6 class="text-primary mb-3"><i class="fas fa-folder-open"></i> Documentos Adicionales</h6>
-      <div class="row g-3">
+      {% if separaciones or compras_contado or compras_credito %}
 
-        <!-- Escritura -->
-        <div class="col-md-4">
-          <div class="card h-100 shadow-sm border-0 bg-light">
-            <div class="card-body">
-              <strong class="d-block mb-2"><i class="fas fa-file-contract"></i> Escritura/Minuta</strong>
-              {% if c.escritura %}
-                <a href="{{ url_for('static', filename=c.escritura) }}" target="_blank" class="btn btn-success btn-sm me-2"><i class="fas fa-eye"></i> Ver</a>
-                {% if current_user.rol == 'admin' %}
-                <form method="POST" action="{{ url_for('eliminar_documento', compra_id=c.id, tipo='escritura') }}" style="display:inline;">
-                  <button type="submit" class="btn btn-danger btn-sm"><i class="fas fa-trash"></i></button>
-                </form>
-                {% endif %}
-              {% else %}
-                <span class="text-muted d-block mb-2">No subido</span>
-                <button class="btn btn-outline-primary btn-sm mt-1" type="button" data-bs-toggle="collapse" data-bs-target="#formEscritura{{ c.id }}"><i class="fas fa-upload"></i> Subir Escritura</button>
-                <div class="collapse mt-3" id="formEscritura{{ c.id }}">
-                  <form method="POST" action="{{ url_for('subir_documentos', compra_id=c.id) }}" enctype="multipart/form-data">
-                    <input type="hidden" name="tipo_documento" value="escritura">
-                    <div class="mb-2"><input type="file" name="archivo" class="form-control form-control-sm" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" required></div>
-                    <button type="submit" class="btn btn-success btn-sm"><i class="fas fa-upload"></i> Guardar</button>
-                  </form>
-                </div>
-              {% endif %}
+      <!-- PERFIL DEL CLIENTE -->
+      <div class="card profile-card mb-4">
+        <div class="profile-head d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+          <div>
+            <p class="client-name">{{ cliente.nombre }} {{ cliente.apellidos }}</p>
+            <div class="client-meta">
+              DNI {{ cliente.dni }}
+              {% if cliente.telefono %} · {{ cliente.telefono }}{% endif %}
             </div>
+          </div>
+
+          <div class="d-flex flex-wrap gap-2 client-actions">
+            <a href="{{ url_for('editar_cliente', cliente_id=cliente.id) }}"
+               class="btn btn-light btn-sm px-3">
+              ✏️ Editar Cliente
+            </a>
+            <a href="{{ url_for('registrar_compra', cliente_id=cliente.id) }}"
+               class="btn btn-success btn-sm px-3">
+              ➕ Agregar Lote
+            </a>
           </div>
         </div>
 
-        <!-- Otros Documentos -->
-        <div class="col-md-8">
-          <div class="card h-100 shadow-sm border-0 bg-light">
-            <div class="card-body">
-              <strong class="d-block mb-2"><i class="fas fa-copy"></i> Otros Documentos</strong>
-              {% if c.otros_documentos %}
-                {% set otros = c.otros_documentos | from_json %}
-                <div class="d-flex flex-wrap gap-2">
-                  {% for doc in otros %}
-                    <div class="d-inline-flex align-items-center bg-info text-white px-2 py-1 rounded">
-                      <a href="{{ url_for('static', filename=doc.ruta) }}" target="_blank" class="text-white text-decoration-none me-2"><i class="fas fa-file-alt"></i> {{ doc.nombre }}</a>
-                      {% if current_user.rol == 'admin' %}
-                      <form method="POST" action="{{ url_for('eliminar_documento', compra_id=c.id, tipo='otro_' + loop.index0|string) }}" style="display:inline;">
-                        <button type="submit" class="btn btn-sm btn-link text-white p-0"><i class="fas fa-times"></i></button>
-                      </form>
-                      {% endif %}
-                    </div>
-                  {% endfor %}
+        <div class="card-body p-3 p-md-4">
+          <div class="row g-4">
+
+            <!-- DATOS -->
+            <div class="col-12 col-lg-7">
+              <div class="row">
+                <div class="col-12 col-sm-6">
+                  <div class="info-label">Nombres</div>
+                  <div class="info-value text-capitalize">{{ cliente.nombre or "No registrado" }}</div>
+
+                  <div class="info-label">Apellidos</div>
+                  <div class="info-value text-capitalize">{{ cliente.apellidos or "No registrado" }}</div>
+
+                  <div class="info-label">DNI</div>
+                  <div class="info-value">{{ cliente.dni or "No registrado" }}</div>
+
+                  <div class="info-label">Teléfono</div>
+                  <div class="info-value">{{ cliente.telefono or "No registrado" }}</div>
+
+                  <div class="info-label">Correo</div>
+                  <div class="info-value">{{ cliente.correo or "No registrado" }}</div>
                 </div>
-              {% else %}
-                <span class="text-muted">No hay documentos adicionales</span>
-              {% endif %}
-              <button class="btn btn-outline-primary btn-sm mt-3" type="button" data-bs-toggle="collapse" data-bs-target="#formOtros{{ c.id }}"><i class="fas fa-upload"></i> Agregar Documento</button>
-              <div class="collapse mt-3" id="formOtros{{ c.id }}">
-                <form method="POST" action="{{ url_for('subir_documentos', compra_id=c.id) }}" enctype="multipart/form-data">
-                  <input type="hidden" name="tipo_documento" value="otro">
-                  <div class="mb-2"><input type="text" name="nombre_documento" class="form-control form-control-sm" placeholder="Ej: Plano, Autorización, etc." required></div>
-                  <div class="mb-2"><input type="file" name="archivo" class="form-control form-control-sm" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" required></div>
-                  <button type="submit" class="btn btn-success btn-sm"><i class="fas fa-upload"></i> Guardar</button>
-                </form>
+
+                <div class="col-12 col-sm-6">
+                  <div class="info-label">Estado Civil</div>
+                  <div class="info-value text-capitalize">{{ cliente.estado_civil or "No registrado" }}</div>
+
+                  <div class="info-label">Ocupación</div>
+                  <div class="info-value text-capitalize">{{ cliente.ocupacion or "No registrada" }}</div>
+
+                  <div class="info-label">Dirección</div>
+                  <div class="info-value text-capitalize">{{ cliente.direccion or "No registrada" }}</div>
+
+                  <div class="info-label">Ciudad</div>
+                  <div class="info-value text-capitalize">{{ cliente.ciudad or "No registrada" }}</div>
+                </div>
               </div>
             </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </td>
-</tr>
-{% endfor %}
-</tbody>
-</table>
-</div>
-{% endif %}
 
-<!-- ===============================
-     COMPRAS A CRÉDITO
-================================ -->
-{% if compras_credito %}
-<h3>🟡 Compras a Crédito</h3>
-<div class="table-responsive">
-<table class="table table-bordered table-striped">
-<thead class="table-dark">
-<tr>
-  <th>Lote</th>
-  <th>Estado</th>
-  <th>Precio</th>
-  <th>Inicial</th>
-  <th>Cuotas Pagadas</th>
-  <th>Total Cuotas</th>
-  <th>Fecha</th>
-  <th>Voucher</th>
-  <th>Acción</th>
-  <th>Acta de Entrega</th>
-  <th>Comentario</th>
-  <th>Vendedor</th>
-</tr>
-</thead>
-<tbody>
-{% for c in compras_credito %}
-<tr>
-  <td>Mz {{ c.lote.manzana }} - Lt {{ c.lote.numero }}</td>
-  <td>
-    {% if c.cancelado %}
-      <span class="badge bg-success">✅ CANCELADO</span>
-      {% if c.fecha_cancelacion %}
-        <br><small class="text-muted">{{ c.fecha_cancelacion.astimezone(pytz.timezone('America/Lima')).strftime('%d/%m/%Y') }}</small>
-      {% endif %}
-    {% else %}
-      {% set cuotas_pagadas = c.cuotas|selectattr('pagada', 'equalto', True)|list|length %}
-      <span class="badge bg-warning text-dark">
-        📊 {{ cuotas_pagadas }}/{{ c.cuotas_total }}
-      </span>
-    {% endif %}
-  </td>
-  <td>S/ {{ "%.2f"|format(c.precio) }}</td>
-  <td>S/ {{ "%.2f"|format(c.inicial) }}</td>
-  <td>{{ c.cuotas | selectattr("pagada") | list | length }}</td>
-  <td>{{ c.cuotas_total }}</td>
-  <td>{{ c.fecha_compra.strftime("%d/%m/%Y") }}</td>
-  <td>
-  {% if c.boucher_inicial %}
-    <a href="{{ url_for('static', filename=c.boucher_inicial) }}" target="_blank" class="btn btn-sm btn-primary">Ver Voucher</a>
-  {% else %}
-    <span class="text-muted">No disponible</span>
-  {% endif %}
-</td>
-
-<td>
-  <a href="{{ url_for('detalle_cuotas', compra_id=c.id) }}" class="btn btn-sm btn-info">Ver Cuotas</a>
-
-  {% if current_user.rol == "admin" %}
-  <form action="{{ url_for('liberar_lote', id=c.lote_id, tipo='compra') }}" method="POST" style="display:inline;">
-    <button type="submit" class="btn btn-danger btn-sm mt-1"
-            onclick="return confirm('¿Seguro que deseas liberar esta compra a crédito?');">
-      Liberar
-    </button>
-  </form>
-  {% endif %}
-</td>
-    <td>
-  {% if c.acta_entrega %}
-    <a href="{{ url_for('static', filename=c.acta_entrega) }}" target="_blank" class="btn btn-success btn-sm mb-1 w-100">
-      ✅ Ver Acta
-    </a>
-  {% else %}
-    <form action="{{ url_for('subir_acta', compra_id=c.id) }}" method="POST" enctype="multipart/form-data" class="d-flex flex-column align-items-start gap-1">
-      <input type="file" name="acta_file" class="form-control form-control-sm" required>
-      <button type="submit" class="btn btn-warning btn-sm w-100">
-        📄 Subir Acta
-      </button>
-    </form>
-  {% endif %}
-  {% if c.entregado %}
-    <span class="badge bg-success mt-1">Entregado</span>
-  {% else %}
-    <span class="badge bg-secondary mt-1">Pendiente</span>
-  {% endif %}
-</td>
-  <td>
-    <form action="{{ url_for('agregar_comentario', compra_id=c.id) }}" method="POST" class="mt-1">
-  <div class="input-group">
-    <textarea name="comentario" 
-              rows="3" 
-              class="form-control form-control-sm"
-              style="min-width: 250px; max-width: 100%; resize: vertical;"
-              placeholder="Escribe un comentario">{{ c.comentario or '' }}</textarea>
-    <button type="submit" class="btn btn-primary btn-sm">
-      💾
-    </button>
-  </div>
-</form>
-  </td>
-  <td>{{ c.usuario.username if c.usuario else "No registrado" }}</td>
-</tr>
-
-<!-- 🎨 DOCUMENTOS ADICIONALES - CRÉDITO -->
-<tr>
-  <td colspan="12" class="bg-light">
-    <div class="p-3 rounded shadow-sm bg-white border">
-      <h6 class="text-primary mb-3"><i class="fas fa-folder-open"></i> Documentos Adicionales</h6>
-      
-      <!-- ✅ Mostrar alerta si está cancelado -->
-      {% if c.cancelado %}
-      <div class="alert alert-success mb-3">
-        <strong>🎉 Pagado completamente</strong>
-        {% if c.fecha_cancelacion %}
-          <br>Fecha: {{ c.fecha_cancelacion.astimezone(pytz.timezone('America/Lima')).strftime('%d/%m/%Y %H:%M') }}
-        {% endif %}
-      </div>
-      {% endif %}
-      
-      <div class="row g-3">
-
-        <!-- Escritura -->
-        <div class="col-md-4">
-          <div class="card h-100 shadow-sm border-0 bg-light">
-            <div class="card-body">
-              <strong class="d-block mb-2"><i class="fas fa-file-contract"></i> Escritura/Minuta</strong>
-              {% if c.escritura %}
-                <a href="{{ url_for('static', filename=c.escritura) }}" target="_blank" class="btn btn-success btn-sm me-2"><i class="fas fa-eye"></i> Ver</a>
-                {% if current_user.rol == 'admin' %}
-                <form method="POST" action="{{ url_for('eliminar_documento', compra_id=c.id, tipo='escritura') }}" style="display:inline;">
-                  <button type="submit" class="btn btn-danger btn-sm"><i class="fas fa-trash"></i></button>
-                </form>
+            <!-- DNI -->
+            <div class="col-12 col-lg-5">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <strong>Documentos de identidad</strong>
+                {% if not cliente.dni_frontal and not cliente.dni_reverso %}
+                  <span class="badge text-bg-secondary">Sin imágenes</span>
                 {% endif %}
-              {% else %}
-                <span class="text-muted d-block mb-2">No subido</span>
-                <button class="btn btn-outline-primary btn-sm mt-1" type="button" data-bs-toggle="collapse" data-bs-target="#formEscritura{{ c.id }}"><i class="fas fa-upload"></i> Subir Escritura</button>
-                <div class="collapse mt-3" id="formEscritura{{ c.id }}">
-                  <form method="POST" action="{{ url_for('subir_documentos', compra_id=c.id) }}" enctype="multipart/form-data">
-                    <input type="hidden" name="tipo_documento" value="escritura">
-                    <div class="mb-2"><input type="file" name="archivo" class="form-control form-control-sm" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" required></div>
-                    <button type="submit" class="btn btn-success btn-sm"><i class="fas fa-upload"></i> Guardar</button>
-                  </form>
-                </div>
-              {% endif %}
-            </div>
-          </div>
-        </div>
+              </div>
 
-        <!-- Otros Documentos -->
-        <div class="col-md-8">
-          <div class="card h-100 shadow-sm border-0 bg-light">
-            <div class="card-body">
-              <strong class="d-block mb-2"><i class="fas fa-copy"></i> Otros Documentos</strong>
-              {% if c.otros_documentos %}
-                {% set otros = c.otros_documentos | from_json %}
-                <div class="d-flex flex-wrap gap-2">
-                  {% for doc in otros %}
-                    <div class="d-inline-flex align-items-center bg-info text-white px-2 py-1 rounded">
-                      <a href="{{ url_for('static', filename=doc.ruta) }}" target="_blank" class="text-white text-decoration-none me-2"><i class="fas fa-file-alt"></i> {{ doc.nombre }}</a>
-                      {% if current_user.rol == 'admin' %}
-                      <form method="POST" action="{{ url_for('eliminar_documento', compra_id=c.id, tipo='otro_' + loop.index0|string) }}" style="display:inline;">
-                        <button type="submit" class="btn btn-sm btn-link text-white p-0"><i class="fas fa-times"></i></button>
-                      </form>
-                      {% endif %}
-                    </div>
-                  {% endfor %}
+              <div class="row g-2">
+                <div class="col-6">
+                  <div class="dni-card">
+                    <div class="small text-muted mb-2">DNI Frontal</div>
+                    {% if cliente.dni_frontal %}
+                      <a href="{{ url_for('static', filename=cliente.dni_frontal) }}" target="_blank">
+                        <img src="{{ url_for('static', filename=cliente.dni_frontal) }}"
+                             alt="DNI frontal">
+                      </a>
+                    {% else %}
+                      <div class="d-flex align-items-center justify-content-center text-muted text-center"
+                           style="height:135px;">
+                        No disponible
+                      </div>
+                    {% endif %}
+                  </div>
                 </div>
-              {% else %}
-                <span class="text-muted">No hay documentos adicionales</span>
-              {% endif %}
-              <button class="btn btn-outline-primary btn-sm mt-3" type="button" data-bs-toggle="collapse" data-bs-target="#formOtros{{ c.id }}"><i class="fas fa-upload"></i> Agregar Documento</button>
-              <div class="collapse mt-3" id="formOtros{{ c.id }}">
-                <form method="POST" action="{{ url_for('subir_documentos', compra_id=c.id) }}" enctype="multipart/form-data">
-                  <input type="hidden" name="tipo_documento" value="otro">
-                  <div class="mb-2"><input type="text" name="nombre_documento" class="form-control form-control-sm" placeholder="Ej: Plano, Autorización, etc." required></div>
-                  <div class="mb-2"><input type="file" name="archivo" class="form-control form-control-sm" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" required></div>
-                  <button type="submit" class="btn btn-success btn-sm"><i class="fas fa-upload"></i> Guardar</button>
-                </form>
+
+                <div class="col-6">
+                  <div class="dni-card">
+                    <div class="small text-muted mb-2">DNI Reverso</div>
+                    {% if cliente.dni_reverso %}
+                      <a href="{{ url_for('static', filename=cliente.dni_reverso) }}" target="_blank">
+                        <img src="{{ url_for('static', filename=cliente.dni_reverso) }}"
+                             alt="DNI reverso">
+                      </a>
+                    {% else %}
+                      <div class="d-flex align-items-center justify-content-center text-muted text-center"
+                           style="height:135px;">
+                        No disponible
+                      </div>
+                    {% endif %}
+                  </div>
+                </div>
               </div>
             </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- RESUMEN -->
+      <div class="row g-3 mb-4">
+        <div class="col-6 col-lg-3">
+          <div class="summary-card">
+            <div class="summary-number">{{ separaciones|length }}</div>
+            <div class="summary-label">Lotes separados</div>
           </div>
         </div>
 
-      </div>
-    </div>
-  </td>
-</tr>
-{% endfor %}
-</tbody>
-</table>
-</div>
-{% endif %}
-{% endif %}
-{% elif request.method == "POST" %}
-  <div class="alert alert-warning">No se encontró ningún cliente con ese DNI o apellido.</div>
-{% endif %}
+        <div class="col-6 col-lg-3">
+          <div class="summary-card">
+            <div class="summary-number">{{ compras_contado|length }}</div>
+            <div class="summary-label">Compras al contado</div>
+          </div>
+        </div>
 
-<!-- ==========================
-     AUTOCOMPLETE JAVASCRIPT
-=========================== -->
+        <div class="col-6 col-lg-3">
+          <div class="summary-card">
+            <div class="summary-number">{{ compras_credito|length }}</div>
+            <div class="summary-label">Compras a crédito</div>
+          </div>
+        </div>
+
+        <div class="col-6 col-lg-3">
+          <div class="summary-card">
+            <div class="summary-number">{{ (separaciones|length) + (compras_contado|length) + (compras_credito|length) }}</div>
+            <div class="summary-label">Operaciones activas</div>
+          </div>
+        </div>
+      </div>
+
+      {% endif %}
+
+
+      <!-- LOTES SEPARADOS -->
+      {% if separaciones %}
+      <div class="card section-card">
+        <div class="section-header d-flex justify-content-between align-items-center">
+          <h3 class="section-title">🟡 Lotes Separados</h3>
+          <span class="badge text-bg-warning">{{ separaciones|length }}</span>
+        </div>
+
+        <div class="table-responsive">
+          <table class="table table-hover align-middle">
+            <thead>
+              <tr>
+                <th>Lote</th>
+                <th>Monto</th>
+                <th>Fecha</th>
+                <th>Voucher</th>
+                <th>Vendido por</th>
+                <th class="text-end">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for s in separaciones %}
+              <tr>
+                <td>
+                  <span class="lot-pill">Mz {{ s.lote.manzana }} · Lt {{ s.lote.numero }}</span>
+                </td>
+                <td><strong>S/ {{ "%.2f"|format(s.monto) }}</strong></td>
+                <td>{{ s.fecha.strftime("%d/%m/%Y") }}</td>
+                <td>
+                  {% if s.boucher %}
+                    <a href="{{ url_for('static', filename=s.boucher) }}"
+                       target="_blank"
+                       class="btn btn-outline-primary btn-sm">
+                      📎 Ver Voucher
+                    </a>
+                  {% else %}
+                    <span class="text-muted">No disponible</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if s.usuario %}
+                    {{ s.usuario.username }}
+                  {% else %}
+                    <span class="text-muted">No registrado</span>
+                  {% endif %}
+                </td>
+                <td class="text-end">
+                  <div class="d-inline-flex flex-wrap justify-content-end gap-1 action-stack">
+                    <a href="{{ url_for('registrar_compra', sep_id=s.id) }}"
+                       class="btn btn-success btn-sm">
+                      💰 Convertir a Compra
+                    </a>
+
+                    {% if current_user.rol == 'admin' %}
+                    <form action="{{ url_for('liberar_separacion', sep_id=s.id) }}"
+                          method="POST"
+                          class="d-inline">
+                      <button type="submit"
+                              class="btn btn-outline-danger btn-sm"
+                              onclick="return confirm('¿Eliminar esta separación?');">
+                        🗑️ Eliminar
+                      </button>
+                    </form>
+                    {% endif %}
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {% endif %}
+
+
+      <!-- COMPRAS AL CONTADO -->
+      {% if compras_contado %}
+      <div class="card section-card">
+        <div class="section-header d-flex justify-content-between align-items-center">
+          <h3 class="section-title">🟢 Compras al Contado</h3>
+          <span class="badge text-bg-success">{{ compras_contado|length }}</span>
+        </div>
+
+        <div class="table-responsive">
+          <table class="table table-hover align-middle">
+            <thead>
+              <tr>
+                <th>Lote</th>
+                <th>Estado</th>
+                <th>Precio</th>
+                <th>Fecha</th>
+                <th>Voucher</th>
+                <th>Acta</th>
+                <th>Comentario</th>
+                <th>Vendedor</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {% for c in compras_contado %}
+              <tr>
+                <td>
+                  <span class="lot-pill">Mz {{ c.lote.manzana }} · Lt {{ c.lote.numero }}</span>
+                </td>
+
+                <td>
+                  <span class="badge text-bg-success">✓ CANCELADO</span>
+                  {% if c.fecha_cancelacion %}
+                    <div class="small text-muted mt-1">
+                      {{ c.fecha_cancelacion.astimezone(pytz.timezone('America/Lima')).strftime('%d/%m/%Y') }}
+                    </div>
+                  {% endif %}
+                </td>
+
+                <td><strong>S/ {{ "%.2f"|format(c.precio) }}</strong></td>
+
+                <td>{{ c.fecha_compra.strftime("%d/%m/%Y") }}</td>
+
+                <td>
+                  {% if c.boucher_inicial %}
+                    <a href="{{ url_for('static', filename=c.boucher_inicial) }}"
+                       target="_blank"
+                       class="btn btn-outline-primary btn-sm">
+                      Ver Boucher
+                    </a>
+
+                    {% if current_user.rol == "admin" %}
+                    <form action="{{ url_for('liberar_lote', id=c.lote_id, tipo='compra') }}"
+                          method="POST"
+                          class="mt-1">
+                      <button type="submit"
+                              class="btn btn-outline-danger btn-sm"
+                              onclick="return confirm('¿Seguro que deseas liberar esta compra?');">
+                        Liberar
+                      </button>
+                    </form>
+                    {% endif %}
+                  {% else %}
+                    <span class="text-muted">No disponible</span>
+                  {% endif %}
+                </td>
+
+                <td>
+                  {% if c.acta_entrega %}
+                    <a href="{{ url_for('static', filename=c.acta_entrega) }}"
+                       target="_blank"
+                       class="btn btn-success btn-sm">
+                      ✓ Ver Acta
+                    </a>
+                  {% else %}
+                    <form action="{{ url_for('subir_acta', compra_id=c.id) }}"
+                          method="POST"
+                          enctype="multipart/form-data"
+                          class="d-flex flex-column gap-1"
+                          style="min-width:170px;">
+                      <input type="file"
+                             name="acta_file"
+                             class="form-control form-control-sm"
+                             required>
+                      <button type="submit" class="btn btn-warning btn-sm">
+                        📄 Subir Acta
+                      </button>
+                    </form>
+                  {% endif %}
+
+                  {% if c.entregado %}
+                    <span class="badge text-bg-success mt-1">Entregado</span>
+                  {% else %}
+                    <span class="badge text-bg-secondary mt-1">Pendiente</span>
+                  {% endif %}
+                </td>
+
+                <td>
+                  <form action="{{ url_for('agregar_comentario', compra_id=c.id) }}"
+                        method="POST"
+                        class="comment-box">
+                    <div class="input-group input-group-sm">
+                      <textarea name="comentario"
+                                rows="2"
+                                class="form-control"
+                                placeholder="Escribe un comentario">{{ c.comentario or '' }}</textarea>
+                      <button type="submit" class="btn btn-primary">💾</button>
+                    </div>
+                  </form>
+                </td>
+
+                <td>{{ c.usuario.username if c.usuario else "No registrado" }}</td>
+              </tr>
+
+              <!-- DOCUMENTOS CONTADO -->
+              <tr>
+                <td colspan="8" class="p-0 doc-zone">
+                  <div class="p-3">
+
+                    {% if c.otros_documentos %}
+                      {% set otros = c.otros_documentos | from_json %}
+                    {% else %}
+                      {% set otros = [] %}
+                    {% endif %}
+
+                    <div class="documents-panel">
+                      <div class="documents-head d-flex flex-wrap justify-content-between align-items-center gap-2">
+                        <div>
+                          <div class="fw-bold">📁 Documentos del lote</div>
+                          <div class="small text-muted">Archivos vinculados a esta compra</div>
+                        </div>
+                        <span class="badge text-bg-secondary">
+                          {% if c.escritura %}Escritura + {% endif %}{{ otros|length }} adicional(es)
+                        </span>
+                      </div>
+
+                      <div class="p-3">
+                        <div class="row g-3">
+
+                          <div class="col-12 col-lg-5">
+                            <div class="document-card">
+                              <div class="d-flex justify-content-between align-items-start gap-2 mb-3">
+                                <div class="d-flex gap-2">
+                                  <div class="document-icon">📄</div>
+                                  <div>
+                                    <div class="fw-bold">Escritura / Minuta</div>
+                                    <div class="small text-muted">Documento principal</div>
+                                  </div>
+                                </div>
+
+                                {% if c.escritura %}
+                                  <span class="badge text-bg-success">SUBIDO</span>
+                                {% else %}
+                                  <span class="badge text-bg-warning">PENDIENTE</span>
+                                {% endif %}
+                              </div>
+
+                              {% if c.escritura %}
+                                <div class="d-flex flex-wrap gap-2">
+                                  <a href="{{ url_for('static', filename=c.escritura) }}"
+                                     target="_blank"
+                                     class="btn btn-success btn-sm">
+                                    👁️ Ver documento
+                                  </a>
+
+                                  {% if current_user.rol == 'admin' %}
+                                  <form method="POST"
+                                        action="{{ url_for('eliminar_documento', compra_id=c.id, tipo='escritura') }}">
+                                    <button type="submit"
+                                            class="btn btn-outline-danger btn-sm"
+                                            onclick="return confirm('¿Eliminar esta escritura?');">
+                                      🗑️ Eliminar
+                                    </button>
+                                  </form>
+                                  {% endif %}
+                                </div>
+                              {% else %}
+                                <button class="btn btn-outline-primary btn-sm"
+                                        type="button"
+                                        data-bs-toggle="collapse"
+                                        data-bs-target="#formEscritura{{ c.id }}">
+                                  ⬆️ Subir Escritura
+                                </button>
+
+                                <div class="collapse mt-3" id="formEscritura{{ c.id }}">
+                                  <div class="border rounded-3 p-3 bg-body-tertiary">
+                                    <form method="POST"
+                                          action="{{ url_for('subir_documentos', compra_id=c.id) }}"
+                                          enctype="multipart/form-data">
+                                      <input type="hidden" name="tipo_documento" value="escritura">
+                                      <input type="file"
+                                             name="archivo"
+                                             class="form-control form-control-sm mb-2"
+                                             accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                                             required>
+                                      <button type="submit" class="btn btn-success btn-sm">
+                                        Guardar Escritura
+                                      </button>
+                                    </form>
+                                  </div>
+                                </div>
+                              {% endif %}
+                            </div>
+                          </div>
+
+                          <div class="col-12 col-lg-7">
+                            <div class="document-card">
+                              <div class="d-flex justify-content-between align-items-start gap-2 mb-3">
+                                <div class="d-flex gap-2">
+                                  <div class="document-icon">📎</div>
+                                  <div>
+                                    <div class="fw-bold">Otros Documentos</div>
+                                    <div class="small text-muted">Planos, autorizaciones y otros archivos</div>
+                                  </div>
+                                </div>
+                                <span class="badge text-bg-secondary">{{ otros|length }}</span>
+                              </div>
+
+                              {% if otros %}
+                                <div class="mb-3">
+                                  {% for doc in otros %}
+                                  <div class="document-item">
+                                    <div class="fw-semibold text-break">📄 {{ doc.nombre }}</div>
+                                    <div class="document-actions">
+                                      <a href="{{ url_for('static', filename=doc.ruta) }}"
+                                         target="_blank"
+                                         class="btn btn-outline-primary btn-sm">
+                                        Ver
+                                      </a>
+
+                                      {% if current_user.rol == 'admin' %}
+                                      <form method="POST"
+                                            action="{{ url_for('eliminar_documento', compra_id=c.id, tipo='otro_' + loop.index0|string) }}">
+                                        <button type="submit"
+                                                class="btn btn-outline-danger btn-sm"
+                                                onclick="return confirm('¿Eliminar este documento?');">
+                                          🗑️
+                                        </button>
+                                      </form>
+                                      {% endif %}
+                                    </div>
+                                  </div>
+                                  {% endfor %}
+                                </div>
+                              {% else %}
+                                <div class="document-empty mb-3">
+                                  📂 No hay documentos adicionales
+                                </div>
+                              {% endif %}
+
+                              <button class="btn btn-outline-primary btn-sm"
+                                      type="button"
+                                      data-bs-toggle="collapse"
+                                      data-bs-target="#formOtros{{ c.id }}">
+                                ➕ Agregar Documento
+                              </button>
+
+                              <div class="collapse mt-3" id="formOtros{{ c.id }}">
+                                <div class="border rounded-3 p-3 bg-body-tertiary">
+                                  <form method="POST"
+                                        action="{{ url_for('subir_documentos', compra_id=c.id) }}"
+                                        enctype="multipart/form-data">
+                                    <input type="hidden" name="tipo_documento" value="otro">
+
+                                    <div class="row g-2">
+                                      <div class="col-12 col-md-5">
+                                        <label class="form-label small fw-semibold">Nombre del documento</label>
+                                        <input type="text"
+                                               name="nombre_documento"
+                                               class="form-control form-control-sm"
+                                               placeholder="Ej: Plano, autorización..."
+                                               required>
+                                      </div>
+
+                                      <div class="col-12 col-md-5">
+                                        <label class="form-label small fw-semibold">Archivo</label>
+                                        <input type="file"
+                                               name="archivo"
+                                               class="form-control form-control-sm"
+                                               accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                                               required>
+                                      </div>
+
+                                      <div class="col-12 col-md-2 d-grid align-self-end">
+                                        <button type="submit" class="btn btn-success btn-sm">Guardar</button>
+                                      </div>
+                                    </div>
+                                  </form>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {% endif %}
+
+
+      <!-- COMPRAS A CRÉDITO -->
+      {% if compras_credito %}
+      <div class="card section-card">
+        <div class="section-header d-flex justify-content-between align-items-center">
+          <h3 class="section-title">🟠 Compras a Crédito</h3>
+          <span class="badge text-bg-warning">{{ compras_credito|length }}</span>
+        </div>
+
+        <div class="table-responsive">
+          <table class="table table-hover align-middle">
+            <thead>
+              <tr>
+                <th>Lote</th>
+                <th>Estado</th>
+                <th>Precio</th>
+                <th>Inicial</th>
+                <th>Progreso</th>
+                <th>Fecha</th>
+                <th>Voucher</th>
+                <th>Cuotas</th>
+                <th>Acta</th>
+                <th>Comentario</th>
+                <th>Vendedor</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {% for c in compras_credito %}
+              {% set cuotas_pagadas = c.cuotas|selectattr('pagada', 'equalto', True)|list|length %}
+              {% set pagos_cuotas = c.pagos|sum(attribute='monto') %}
+              {% set total_pagado = c.inicial + pagos_cuotas %}
+              {% set saldo_pendiente = 0 if c.cancelado else c.precio - total_pagado %}
+              {% set ahorro_anticipado = (c.precio - total_pagado) if c.cancelado and total_pagado < c.precio else 0 %}
+              {% set es_pago_anticipado = c.cancelado and ahorro_anticipado > 0.01 %}
+              {% set cuotas_pendientes = c.cuotas|selectattr('pagada', 'equalto', False)|sort(attribute='numero')|list %}
+              {% set proxima_cuota = cuotas_pendientes[0] if cuotas_pendientes else none %}
+              <tr>
+                <td>
+                  <span class="lot-pill">Mz {{ c.lote.manzana }} · Lt {{ c.lote.numero }}</span>
+                </td>
+
+                <td>
+                  {% if c.cancelado %}
+                    <span class="badge text-bg-success">✓ CANCELADO</span>
+                    {% if es_pago_anticipado %}
+                      <span class="badge text-bg-info text-dark mt-1">Pago anticipado</span>
+                    {% endif %}
+                    {% if c.fecha_cancelacion %}
+                      <div class="small text-muted mt-1">
+                        {{ c.fecha_cancelacion.astimezone(pytz.timezone('America/Lima')).strftime('%d/%m/%Y') }}
+                      </div>
+                    {% endif %}
+                  {% else %}
+                    <span class="badge text-bg-warning">CRÉDITO ACTIVO</span>
+                  {% endif %}
+                </td>
+
+                <td><strong>S/ {{ "%.2f"|format(c.precio) }}</strong></td>
+
+                <td>S/ {{ "%.2f"|format(c.inicial) }}</td>
+
+                <td style="min-width:150px;">
+                  <div class="d-flex justify-content-between small mb-1">
+                    <span>{{ cuotas_pagadas }} pagadas</span>
+                    <span>{{ c.cuotas_total }} total</span>
+                  </div>
+                  {% if c.cuotas_total and c.cuotas_total > 0 %}
+                    {% set progreso = (cuotas_pagadas * 100 / c.cuotas_total) %}
+                  {% else %}
+                    {% set progreso = 0 %}
+                  {% endif %}
+                  <div class="progress" style="height:8px;">
+                    <div class="progress-bar"
+                         role="progressbar"
+                         style="width: {{ progreso }}%;"
+                         aria-valuenow="{{ progreso }}"
+                         aria-valuemin="0"
+                         aria-valuemax="100">
+                    </div>
+                  </div>
+                </td>
+
+                <td>{{ c.fecha_compra.strftime("%d/%m/%Y") }}</td>
+
+                <td>
+                  {% if c.boucher_inicial %}
+                    <a href="{{ url_for('static', filename=c.boucher_inicial) }}"
+                       target="_blank"
+                       class="btn btn-outline-primary btn-sm">
+                      Ver Voucher
+                    </a>
+                  {% else %}
+                    <span class="text-muted">No disponible</span>
+                  {% endif %}
+                </td>
+
+                <td>
+                  <div class="d-flex flex-column gap-1" style="min-width:115px;">
+                    <a href="{{ url_for('detalle_cuotas', compra_id=c.id) }}"
+                       class="btn btn-info btn-sm">
+                      Ver Cuotas
+                    </a>
+
+                    {% if current_user.rol == "admin" %}
+                    <form action="{{ url_for('liberar_lote', id=c.lote_id, tipo='compra') }}"
+                          method="POST">
+                      <button type="submit"
+                              class="btn btn-outline-danger btn-sm w-100"
+                              onclick="return confirm('¿Seguro que deseas liberar esta compra a crédito?');">
+                        Liberar
+                      </button>
+                    </form>
+                    {% endif %}
+                  </div>
+                </td>
+
+                <td>
+                  {% if c.acta_entrega %}
+                    <a href="{{ url_for('static', filename=c.acta_entrega) }}"
+                       target="_blank"
+                       class="btn btn-success btn-sm">
+                      ✓ Ver Acta
+                    </a>
+                  {% else %}
+                    <form action="{{ url_for('subir_acta', compra_id=c.id) }}"
+                          method="POST"
+                          enctype="multipart/form-data"
+                          class="d-flex flex-column gap-1"
+                          style="min-width:170px;">
+                      <input type="file"
+                             name="acta_file"
+                             class="form-control form-control-sm"
+                             required>
+                      <button type="submit" class="btn btn-warning btn-sm">
+                        📄 Subir Acta
+                      </button>
+                    </form>
+                  {% endif %}
+
+                  {% if c.entregado %}
+                    <span class="badge text-bg-success mt-1">Entregado</span>
+                  {% else %}
+                    <span class="badge text-bg-secondary mt-1">Pendiente</span>
+                  {% endif %}
+                </td>
+
+                <td>
+                  <form action="{{ url_for('agregar_comentario', compra_id=c.id) }}"
+                        method="POST"
+                        class="comment-box">
+                    <div class="input-group input-group-sm">
+                      <textarea name="comentario"
+                                rows="2"
+                                class="form-control"
+                                placeholder="Escribe un comentario">{{ c.comentario or '' }}</textarea>
+                      <button type="submit" class="btn btn-primary">💾</button>
+                    </div>
+                  </form>
+                </td>
+
+                <td>{{ c.usuario.username if c.usuario else "No registrado" }}</td>
+              </tr>
+
+              <!-- RESUMEN FINANCIERO - SOLO VISUAL, SIN CAMBIAR DATOS NI LÓGICA -->
+              <tr>
+                <td colspan="11" class="border-0 pt-0">
+                  <div class="rounded-3 border p-3 mt-2 bg-body-tertiary">
+                    <div class="row g-2 g-md-3">
+
+                      <div class="col-6 col-lg-3">
+                        <div class="bg-body rounded-3 border p-3 h-100">
+                          <div class="small text-muted mb-1">Total pagado</div>
+                          <div class="fw-bold fs-5 text-success">
+                            S/ {{ "%.2f"|format(total_pagado) }}
+                          </div>
+                          <div class="small text-muted">
+                            Incluye inicial + pagos registrados
+                          </div>
+                          {% if es_pago_anticipado %}
+                            <div class="mt-2 pt-2 border-top">
+                              <div class="small text-muted">
+                                Precio financiado: S/ {{ "%.2f"|format(c.precio) }}
+                              </div>
+                              <div class="small fw-semibold text-success">
+                                Ahorro por pago anticipado: S/ {{ "%.2f"|format(ahorro_anticipado) }}
+                              </div>
+                            </div>
+                          {% endif %}
+                        </div>
+                      </div>
+
+                      <div class="col-6 col-lg-3">
+                        <div class="bg-body rounded-3 border p-3 h-100">
+                          <div class="small text-muted mb-1">Saldo pendiente</div>
+                          <div class="fw-bold fs-5 {% if c.cancelado %}text-success{% else %}text-danger{% endif %}">
+                            S/ {{ "%.2f"|format(saldo_pendiente) }}
+                          </div>
+                          {% if c.cancelado %}
+                            <span class="badge text-bg-success">Cancelado</span>
+                          {% else %}
+                            <div class="small text-muted">Por cancelar</div>
+                          {% endif %}
+                        </div>
+                      </div>
+
+                      <div class="col-6 col-lg-3">
+                        <div class="bg-body rounded-3 border p-3 h-100">
+                          <div class="small text-muted mb-1">Próxima cuota</div>
+                          {% if proxima_cuota %}
+                            <div class="fw-bold fs-5">
+                              Cuota #{{ proxima_cuota.numero }}
+                            </div>
+                            <div class="small">
+                              S/ {{ "%.2f"|format(proxima_cuota.monto) }}
+                            </div>
+                            <div class="small {% if proxima_cuota.fecha_vencimiento.date() < now.date() %}text-danger fw-semibold{% else %}text-muted{% endif %}">
+                              Vence: {{ proxima_cuota.fecha_vencimiento.strftime("%d/%m/%Y") }}
+                              {% if proxima_cuota.fecha_vencimiento.date() < now.date() %}
+                                · VENCIDA
+                              {% endif %}
+                            </div>
+                          {% else %}
+                            <div class="fw-bold fs-5 text-success">Sin cuotas pendientes</div>
+                          {% endif %}
+                        </div>
+                      </div>
+
+                      <div class="col-6 col-lg-3">
+                        <div class="bg-body rounded-3 border p-3 h-100">
+                          <div class="small text-muted mb-1">Avance del crédito</div>
+                          <div class="fw-bold fs-5">
+                            {{ cuotas_pagadas }} / {{ c.cuotas_total }}
+                          </div>
+                          <div class="small text-muted">
+                            {{ cuotas_pendientes|length }} cuota(s) pendiente(s)
+                          </div>
+                        </div>
+                      </div>
+
+                    </div>
+                  </div>
+                </td>
+              </tr>
+
+              <!-- DOCUMENTOS CRÉDITO -->
+              <tr>
+                <td colspan="11" class="p-0 doc-zone">
+                  <div class="p-3">
+
+                    {% if c.cancelado %}
+                    <div class="alert alert-success rounded-3 mb-3">
+                      <strong>🎉 Compra pagada completamente</strong>
+                      {% if c.fecha_cancelacion %}
+                        <div class="small mt-1">
+                          Fecha de cancelación:
+                          {{ c.fecha_cancelacion.astimezone(pytz.timezone('America/Lima')).strftime('%d/%m/%Y %H:%M') }}
+                        </div>
+                      {% endif %}
+                    </div>
+                    {% endif %}
+
+                    {% if c.otros_documentos %}
+                      {% set otros = c.otros_documentos | from_json %}
+                    {% else %}
+                      {% set otros = [] %}
+                    {% endif %}
+
+                    <div class="documents-panel">
+                      <div class="documents-head d-flex flex-wrap justify-content-between align-items-center gap-2">
+                        <div>
+                          <div class="fw-bold">📁 Documentos del lote</div>
+                          <div class="small text-muted">Archivos vinculados a esta compra</div>
+                        </div>
+                        <span class="badge text-bg-secondary">
+                          {% if c.escritura %}Escritura + {% endif %}{{ otros|length }} adicional(es)
+                        </span>
+                      </div>
+
+                      <div class="p-3">
+                        <div class="row g-3">
+
+                          <div class="col-12 col-lg-5">
+                            <div class="document-card">
+                              <div class="d-flex justify-content-between align-items-start gap-2 mb-3">
+                                <div class="d-flex gap-2">
+                                  <div class="document-icon">📄</div>
+                                  <div>
+                                    <div class="fw-bold">Escritura / Minuta</div>
+                                    <div class="small text-muted">Documento principal</div>
+                                  </div>
+                                </div>
+
+                                {% if c.escritura %}
+                                  <span class="badge text-bg-success">SUBIDO</span>
+                                {% else %}
+                                  <span class="badge text-bg-warning">PENDIENTE</span>
+                                {% endif %}
+                              </div>
+
+                              {% if c.escritura %}
+                                <div class="d-flex flex-wrap gap-2">
+                                  <a href="{{ url_for('static', filename=c.escritura) }}"
+                                     target="_blank"
+                                     class="btn btn-success btn-sm">
+                                    👁️ Ver documento
+                                  </a>
+
+                                  {% if current_user.rol == 'admin' %}
+                                  <form method="POST"
+                                        action="{{ url_for('eliminar_documento', compra_id=c.id, tipo='escritura') }}">
+                                    <button type="submit"
+                                            class="btn btn-outline-danger btn-sm"
+                                            onclick="return confirm('¿Eliminar esta escritura?');">
+                                      🗑️ Eliminar
+                                    </button>
+                                  </form>
+                                  {% endif %}
+                                </div>
+                              {% else %}
+                                <button class="btn btn-outline-primary btn-sm"
+                                        type="button"
+                                        data-bs-toggle="collapse"
+                                        data-bs-target="#formEscritura{{ c.id }}">
+                                  ⬆️ Subir Escritura
+                                </button>
+
+                                <div class="collapse mt-3" id="formEscritura{{ c.id }}">
+                                  <div class="border rounded-3 p-3 bg-body-tertiary">
+                                    <form method="POST"
+                                          action="{{ url_for('subir_documentos', compra_id=c.id) }}"
+                                          enctype="multipart/form-data">
+                                      <input type="hidden" name="tipo_documento" value="escritura">
+                                      <input type="file"
+                                             name="archivo"
+                                             class="form-control form-control-sm mb-2"
+                                             accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                                             required>
+                                      <button type="submit" class="btn btn-success btn-sm">
+                                        Guardar Escritura
+                                      </button>
+                                    </form>
+                                  </div>
+                                </div>
+                              {% endif %}
+                            </div>
+                          </div>
+
+                          <div class="col-12 col-lg-7">
+                            <div class="document-card">
+                              <div class="d-flex justify-content-between align-items-start gap-2 mb-3">
+                                <div class="d-flex gap-2">
+                                  <div class="document-icon">📎</div>
+                                  <div>
+                                    <div class="fw-bold">Otros Documentos</div>
+                                    <div class="small text-muted">Planos, autorizaciones y otros archivos</div>
+                                  </div>
+                                </div>
+                                <span class="badge text-bg-secondary">{{ otros|length }}</span>
+                              </div>
+
+                              {% if otros %}
+                                <div class="mb-3">
+                                  {% for doc in otros %}
+                                  <div class="document-item">
+                                    <div class="fw-semibold text-break">📄 {{ doc.nombre }}</div>
+                                    <div class="document-actions">
+                                      <a href="{{ url_for('static', filename=doc.ruta) }}"
+                                         target="_blank"
+                                         class="btn btn-outline-primary btn-sm">
+                                        Ver
+                                      </a>
+
+                                      {% if current_user.rol == 'admin' %}
+                                      <form method="POST"
+                                            action="{{ url_for('eliminar_documento', compra_id=c.id, tipo='otro_' + loop.index0|string) }}">
+                                        <button type="submit"
+                                                class="btn btn-outline-danger btn-sm"
+                                                onclick="return confirm('¿Eliminar este documento?');">
+                                          🗑️
+                                        </button>
+                                      </form>
+                                      {% endif %}
+                                    </div>
+                                  </div>
+                                  {% endfor %}
+                                </div>
+                              {% else %}
+                                <div class="document-empty mb-3">
+                                  📂 No hay documentos adicionales
+                                </div>
+                              {% endif %}
+
+                              <button class="btn btn-outline-primary btn-sm"
+                                      type="button"
+                                      data-bs-toggle="collapse"
+                                      data-bs-target="#formOtros{{ c.id }}">
+                                ➕ Agregar Documento
+                              </button>
+
+                              <div class="collapse mt-3" id="formOtros{{ c.id }}">
+                                <div class="border rounded-3 p-3 bg-body-tertiary">
+                                  <form method="POST"
+                                        action="{{ url_for('subir_documentos', compra_id=c.id) }}"
+                                        enctype="multipart/form-data">
+                                    <input type="hidden" name="tipo_documento" value="otro">
+
+                                    <div class="row g-2">
+                                      <div class="col-12 col-md-5">
+                                        <label class="form-label small fw-semibold">Nombre del documento</label>
+                                        <input type="text"
+                                               name="nombre_documento"
+                                               class="form-control form-control-sm"
+                                               placeholder="Ej: Plano, autorización..."
+                                               required>
+                                      </div>
+
+                                      <div class="col-12 col-md-5">
+                                        <label class="form-label small fw-semibold">Archivo</label>
+                                        <input type="file"
+                                               name="archivo"
+                                               class="form-control form-control-sm"
+                                               accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                                               required>
+                                      </div>
+
+                                      <div class="col-12 col-md-2 d-grid align-self-end">
+                                        <button type="submit" class="btn btn-success btn-sm">Guardar</button>
+                                      </div>
+                                    </div>
+                                  </form>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {% endif %}
+
+    {% endif %}
+
+  {% elif request.method == "POST" %}
+    <div class="alert alert-warning rounded-4 shadow-sm">
+      No se encontró ningún cliente con ese DNI o apellido.
+    </div>
+  {% endif %}
+
+</div>
+
+
+<!-- AUTOCOMPLETE -->
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
 <link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css">
@@ -514,18 +1474,8 @@ $(function() {
     }
   });
 });
-
-// Mostrar u ocultar el campo de nombre personalizado
-function toggleNombreDocumento(compraId) {
-  const select = document.getElementById('tipoDoc' + compraId);
-  const nombreDiv = document.getElementById('nombreDocDiv' + compraId);
-  if (select && nombreDiv) {
-    nombreDiv.style.display = (select.value === 'otro') ? 'block' : 'none';
-  }
-}
 </script>
 
-<!-- ✅ Bootstrap 5 JS Bundle -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
 {% endblock %}

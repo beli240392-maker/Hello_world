@@ -1,58 +1,352 @@
 {% extends "base.html" %}
 {% block content %}
-<h2>🔎 Buscar Cliente</h2>
 
-<!-- Formulario de búsqueda -->
-<form method="get" action="{{ url_for('buscar_cliente') }}" class="mb-3">
-  <div class="input-group" style="max-width: 500px;">
-    <input type="text" id="buscador" name="q" class="form-control"
-           placeholder="Ingrese DNI o Apellidos" value="{{ query }}">
-    <button type="submit" class="btn btn-primary">Buscar</button>
+<style>
+  .cliente-page{
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+
+  .cliente-hero{
+    background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+    border: 1px solid #e9ecef;
+    border-radius: 20px;
+    padding: 24px 26px;
+    box-shadow: 0 10px 30px rgba(15, 23, 42, .06);
+    margin-bottom: 22px;
+  }
+
+  .cliente-icon{
+    width: 54px;
+    height: 54px;
+    border-radius: 16px;
+    display: grid;
+    place-items: center;
+    background: #0d6efd;
+    color: white;
+    font-size: 24px;
+    flex: 0 0 auto;
+  }
+
+  .search-card{
+    border: 0;
+    border-radius: 20px;
+    box-shadow: 0 12px 35px rgba(15, 23, 42, .08);
+    overflow: visible;
+  }
+
+  .search-card .card-body{
+    padding: 26px;
+  }
+
+  .search-label{
+    font-weight: 700;
+    color: #334155;
+    margin-bottom: 9px;
+  }
+
+  .search-box .form-control{
+    min-height: 54px;
+    border-radius: 14px 0 0 14px;
+    font-size: 1rem;
+  }
+
+  .search-box .btn{
+    min-width: 120px;
+    border-radius: 0 14px 14px 0;
+    font-weight: 700;
+  }
+
+  .search-help{
+    color: #64748b;
+    font-size: .88rem;
+    margin-top: 8px;
+  }
+
+  .results-card{
+    border: 0;
+    border-radius: 20px;
+    box-shadow: 0 12px 35px rgba(15, 23, 42, .08);
+    overflow: hidden;
+    margin-top: 22px;
+  }
+
+  .results-head{
+    padding: 18px 22px;
+    background: #f8fafc;
+    border-bottom: 1px solid #e9ecef;
+  }
+
+  .results-table{
+    margin-bottom: 0;
+  }
+
+  .results-table thead th{
+    background: #f8fafc;
+    color: #64748b;
+    border-bottom: 1px solid #e2e8f0;
+    font-size: .82rem;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    padding: 13px 16px;
+    white-space: nowrap;
+  }
+
+  .results-table tbody td{
+    padding: 14px 16px;
+    vertical-align: middle;
+  }
+
+  .client-name{
+    font-weight: 700;
+    color: #1e293b;
+  }
+
+  .dni-badge{
+    display: inline-block;
+    background: #eef4ff;
+    border: 1px solid #d9e7ff;
+    color: #0d6efd;
+    border-radius: 999px;
+    padding: 5px 10px;
+    font-weight: 600;
+    font-size: .88rem;
+  }
+
+  .btn-view{
+    border-radius: 10px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .empty-state{
+    padding: 42px 20px;
+    text-align: center;
+    color: #64748b;
+  }
+
+  .empty-icon{
+    font-size: 38px;
+    margin-bottom: 8px;
+  }
+
+  /* Autocomplete */
+  .ui-autocomplete{
+    z-index: 2000 !important;
+    border: 0 !important;
+    border-radius: 14px !important;
+    box-shadow: 0 12px 30px rgba(15, 23, 42, .14) !important;
+    padding: 7px !important;
+    max-height: 320px;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  .ui-menu .ui-menu-item-wrapper{
+    border: 0 !important;
+    border-radius: 10px !important;
+    padding: 10px 12px !important;
+    color: #334155 !important;
+  }
+
+  .ui-menu .ui-state-active{
+    background: #eef4ff !important;
+    color: #0d6efd !important;
+    margin: 0 !important;
+  }
+
+  @media (max-width: 767px){
+    .cliente-hero{
+      padding: 20px;
+    }
+
+    .search-card .card-body{
+      padding: 20px 16px;
+    }
+
+    .search-box{
+      display: block;
+    }
+
+    .search-box .form-control{
+      width: 100%;
+      border-radius: 12px !important;
+      margin-bottom: 10px;
+    }
+
+    .search-box .btn{
+      width: 100%;
+      min-height: 48px;
+      border-radius: 12px !important;
+    }
+
+    .results-table thead{
+      display: none;
+    }
+
+    .results-table,
+    .results-table tbody,
+    .results-table tr,
+    .results-table td{
+      display: block;
+      width: 100%;
+    }
+
+    .results-table tr{
+      padding: 14px 16px;
+      border-bottom: 1px solid #e9ecef;
+    }
+
+    .results-table tbody td{
+      padding: 4px 0;
+      border: 0;
+    }
+
+    .results-table tbody td:last-child{
+      padding-top: 12px;
+    }
+
+    .btn-view{
+      width: 100%;
+    }
+  }
+</style>
+
+<div class="cliente-page py-2 py-md-3">
+
+  <div class="cliente-hero">
+    <div class="d-flex align-items-center gap-3">
+      <div class="cliente-icon">🔎</div>
+      <div>
+        <div class="text-uppercase text-primary fw-semibold small mb-1">
+          Gestión de clientes
+        </div>
+        <h2 class="mb-1 fw-bold">Buscar cliente</h2>
+        <p class="text-muted mb-0">
+          Encuentra rápidamente un cliente por DNI o apellidos.
+        </p>
+      </div>
+    </div>
   </div>
-</form>
 
-<!-- Resultados -->
-{% if query %}
-  <h5>Resultados para: <strong>{{ query }}</strong></h5>
-  <table class="table table-bordered table-striped">
-    <thead class="table-dark">
-      <tr>
-        <th>Nombre</th>
-        <th>Apellidos</th>
-        <th>DNI</th>
-        <th>Teléfono</th>
-        <th>Acción</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for c in clientes %}
-      <tr>
-        <td>{{ c.nombre }}</td>
-        <td>{{ c.apellidos }}</td>
-        <td>{{ c.dni }}</td>
-        <td>{{ c.telefono or 'Sin teléfono' }}</td>
-        <td>
-          <a href="{{ url_for('ver_cliente', cliente_id=c.id) }}" class="btn btn-info btn-sm">Ver Cliente</a>
-        </td>
-      </tr>
-      {% else %}
-      <tr><td colspan="5" class="text-center">No se encontraron clientes</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
-{% endif %}
+  <form method="get"
+        action="{{ url_for('buscar_cliente') }}"
+        class="card search-card">
+
+    <div class="card-body">
+      <label for="buscador" class="search-label">
+        DNI o apellidos
+      </label>
+
+      <div class="input-group search-box">
+        <input type="text"
+               id="buscador"
+               name="q"
+               class="form-control"
+               placeholder="Ej.: 12345678 o Vargas"
+               value="{{ query }}"
+               autocomplete="off"
+               autofocus>
+
+        <button type="submit" class="btn btn-primary">
+          🔎 Buscar
+        </button>
+      </div>
+
+      <div class="search-help">
+        Escribe al menos 2 caracteres para ver sugerencias.
+      </div>
+    </div>
+  </form>
+
+  {% if query %}
+  <div class="card results-card">
+
+    <div class="results-head d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-2">
+      <div>
+        <div class="fw-bold">Resultados de búsqueda</div>
+        <div class="text-muted small">
+          Coincidencias para “{{ query }}”
+        </div>
+      </div>
+
+      <span class="badge bg-primary rounded-pill">
+        {{ clientes|length }} resultado{% if clientes|length != 1 %}s{% endif %}
+      </span>
+    </div>
+
+    {% if clientes %}
+    <div class="table-responsive">
+      <table class="table table-hover results-table align-middle">
+        <thead>
+          <tr>
+            <th>Cliente</th>
+            <th>DNI</th>
+            <th>Teléfono</th>
+            <th class="text-center">Acción</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {% for c in clientes %}
+          <tr>
+            <td>
+              <div class="client-name">
+                {{ c.apellidos }} {{ c.nombre }}
+              </div>
+            </td>
+
+            <td>
+              <span class="dni-badge">{{ c.dni }}</span>
+            </td>
+
+            <td>
+              {% if c.telefono %}
+                {{ c.telefono }}
+              {% else %}
+                <span class="text-muted">Sin teléfono</span>
+              {% endif %}
+            </td>
+
+            <td class="text-center">
+              <a href="{{ url_for('ver_cliente', cliente_id=c.id) }}"
+                 class="btn btn-outline-primary btn-sm btn-view">
+                Ver ficha →
+              </a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% else %}
+    <div class="empty-state">
+      <div class="empty-icon">👤</div>
+      <div class="fw-semibold">No se encontraron clientes</div>
+      <div class="small mt-1">
+        Revisa el DNI o apellido e intenta nuevamente.
+      </div>
+    </div>
+    {% endif %}
+
+  </div>
+  {% endif %}
+
+</div>
 
 <!-- Autocomplete con jQuery UI -->
 <link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css">
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.js"></script>
+
 <script>
 $(function() {
   $("#buscador").autocomplete({
     source: "{{ url_for('autocomplete_clientes') }}",
     minLength: 2,
     select: function(event, ui) {
-  window.location.href = "/ver_cliente?cliente_id=" + ui.item.id;
+      window.location.href = "/ver_cliente?cliente_id=" + ui.item.id;
     }
   });
 });

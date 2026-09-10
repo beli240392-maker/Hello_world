@@ -1,189 +1,481 @@
 {% extends "base.html" %}
 {% block content %}
-<h2>📑 Detalle de Cuotas - Lote Mz {{ compra.lote.manzana|upper }} Lt {{ compra.lote.numero }}</h2>
 
-<!-- ✅ NUEVO: Alerta de estado de cancelación -->
+<style>
+  .cuotas-page {
+    --dc-radius: 18px;
+  }
+
+  .cuotas-page .top-card,
+  .cuotas-page .metric-card,
+  .cuotas-page .info-card,
+  .cuotas-page .table-card {
+    border: 0;
+    border-radius: var(--dc-radius);
+    box-shadow: 0 8px 28px rgba(0,0,0,.07);
+  }
+
+  .cuotas-page .top-card {
+    overflow: hidden;
+  }
+
+  .cuotas-page .top-header {
+    padding: 1.25rem 1.4rem;
+    background: linear-gradient(135deg, var(--bs-primary), #0b5ed7);
+    color: #fff;
+  }
+
+  .cuotas-page .lot-title {
+    font-weight: 800;
+    font-size: 1.4rem;
+    margin: 0;
+  }
+
+  .cuotas-page .client-subtitle {
+    opacity: .92;
+    margin-top: .25rem;
+  }
+
+  .cuotas-page .metric-card {
+    padding: 1rem 1.05rem;
+    height: 100%;
+    background: var(--bs-body-bg);
+  }
+
+  .cuotas-page .metric-label {
+    color: #6c757d;
+    font-size: .8rem;
+    text-transform: uppercase;
+    letter-spacing: .035em;
+    margin-bottom: .3rem;
+  }
+
+  .cuotas-page .metric-value {
+    font-size: 1.45rem;
+    font-weight: 800;
+    line-height: 1.1;
+  }
+
+  .cuotas-page .metric-note {
+    font-size: .78rem;
+    color: #6c757d;
+    margin-top: .3rem;
+  }
+
+  .cuotas-page .info-card {
+    background: var(--bs-body-bg);
+  }
+
+  .cuotas-page .info-label {
+    color: #6c757d;
+    font-size: .78rem;
+    text-transform: uppercase;
+    letter-spacing: .035em;
+    margin-bottom: .15rem;
+  }
+
+  .cuotas-page .info-value {
+    font-weight: 650;
+    margin-bottom: 1rem;
+  }
+
+  .cuotas-page .table-card {
+    overflow: hidden;
+    background: var(--bs-body-bg);
+  }
+
+  .cuotas-page .table-card-header {
+    padding: 1rem 1.2rem;
+    background: var(--bs-tertiary-bg);
+    border-bottom: 1px solid var(--bs-border-color);
+  }
+
+  .cuotas-page .table {
+    margin-bottom: 0;
+    vertical-align: middle;
+  }
+
+  .cuotas-page .table thead th {
+    white-space: nowrap;
+    font-size: .8rem;
+    text-transform: uppercase;
+    letter-spacing: .025em;
+    color: #6c757d;
+    background: var(--bs-tertiary-bg);
+    border-bottom-width: 1px;
+  }
+
+  .cuotas-page .table td {
+    padding-top: .9rem;
+    padding-bottom: .9rem;
+  }
+
+  .cuotas-page .cuota-number {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    background: var(--bs-tertiary-bg);
+    border: 1px solid var(--bs-border-color);
+  }
+
+  .cuotas-page .payment-form {
+    min-width: 180px;
+  }
+
+  .cuotas-page .progress {
+    height: 10px;
+  }
+
+  .cuotas-page .pay-all-card {
+    border: 1px solid var(--bs-primary);
+    border-radius: 16px;
+    padding: 1rem;
+    background: var(--bs-tertiary-bg);
+  }
+
+  @media (max-width: 767.98px) {
+    .cuotas-page .top-header {
+      padding: 1rem;
+    }
+
+    .cuotas-page .lot-title {
+      font-size: 1.2rem;
+    }
+
+    .cuotas-page .metric-value {
+      font-size: 1.25rem;
+    }
+  }
+</style>
+
+{% set cuotas_ordenadas = compra.cuotas|sort(attribute='numero')|list %}
+{% set cuotas_pagadas_lista = compra.cuotas|selectattr('pagada', 'equalto', True)|list %}
+{% set cuotas_pendientes = compra.cuotas|selectattr('pagada', 'equalto', False)|sort(attribute='numero')|list %}
+{% set cuotas_vencidas = compra.cuotas|selectattr('pagada', 'equalto', False)|selectattr('fecha_vencimiento', 'lt', now)|list %}
+
+{% set cuotas_pagadas = cuotas_pagadas_lista|length %}
+{% set pagos_reales = compra.pagos|sum(attribute='monto') %}
+{% set total_pagado_real = compra.inicial + pagos_reales %}
+
 {% if compra.cancelado %}
-<div class="alert alert-success mb-4">
-  <h4 class="alert-heading">🎉 ¡Compra Totalmente Cancelada!</h4>
-  {% if compra.fecha_cancelacion %}
-  <p class="mb-0">
-    <strong>Fecha de cancelación:</strong> 
-    {{ compra.fecha_cancelacion.astimezone(pytz.timezone('America/Lima')).strftime('%d/%m/%Y %H:%M') }}
-  </p>
-  {% endif %}
-</div>
+  {% set saldo_pendiente = 0 %}
+  {% set ahorro_anticipado = compra.precio - total_pagado_real if total_pagado_real < compra.precio else 0 %}
 {% else %}
-<div class="alert alert-info mb-4">
-  {% set cuotas_pagadas = compra.cuotas|selectattr('pagada', 'equalto', True)|list|length %}
-  <div class="d-flex justify-content-between align-items-center mb-2">
-    <div>
-      <strong>Estado:</strong> Pago en proceso
-      <br>
-      <strong>Progreso:</strong> {{ cuotas_pagadas }} / {{ compra.cuotas_total }} cuotas pagadas
-    </div>
-    <h3 class="mb-0 text-primary">{{ (cuotas_pagadas / compra.cuotas_total * 100)|round|int }}%</h3>
-  </div>
-  <div class="progress" style="height: 25px;">
-    <div class="progress-bar bg-success progress-bar-striped progress-bar-animated" 
-         role="progressbar" 
-         style="width: {{ (cuotas_pagadas / compra.cuotas_total * 100)|round }}%">
-      {{ (cuotas_pagadas / compra.cuotas_total * 100)|round|int }}%
-    </div>
-  </div>
-</div>
+  {% set saldo_pendiente = compra.precio - total_pagado_real %}
+  {% set ahorro_anticipado = 0 %}
 {% endif %}
 
-<div class="card mb-4">
-  <div class="card-header bg-primary text-white">Información de la Compra</div>
-  <div class="card-body row">
-    <div class="col-md-6">
-      <p><strong>Cliente:</strong> {{ compra.cliente.nombre }} {{ compra.cliente.apellidos }} (DNI: {{ compra.cliente.dni }})</p>
-      <p><strong>Lote:</strong> Mz {{ compra.lote.manzana }} - Lt {{ compra.lote.numero }}</p>
-      <p><strong>Precio:</strong> S/ {{ "%.2f"|format(compra.precio) }}</p>
-    </div>
-    <div class="col-md-6">
-      <p><strong>Inicial:</strong> S/ {{ "%.2f"|format(compra.inicial) }}</p>
-      <p><strong>Cuotas Totales:</strong> {{ compra.cuotas_total }}</p>
-      <p><strong>Fecha de Compra:</strong> {{ compra.fecha_compra.strftime("%d/%m/%Y") }}</p>
-      <!-- ✅ NUEVO: Mostrar estado de cancelación -->
-      <p>
-        <strong>Estado:</strong> 
-        {% if compra.cancelado %}
-          <span class="badge bg-success">✅ CANCELADO</span>
-        {% else %}
-          <span class="badge bg-warning text-dark">⏳ EN PROCESO</span>
-        {% endif %}
-      </p>
-    </div>
-  </div>
-</div>
+{% set proxima_cuota = cuotas_pendientes[0] if cuotas_pendientes else none %}
 
-<table class="table table-bordered table-striped">
-  <thead class="table-dark text-center">
-    <tr>
-      <th>#</th>
-      <th>Monto</th>
-      <th>Vencimiento</th>
-      <th>Estado</th>
-      <th>Días de atraso</th>
-      <th>Acción</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for cuota in compra.cuotas|sort(attribute='numero') %}
-    <tr class="text-center">
-      <td>{{ cuota.numero }}</td>
-      <td>S/ {{ "%.2f"|format(cuota.monto) }}</td>
-      <td>{{ cuota.fecha_vencimiento.strftime("%d/%m/%Y") }}</td>
-      <td>
-        {% if cuota.pagada %}
-          <span class="badge bg-success">✅ Pagada</span>
-        {% elif cuota.fecha_vencimiento < now %}
-          <span class="badge bg-danger">❌ Vencida</span>
-        {% else %}
-          <span class="badge bg-warning text-dark">⏳ Pendiente</span>
-        {% endif %}
-      </td>
-      <td>
-        {% if not cuota.pagada and cuota.fecha_vencimiento < now %}
-          <span class="text-danger fw-bold">{{ (now.date() - cuota.fecha_vencimiento.date()).days }} días</span>
-        {% else %}
-          -
-        {% endif %}
-      </td>
-      <td>
-        {% if not cuota.pagada %}
-          {# ✅ Verificar si hay cuotas anteriores sin pagar #}
-          {% set hay_cuota_anterior_pendiente = compra.cuotas|selectattr('numero', 'lt', cuota.numero)|selectattr('pagada', 'equalto', False)|list|length > 0 %}
-          
-          {% if hay_cuota_anterior_pendiente %}
-            <button class="btn btn-sm btn-secondary" disabled title="Debes pagar las cuotas anteriores primero">
-              🔒 Pagar (Bloqueado)
-            </button>
-          {% else %}
-            <form method="POST" action="{{ url_for('pagar_cuota') }}" enctype="multipart/form-data" class="d-flex flex-column gap-1">
-              <input type="hidden" name="cuota_id" value="{{ cuota.id }}">
-              <input type="file" name="boucher_cuota" accept="image/*" required class="form-control form-control-sm">
-              <button type="submit" class="btn btn-sm btn-success">💰 Pagar</button>
-            </form>
+{% if compra.cuotas_total and compra.cuotas_total > 0 %}
+  {% set progreso = (cuotas_pagadas * 100 / compra.cuotas_total) %}
+{% else %}
+  {% set progreso = 0 %}
+{% endif %}
+
+<div class="container-fluid cuotas-page px-0 px-md-2">
+
+  <!-- CABECERA -->
+  <div class="card top-card mb-4">
+    <div class="top-header d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+      <div>
+        <h2 class="lot-title">
+          Detalle de Cuotas · Mz {{ compra.lote.manzana|upper }} - Lt {{ compra.lote.numero }}
+        </h2>
+        <div class="client-subtitle">
+          {{ compra.cliente.nombre }} {{ compra.cliente.apellidos }} · DNI {{ compra.cliente.dni }}
+        </div>
+      </div>
+
+      <div>
+        {% if compra.cancelado %}
+          <span class="badge bg-light text-success fs-6 px-3 py-2">✓ CANCELADO</span>
+          {% if ahorro_anticipado > 0.01 %}
+            <span class="badge bg-info text-dark fs-6 px-3 py-2">Pago anticipado</span>
           {% endif %}
         {% else %}
-          <div class="d-flex flex-column gap-1 align-items-center">
-            {% if cuota.pago and cuota.pago.boucher %}
-              <a href="{{ url_for('static', filename=cuota.pago.boucher) }}" target="_blank" class="btn btn-sm btn-primary">
-                📄 Ver Boucher
-              </a>
-              <!-- 🔴 NUEVO: Botón para eliminar voucher -->
-               {% if current_user.rol == "admin" %}
-              <form method="POST" action="{{ url_for('eliminar_voucher_cuota', cuota_id=cuota.id) }}" 
-                    style="display:inline;" 
-                    onsubmit="return confirm('¿Eliminar este voucher?');">
-                <button type="submit" class="btn btn-sm btn-danger">
-                  🗑️ Eliminar
-                </button>
-                {% endif %}
-              </form>
-            {% else %}
-              <span class="text-muted small">Sin voucher</span>
-            {% endif %}
+          <span class="badge bg-warning text-dark fs-6 px-3 py-2">⏳ EN PROCESO</span>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card-body p-3 p-md-4">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <div>
+          <strong>Avance del crédito</strong>
+          <div class="small text-muted">{{ cuotas_pagadas }} de {{ compra.cuotas_total }} cuotas pagadas</div>
+        </div>
+        <div class="fw-bold text-primary fs-5">{{ progreso|round|int }}%</div>
+      </div>
+
+      <div class="progress">
+        <div class="progress-bar bg-success"
+             role="progressbar"
+             style="width: {{ progreso }}%;"
+             aria-valuenow="{{ progreso }}"
+             aria-valuemin="0"
+             aria-valuemax="100">
+        </div>
+      </div>
+
+      {% if compra.cancelado and compra.fecha_cancelacion %}
+        <div class="small text-success mt-2">
+          Compra cancelada el
+          {{ compra.fecha_cancelacion.astimezone(pytz.timezone('America/Lima')).strftime('%d/%m/%Y %H:%M') }}
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+
+  <!-- MÉTRICAS -->
+  <div class="row g-3 mb-4">
+
+    <div class="col-6 col-lg-3">
+      <div class="metric-card">
+        <div class="metric-label">Precio financiado</div>
+        <div class="metric-value">S/ {{ "%.2f"|format(compra.precio) }}</div>
+        <div class="metric-note">Monto total de la compra</div>
+      </div>
+    </div>
+
+    <div class="col-6 col-lg-3">
+      <div class="metric-card">
+        <div class="metric-label">Total pagado</div>
+        <div class="metric-value text-success">S/ {{ "%.2f"|format(total_pagado_real) }}</div>
+        <div class="metric-note">Inicial + pagos registrados</div>
+      </div>
+    </div>
+
+    <div class="col-6 col-lg-3">
+      <div class="metric-card">
+        <div class="metric-label">Saldo pendiente</div>
+        <div class="metric-value {% if saldo_pendiente <= 0 %}text-success{% else %}text-danger{% endif %}">
+          S/ {{ "%.2f"|format(0 if saldo_pendiente < 0 else saldo_pendiente) }}
+        </div>
+
+        {% if ahorro_anticipado > 0.01 %}
+          <div class="metric-note text-success fw-semibold">
+            Ahorro anticipado: S/ {{ "%.2f"|format(ahorro_anticipado) }}
+          </div>
+        {% else %}
+          <div class="metric-note">
+            {% if compra.cancelado %}Compra cancelada{% else %}Monto aún por pagar{% endif %}
           </div>
         {% endif %}
-      </td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
+      </div>
+    </div>
 
-<!-- ═══════════════════════════════════════════════════════════════════ -->
-<!-- ✨ NUEVO: BOTÓN PAGAR TODAS LAS CUOTAS RESTANTES ✨ -->
-<!-- ═══════════════════════════════════════════════════════════════════ -->
+    <div class="col-6 col-lg-3">
+      <div class="metric-card">
+        <div class="metric-label">Próxima cuota</div>
 
-{% set cuotas_pendientes = compra.cuotas|selectattr('pagada', 'equalto', False)|list %}
+        {% if proxima_cuota %}
+          <div class="metric-value">#{{ proxima_cuota.numero }}</div>
+          <div class="metric-note">
+            S/ {{ "%.2f"|format(proxima_cuota.monto) }} ·
+            {{ proxima_cuota.fecha_vencimiento.strftime("%d/%m/%Y") }}
+          </div>
+        {% else %}
+          <div class="metric-value text-success">Sin pendientes</div>
+          <div class="metric-note">No quedan cuotas por pagar</div>
+        {% endif %}
+      </div>
+    </div>
 
-{% if cuotas_pendientes|length > 0 and not compra.cancelado %}
-<div class="mt-4 mb-4">
-  <a href="{{ url_for('pagar_todas_cuotas', compra_id=compra.id) }}" class="btn btn-primary btn-lg w-100">
-    💰 Pagar Todas las Cuotas Restantes ({{ cuotas_pendientes|length }})
-  </a>
-</div>
-{% endif %}
-
-<!-- ═══════════════════════════════════════════════════════════════════ -->
-<!-- FIN NUEVO CÓDIGO -->
-<!-- ═══════════════════════════════════════════════════════════════════ -->
-
-<!-- ✅ Resumen de pagos -->
-<div class="card mt-4">
-  <div class="card-header bg-secondary text-white">
-    💰 Resumen de Pagos
   </div>
-  <div class="card-body">
-    <div class="row">
-      <div class="col-md-3">
-        <h6>Total a Pagar</h6>
-        <p class="h4 text-primary">S/ {{ "%.2f"|format(compra.precio) }}</p>
-      </div>
-      <div class="col-md-3">
-        <h6>Inicial Pagado</h6>
-        <p class="h4 text-success">S/ {{ "%.2f"|format(compra.inicial) }}</p>
-      </div>
-      <div class="col-md-3">
-        <h6>Pagado en Cuotas</h6>
-        {% set monto_cuotas_pagadas = compra.cuotas|selectattr('pagada', 'equalto', True)|sum(attribute='monto') %}
-        <p class="h4 text-success">S/ {{ "%.2f"|format(monto_cuotas_pagadas) }}</p>
-      </div>
-      <div class="col-md-3">
-        <h6>Saldo Pendiente</h6>
-        {% set saldo = compra.precio - compra.inicial - monto_cuotas_pagadas %}
-        <p class="h4 {{ 'text-success' if saldo == 0 else 'text-danger' }}">
-          S/ {{ "%.2f"|format(saldo) }}
-        </p>
+
+
+  <!-- INFORMACIÓN DE COMPRA -->
+  <div class="card info-card mb-4">
+    <div class="card-body p-3 p-md-4">
+      <div class="row">
+
+        <div class="col-12 col-md-6 col-lg-3">
+          <div class="info-label">Inicial</div>
+          <div class="info-value">S/ {{ "%.2f"|format(compra.inicial) }}</div>
+        </div>
+
+        <div class="col-12 col-md-6 col-lg-3">
+          <div class="info-label">Cuotas totales</div>
+          <div class="info-value">{{ compra.cuotas_total }}</div>
+        </div>
+
+        <div class="col-12 col-md-6 col-lg-3">
+          <div class="info-label">Cuotas vencidas</div>
+          <div class="info-value {% if cuotas_vencidas|length > 0 %}text-danger{% endif %}">
+            {{ cuotas_vencidas|length }}
+          </div>
+        </div>
+
+        <div class="col-12 col-md-6 col-lg-3">
+          <div class="info-label">Fecha de compra</div>
+          <div class="info-value">{{ compra.fecha_compra.strftime("%d/%m/%Y") }}</div>
+        </div>
+
       </div>
     </div>
   </div>
+
+
+  <!-- TABLA DE CUOTAS -->
+  <div class="card table-card mb-4">
+    <div class="table-card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+      <div>
+        <h4 class="mb-0 fw-bold">Cronograma de cuotas</h4>
+        <div class="small text-muted">
+          {{ cuotas_pagadas }} pagada(s) · {{ cuotas_pendientes|length }} pendiente(s)
+        </div>
+      </div>
+
+      {% if cuotas_vencidas %}
+        <span class="badge text-bg-danger">{{ cuotas_vencidas|length }} vencida(s)</span>
+      {% endif %}
+    </div>
+
+    <div class="table-responsive">
+      <table class="table table-hover align-middle">
+        <thead>
+          <tr>
+            <th class="text-center">#</th>
+            <th>Monto</th>
+            <th>Vencimiento</th>
+            <th>Estado</th>
+            <th>Días de atraso</th>
+            <th>Acción</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {% for cuota in cuotas_ordenadas %}
+          <tr>
+            <td class="text-center">
+              <span class="cuota-number">{{ cuota.numero }}</span>
+            </td>
+
+            <td>
+              <strong>S/ {{ "%.2f"|format(cuota.monto) }}</strong>
+            </td>
+
+            <td>{{ cuota.fecha_vencimiento.strftime("%d/%m/%Y") }}</td>
+
+            <td>
+              {% if cuota.pagada %}
+                <span class="badge bg-success">✓ Pagada</span>
+              {% elif cuota.fecha_vencimiento < now %}
+                <span class="badge bg-danger">Vencida</span>
+              {% else %}
+                <span class="badge bg-warning text-dark">Pendiente</span>
+              {% endif %}
+            </td>
+
+            <td>
+              {% if not cuota.pagada and cuota.fecha_vencimiento < now %}
+                <span class="text-danger fw-bold">
+                  {{ (now.date() - cuota.fecha_vencimiento.date()).days }} días
+                </span>
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+
+            <td>
+              {% if not cuota.pagada %}
+
+                {% set hay_cuota_anterior_pendiente = compra.cuotas|selectattr('numero', 'lt', cuota.numero)|selectattr('pagada', 'equalto', False)|list|length > 0 %}
+
+                {% if hay_cuota_anterior_pendiente %}
+                  <button class="btn btn-sm btn-secondary" disabled
+                          title="Debes pagar las cuotas anteriores primero">
+                    🔒 Pagar (Bloqueado)
+                  </button>
+                {% else %}
+                  <form method="POST"
+                        action="{{ url_for('pagar_cuota') }}"
+                        enctype="multipart/form-data"
+                        class="d-flex flex-column gap-1 payment-form">
+
+                    <input type="hidden" name="cuota_id" value="{{ cuota.id }}">
+
+                    <input type="file"
+                           name="boucher_cuota"
+                           accept="image/*"
+                           required
+                           class="form-control form-control-sm">
+
+                    <button type="submit" class="btn btn-sm btn-success">
+                      💰 Pagar Cuota
+                    </button>
+                  </form>
+                {% endif %}
+
+              {% else %}
+                <div class="d-flex flex-wrap gap-1">
+
+                  {% if cuota.pago and cuota.pago.boucher %}
+                    <a href="{{ url_for('static', filename=cuota.pago.boucher) }}"
+                       target="_blank"
+                       class="btn btn-sm btn-outline-primary">
+                      📄 Ver Boucher
+                    </a>
+
+                    {% if current_user.rol == "admin" %}
+                    <form method="POST"
+                          action="{{ url_for('eliminar_voucher_cuota', cuota_id=cuota.id) }}"
+                          onsubmit="return confirm('¿Eliminar este voucher?');">
+                      <button type="submit" class="btn btn-sm btn-outline-danger">
+                        🗑️ Eliminar
+                      </button>
+                    </form>
+                    {% endif %}
+
+                  {% else %}
+                    <span class="text-muted small">Sin voucher</span>
+                  {% endif %}
+
+                </div>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+
+  <!-- PAGAR TODAS -->
+  {% if cuotas_pendientes|length > 0 and not compra.cancelado %}
+  <div class="pay-all-card mb-4">
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+      <div>
+        <div class="fw-bold">¿Deseas cancelar las cuotas restantes?</div>
+        <div class="small text-muted">
+          Quedan {{ cuotas_pendientes|length }} cuota(s) pendiente(s).
+        </div>
+      </div>
+
+      <a href="{{ url_for('pagar_todas_cuotas', compra_id=compra.id) }}"
+         class="btn btn-primary px-4">
+        💰 Pagar Todas las Cuotas Restantes
+      </a>
+    </div>
+  </div>
+  {% endif %}
+
+
+  <!-- VOLVER -->
+  <div class="mb-4">
+    <a href="{{ url_for('ver_cliente', cliente_id=compra.cliente.id) }}"
+       class="btn btn-secondary">
+      ← Volver al Cliente
+    </a>
+  </div>
+
 </div>
 
-<!-- Botón volver ahora incluye cliente_id -->
-<a href="{{ url_for('ver_cliente', cliente_id=compra.cliente.id) }}" class="btn btn-secondary mt-3">⬅ Volver al Cliente</a>
 {% endblock %}

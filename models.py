@@ -8,6 +8,15 @@ from sqlalchemy import event
 
 db = SQLAlchemy()
 
+usuario_lotizaciones = db.Table(
+    "usuario_lotizaciones",
+    db.Column("usuario_id", db.Integer,
+              db.ForeignKey("usuarios.id", ondelete="CASCADE"),
+              primary_key=True),
+    db.Column("lotizacion_id", db.Integer,
+              db.ForeignKey("lotizaciones.id", ondelete="CASCADE"),
+              primary_key=True))
+
 
 
 # ---------------- CLIENTE ----------------
@@ -237,6 +246,12 @@ class Usuario(UserMixin, db.Model):
     password_hash = db.Column(db.String(255), nullable=False)
     rol = db.Column(db.String(20), nullable=False, default="user")
     activo = db.Column(db.Boolean, default=True)
+    lotizaciones = db.relationship(
+    "Lotizacion",
+    secondary=usuario_lotizaciones,
+    backref=db.backref("usuarios_autorizados", lazy="dynamic"),
+    lazy="select")
+
 
     def set_password(self, password):
         """Encripta y guarda la contraseña"""
@@ -245,6 +260,21 @@ class Usuario(UserMixin, db.Model):
     def check_password(self, password):
         """Valida la contraseña ingresada contra la encriptada"""
         return check_password_hash(self.password_hash, password)
+    
+    def puede_acceder_lotizacion(self, lotizacion_id):
+        """Valida si el usuario puede entrar a una lotización."""
+        if self.rol == "superadmin":
+            return True
+
+        try:
+            lotizacion_id = int(lotizacion_id)
+        except (TypeError, ValueError):
+            return False
+
+        return any(
+            lot.id == lotizacion_id
+            for lot in self.lotizaciones
+        )
     
 
 # ---------------- DOCUMENTO ----------------

@@ -150,6 +150,7 @@
               <th>Usuario</th>
               <th class="text-center">Rol</th>
               <th class="text-center">Estado</th>
+              <th class="text-center">Permisos</th>
               <th class="text-center">Acciones</th>
             </tr>
           </thead>
@@ -184,6 +185,20 @@
                   <span class="badge bg-secondary">Inactivo</span>
                 {% endif %}
               </td>
+
+              <td class="text-center">
+                {% if u.rol == 'superadmin' %}
+                  <span class="badge bg-success">Acceso total</span>
+                {% else %}
+                  <button type="button"
+                          class="btn btn-sm btn-outline-primary"
+                          data-bs-toggle="modal"
+                          data-bs-target="#modalPermisos{{ u.id }}">
+                    🔐 Permisos
+                  </button>
+                {% endif %}
+              </td>
+
               <td class="text-center">
                 {% if u.id != current_user.id %}
                 <form method="POST" action="{{ url_for('toggle_usuario', usuario_id=u.id) }}"
@@ -204,6 +219,65 @@
         </table>
       </div>
     </div>
+
+    {# Modales de permisos por usuario #}
+    {% for u in usuarios %}
+      {% if u.rol != 'superadmin' %}
+      <div class="modal fade" id="modalPermisos{{ u.id }}" tabindex="-1"
+           aria-labelledby="modalPermisosLabel{{ u.id }}" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+          <div class="modal-content">
+            <form method="POST" action="{{ url_for('permisos_lotizaciones') }}">
+              <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="modalPermisosLabel{{ u.id }}">
+                  🔐 Permisos de {{ u.username }}
+                </h5>
+                <button type="button" class="btn-close btn-close-white"
+                        data-bs-dismiss="modal" aria-label="Cerrar"></button>
+              </div>
+
+              <div class="modal-body">
+                <input type="hidden" name="usuario_id" value="{{ u.id }}">
+
+                <p class="text-muted small mb-3">
+                  Marca únicamente las lotizaciones a las que este usuario podrá ingresar.
+                </p>
+
+                {% for lot in lotizaciones %}
+                <div class="form-check border rounded p-2 mb-2">
+                  <input class="form-check-input ms-0 me-2"
+                         type="checkbox"
+                         name="lotizacion_ids"
+                         value="{{ lot.id }}"
+                         id="permiso_{{ u.id }}_{{ lot.id }}"
+                         {% if lot in u.lotizaciones %}checked{% endif %}>
+                  <label class="form-check-label w-100"
+                         for="permiso_{{ u.id }}_{{ lot.id }}">
+                    {{ lot.nombre }}
+                  </label>
+                </div>
+                {% endfor %}
+
+                {% if not lotizaciones %}
+                <div class="alert alert-warning mb-0">
+                  No hay lotizaciones registradas.
+                </div>
+                {% endif %}
+              </div>
+
+              <div class="modal-footer">
+                <button type="button" class="btn btn-secondary"
+                        data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" class="btn btn-primary">
+                  💾 Guardar permisos
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+    {% endfor %}
 
     <!-- Gestión de lotizaciones -->
     <div class="card shadow-sm">

@@ -1,48 +1,326 @@
 {% extends "base.html" %}
 {% block content %}
-<h2>🏡 Detalle del Lote</h2>
 
-<div class="card shadow-sm mb-4">
-  <div class="card-body">
-    <p><strong>Manzana:</strong> {{ lote.manzana }}</p>
-    <p><strong>Número:</strong> {{ lote.numero }}</p>
-    <p><strong>Área:</strong> {{ lote.area }} m²</p>
-    <p><strong>Estado:</strong>
-      {% if lote.estado == "disponible" %}
-        <span class="badge bg-success">Disponible</span>
-      {% elif lote.estado == "vendido" %}
-        <span class="badge bg-danger">Vendido</span>
-      {% else %}
-        <span class="badge bg-warning text-dark">Separado</span>
-      {% endif %}
-    </p>
-    <a href="{{ url_for('editar_area', lote_id=lote.id) }}" class="btn btn-sm btn-warning">✏️ Editar Área</a>
+<style>
+  .detalle-lote-page {
+    --dl-radius: 18px;
+  }
 
+  .detalle-lote-page .hero-card,
+  .detalle-lote-page .info-card {
+    border: 0;
+    border-radius: var(--dl-radius);
+    box-shadow: 0 8px 28px rgba(0,0,0,.07);
+    background: var(--bs-body-bg);
+  }
+
+  .detalle-lote-page .hero-card {
+    overflow: hidden;
+  }
+
+  .detalle-lote-page .hero-head {
+    padding: 1.25rem 1.4rem;
+    background: linear-gradient(135deg, var(--bs-dark), #343a40);
+    color: #fff;
+  }
+
+  .detalle-lote-page .hero-title {
+    margin: 0;
+    font-size: 1.45rem;
+    font-weight: 800;
+    letter-spacing: -.02em;
+  }
+
+  .detalle-lote-page .hero-subtitle {
+    margin-top: .25rem;
+    opacity: .85;
+    font-size: .92rem;
+  }
+
+  .detalle-lote-page .data-label {
+    color: #6c757d;
+    font-size: .78rem;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    margin-bottom: .2rem;
+  }
+
+  .detalle-lote-page .data-value {
+    font-size: 1.15rem;
+    font-weight: 800;
+  }
+
+  .detalle-lote-page .section-title {
+    font-weight: 800;
+    margin: 0;
+    font-size: 1.1rem;
+  }
+
+  .detalle-lote-page .section-subtitle {
+    color: #6c757d;
+    margin-top: .2rem;
+    font-size: .88rem;
+  }
+
+  .detalle-lote-page .client-box {
+    border: 1px solid var(--bs-border-color);
+    border-radius: 14px;
+    padding: 1rem;
+    background: var(--bs-tertiary-bg);
+  }
+
+  .detalle-lote-page .amount-box {
+    border-radius: 14px;
+    padding: 1rem;
+    background: var(--bs-tertiary-bg);
+    border: 1px solid var(--bs-border-color);
+  }
+
+  .detalle-lote-page .amount-label {
+    color: #6c757d;
+    font-size: .78rem;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+  }
+
+  .detalle-lote-page .amount-value {
+    font-size: 1.35rem;
+    font-weight: 800;
+    margin-top: .15rem;
+  }
+
+  .detalle-lote-page .detail-row {
+    padding: .8rem 0;
+    border-bottom: 1px solid var(--bs-border-color);
+  }
+
+  .detalle-lote-page .detail-row:last-child {
+    border-bottom: 0;
+  }
+
+  .detalle-lote-page .action-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .65rem;
+  }
+
+  .detalle-lote-page .action-bar .btn {
+    border-radius: 10px;
+    font-weight: 650;
+  }
+
+  @media (max-width: 575.98px) {
+    .detalle-lote-page .hero-title {
+      font-size: 1.2rem;
+    }
+
+    .detalle-lote-page .action-bar .btn {
+      width: 100%;
+    }
+  }
+</style>
+
+<div class="container-fluid detalle-lote-page px-0 px-md-2">
+
+  <!-- CABECERA DEL LOTE -->
+  <div class="card hero-card mb-4">
+    <div class="hero-head d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+      <div>
+        <h2 class="hero-title">🏡 Detalle del Lote</h2>
+        <div class="hero-subtitle">
+          Manzana {{ lote.manzana }} · Lote {{ lote.numero }}
+        </div>
+      </div>
+
+      <div>
+        {% if lote.estado == "disponible" %}
+          <span class="badge bg-success fs-6 px-3 py-2">Disponible</span>
+        {% elif lote.estado == "vendido" %}
+          <span class="badge bg-danger fs-6 px-3 py-2">Vendido</span>
+        {% else %}
+          <span class="badge bg-warning text-dark fs-6 px-3 py-2">Separado</span>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card-body p-3 p-md-4">
+      <div class="row g-3">
+
+        <div class="col-6 col-md-3">
+          <div class="data-label">Manzana</div>
+          <div class="data-value">{{ lote.manzana }}</div>
+        </div>
+
+        <div class="col-6 col-md-3">
+          <div class="data-label">Número</div>
+          <div class="data-value">{{ lote.numero }}</div>
+        </div>
+
+        <div class="col-6 col-md-3">
+          <div class="data-label">Área</div>
+          <div class="data-value">{{ lote.area }} m²</div>
+        </div>
+
+        <div class="col-6 col-md-3">
+          <div class="data-label">Estado</div>
+          <div class="data-value">
+            {% if lote.estado == "disponible" %}
+              <span class="text-success">Disponible</span>
+            {% elif lote.estado == "vendido" %}
+              <span class="text-danger">Vendido</span>
+            {% else %}
+              <span class="text-warning">Separado</span>
+            {% endif %}
+          </div>
+        </div>
+
+      </div>
+
+      <div class="mt-4">
+        <a href="{{ url_for('editar_area', lote_id=lote.id) }}"
+           class="btn btn-warning btn-sm">
+          ✏️ Editar Área
+        </a>
+      </div>
+    </div>
   </div>
+
+
+  <!-- INFORMACIÓN DE COMPRA -->
+  {% if compra %}
+  <div class="card info-card mb-4">
+    <div class="card-body p-3 p-md-4">
+
+      <div class="mb-3">
+        <h3 class="section-title">📝 Información de la Compra</h3>
+        <div class="section-subtitle">Datos principales de la operación registrada.</div>
+      </div>
+
+      <div class="client-box mb-3">
+        <div class="data-label">Cliente</div>
+        <div class="fw-bold fs-5">
+          {{ compra.cliente.nombre }} {{ compra.cliente.apellidos }}
+        </div>
+        <div class="small text-muted mt-1">
+          DNI: {{ compra.cliente.dni }}
+        </div>
+      </div>
+
+      <div class="row g-3 mb-3">
+        <div class="col-12 col-md-6">
+          <div class="amount-box h-100">
+            <div class="amount-label">Precio</div>
+            <div class="amount-value text-primary">
+              S/ {{ "%.2f"|format(compra.precio) }}
+            </div>
+          </div>
+        </div>
+
+        <div class="col-12 col-md-6">
+          <div class="amount-box h-100">
+            <div class="amount-label">Forma de pago</div>
+            <div class="amount-value">
+              {{ compra.forma_pago|capitalize }}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        {% if compra.forma_pago == "credito" %}
+        <div class="detail-row d-flex justify-content-between gap-3">
+          <span class="text-muted">Inicial</span>
+          <strong>S/ {{ "%.2f"|format(compra.inicial) }}</strong>
+        </div>
+
+        <div class="detail-row d-flex justify-content-between gap-3">
+          <span class="text-muted">Cuotas</span>
+          <strong>
+            {{ compra.cuotas_total }}
+            (S/ {{ "%.2f"|format(compra.cuota_monto) }} cada una)
+          </strong>
+        </div>
+        {% endif %}
+
+        <div class="detail-row d-flex justify-content-between gap-3">
+          <span class="text-muted">Fecha de compra</span>
+          <strong>{{ compra.fecha_compra.strftime("%d/%m/%Y") }}</strong>
+        </div>
+      </div>
+
+      <div class="action-bar mt-4">
+        <a href="{{ url_for('ver_cliente', cliente_id=compra.cliente.id) }}"
+           class="btn btn-info">
+          👤 Ver Cliente
+        </a>
+      </div>
+
+    </div>
+  </div>
+
+
+  <!-- INFORMACIÓN DE SEPARACIÓN -->
+  {% elif separacion %}
+  <div class="card info-card mb-4">
+    <div class="card-body p-3 p-md-4">
+
+      <div class="mb-3">
+        <h3 class="section-title">🔴 Información de la Separación</h3>
+        <div class="section-subtitle">Datos principales de la separación registrada.</div>
+      </div>
+
+      <div class="client-box mb-3">
+        <div class="data-label">Cliente</div>
+        <div class="fw-bold fs-5">
+          {{ separacion.cliente.nombre }} {{ separacion.cliente.apellidos }}
+        </div>
+        <div class="small text-muted mt-1">
+          DNI: {{ separacion.cliente.dni }}
+        </div>
+      </div>
+
+      <div class="row g-3 mb-3">
+
+        <div class="col-12 col-md-6">
+          <div class="amount-box h-100">
+            <div class="amount-label">Monto de separación</div>
+            <div class="amount-value text-warning">
+              S/ {{ "%.2f"|format(separacion.monto) }}
+            </div>
+          </div>
+        </div>
+
+        <div class="col-12 col-md-6">
+          <div class="amount-box h-100">
+            <div class="amount-label">Fecha</div>
+            <div class="amount-value">
+              {{ separacion.fecha.strftime("%d/%m/%Y") }}
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="action-bar">
+        <a href="{{ url_for('ver_cliente', cliente_id=separacion.cliente.id) }}"
+           class="btn btn-info">
+          👤 Ver Cliente
+        </a>
+      </div>
+
+    </div>
+  </div>
+  {% endif %}
+
+
+  <!-- VOLVER -->
+  <div class="mb-4">
+    <a href="{{ url_for('lotes_disponibles') }}"
+       class="btn btn-secondary">
+      ⬅ Volver
+    </a>
+  </div>
+
 </div>
 
-{% if compra %}
-  <h3>📝 Información de la Compra</h3>
-  <ul class="list-group mb-3">
-    <li class="list-group-item"><strong>Cliente:</strong> {{ compra.cliente.nombre }} {{ compra.cliente.apellidos }} (DNI: {{ compra.cliente.dni }})</li>
-    <li class="list-group-item"><strong>Forma de pago:</strong> {{ compra.forma_pago|capitalize }}</li>
-    <li class="list-group-item"><strong>Precio:</strong> S/ {{ "%.2f"|format(compra.precio) }}</li>
-    {% if compra.forma_pago == "credito" %}
-      <li class="list-group-item"><strong>Inicial:</strong> S/ {{ "%.2f"|format(compra.inicial) }}</li>
-      <li class="list-group-item"><strong>Cuotas:</strong> {{ compra.cuotas_total }} (S/ {{ "%.2f"|format(compra.cuota_monto) }} cada una)</li>
-    {% endif %}
-    <li class="list-group-item"><strong>Fecha de compra:</strong> {{ compra.fecha_compra.strftime("%d/%m/%Y") }}</li>
-  </ul>
-  <a href="{{ url_for('ver_cliente', cliente_id=compra.cliente.id) }}" class="btn btn-info">👤 Ver Cliente</a>
-{% elif separacion %}
-  <h3>🔴 Información de la Separación</h3>
-  <ul class="list-group mb-3">
-    <li class="list-group-item"><strong>Cliente:</strong> {{ separacion.cliente.nombre }} {{ separacion.cliente.apellidos }} (DNI: {{ separacion.cliente.dni }})</li>
-    <li class="list-group-item"><strong>Monto separación:</strong> S/ {{ "%.2f"|format(separacion.monto) }}</li>
-    <li class="list-group-item"><strong>Fecha:</strong> {{ separacion.fecha.strftime("%d/%m/%Y") }}</li>
-  </ul>
-  <a href="{{ url_for('ver_cliente', cliente_id=separacion.cliente.id) }}" class="btn btn-info">👤 Ver Cliente</a>
-{% endif %}
-
-<a href="{{ url_for('lotes_disponibles') }}" class="btn btn-secondary">⬅ Volver</a>
 {% endblock %}

@@ -1,6 +1,240 @@
 {% extends "base.html" %}
 {% block content %}
-<h2>Registrar Compra</h2>
+
+<style>
+  .compra-page{
+    max-width: 1180px;
+    margin: 0 auto;
+  }
+
+  .compra-page .page-head{
+    background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+    border: 1px solid #e9ecef;
+    border-radius: 20px;
+    padding: 24px 26px;
+    box-shadow: 0 10px 30px rgba(15, 23, 42, .06);
+    margin-bottom: 22px;
+  }
+
+  .compra-page .page-head-inner{
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .compra-page .page-icon{
+    width: 54px;
+    height: 54px;
+    border-radius: 16px;
+    display: grid;
+    place-items: center;
+    background: #0d6efd;
+    color: #fff;
+    font-size: 24px;
+    flex: 0 0 auto;
+  }
+
+  .compra-page .page-kicker{
+    text-transform: uppercase;
+    color: #0d6efd;
+    font-weight: 700;
+    font-size: .78rem;
+    margin-bottom: 2px;
+  }
+
+  .compra-page .page-title{
+    font-size: 1.9rem;
+    font-weight: 800;
+    margin: 0;
+    letter-spacing: -.025em;
+    color: #172033;
+  }
+
+  .compra-page .page-subtitle{
+    margin: .25rem 0 0;
+    color: #64748b;
+    font-size: .95rem;
+  }
+
+  .compra-page .alert{
+    border: 0;
+    border-radius: 16px;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, .06);
+  }
+
+  .compra-page .form-card{
+    background: #fff;
+    border: 1px solid #e9ecef;
+    border-radius: 20px;
+    box-shadow: 0 12px 35px rgba(15, 23, 42, .08);
+    overflow: hidden;
+    height: 100%;
+  }
+
+  .compra-page .card-head{
+    padding: 20px 22px;
+    background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+    border-bottom: 1px solid #e9ecef;
+  }
+
+  .compra-page .card-head.cliente{
+    border-top: 4px solid #0d6efd;
+  }
+
+  .compra-page .card-head.compra{
+    border-top: 4px solid #198754;
+  }
+
+  .compra-page .card-title{
+    font-size: 1.15rem;
+    font-weight: 800;
+    margin: 0;
+    color: #1e293b;
+  }
+
+  .compra-page .card-subtitle{
+    margin-top: .25rem;
+    color: #64748b;
+    font-size: .86rem;
+  }
+
+  .compra-page .card-body-custom{
+    padding: 22px;
+  }
+
+  .compra-page label,
+  .compra-page .form-label{
+    font-weight: 700;
+    color: #334155;
+    margin-bottom: 8px;
+  }
+
+  .compra-page .form-control{
+    border-radius: 12px;
+    min-height: 50px;
+    border-color: #d7dee8;
+    background: #fff;
+  }
+
+  .compra-page .form-control:focus{
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 .2rem rgba(13,110,253,.12);
+  }
+
+  .compra-page select.form-control{
+    cursor: pointer;
+  }
+
+  .compra-page input[readonly].form-control{
+    background: #f8fafc !important;
+    color: #475569;
+  }
+
+  .compra-page input[type="file"].form-control{
+    min-height: auto;
+    padding: .75rem;
+  }
+
+  .compra-page .field-emphasis{
+    background: #f8fafc;
+    border: 1px solid #e9ecef;
+    border-radius: 16px;
+    padding: 16px;
+    margin-bottom: 14px;
+  }
+
+  .compra-page .field-emphasis .mb-3:last-child{
+    margin-bottom: 0 !important;
+  }
+
+  .compra-page #creditoFields{
+    padding: 18px;
+    border: 1px solid #ffe69c;
+    border-radius: 16px;
+    background: #fff9e8;
+    margin-bottom: 16px;
+  }
+
+  .compra-page #creditoFields::before{
+    content: "💳 Datos del crédito";
+    display: block;
+    font-weight: 800;
+    color: #664d03;
+    margin-bottom: 14px;
+  }
+
+  .compra-page .upload-box,
+  .compra-page .dni-existing{
+    padding: 16px;
+    border: 1px dashed #ccd5df;
+    border-radius: 16px;
+    background: #fbfcfe;
+    margin-bottom: 16px;
+  }
+
+  .compra-page .img-thumbnail{
+    border-radius: 14px;
+  }
+
+  .compra-page .action-bar{
+    background: #fff;
+    border: 1px solid #e9ecef;
+    border-radius: 18px;
+    box-shadow: 0 10px 28px rgba(15, 23, 42, .06);
+    padding: 16px;
+    display: flex;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .compra-page .action-bar .btn{
+    border-radius: 12px;
+    min-height: 48px;
+    font-weight: 700;
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+
+  .compra-page small.text-muted{
+    display: block;
+    margin-top: 6px;
+  }
+
+  @media (max-width: 767.98px){
+    .compra-page .page-head{
+      padding: 20px;
+    }
+
+    .compra-page .page-title{
+      font-size: 1.55rem;
+    }
+
+    .compra-page .card-body-custom{
+      padding: 18px 16px;
+    }
+
+    .compra-page .action-bar{
+      flex-direction: column;
+    }
+
+    .compra-page .action-bar .btn{
+      width: 100%;
+    }
+  }
+</style>
+
+<div class="container-fluid compra-page px-0 px-md-2">
+<div class="page-head">
+  <div class="page-head-inner">
+    <div class="page-icon">📝</div>
+    <div>
+      <div class="page-kicker">Gestión de ventas</div>
+      <h2 class="page-title">Registrar compra</h2>
+      <p class="page-subtitle">Completa los datos del cliente y de la operación de venta.</p>
+    </div>
+  </div>
+</div>
 
 {% if sep_id and separacion %}
 <div class="alert alert-info">
@@ -20,7 +254,12 @@
 <form method="POST" enctype="multipart/form-data" class="row g-4">
   <!-- Datos del Cliente -->
   <div class="col-md-6">
-    <h5>Datos del Cliente</h5>
+    <div class="form-card">
+      <div class="card-head cliente">
+        <h5 class="card-title">👤 Datos del Cliente</h5>
+        <div class="card-subtitle">Información personal y de contacto.</div>
+      </div>
+      <div class="card-body-custom">
     {% if cliente and cliente.id and not sep_id %}
       {# Cliente existente - mostrar como readonly #}
       <div class="mb-3">
@@ -118,13 +357,21 @@
         <input type="text" class="form-control" name="ciudad" value="{{ cliente.ciudad if cliente else '' }}" required>
       </div>
     {% endif %}
+      </div>
+    </div>
   </div>
 
   <!-- Datos de la Compra -->
   <div class="col-md-6">
-    <h5>Datos de la Compra</h5>
+    <div class="form-card">
+      <div class="card-head compra">
+        <h5 class="card-title">🏡 Datos de la Compra</h5>
+        <div class="card-subtitle">Lote, forma de pago y documentos de la venta.</div>
+      </div>
+      <div class="card-body-custom">
 
     <!-- Selección de Manzana -->
+    <div class="field-emphasis">
     <div class="mb-3">
       <label for="manzana" class="form-label">Manzana:</label>
       <select id="manzana" name="manzana" class="form-control" required>
@@ -134,28 +381,35 @@
         {% endfor %}
       </select>
     </div>
+    </div>
 
     <!-- Selección de Lote -->
+    <div class="field-emphasis">
     <div class="mb-3">
       <label for="lote" class="form-label">Lote:</label>
       <select id="lote" name="lote" class="form-control" required>
         <option value="">Seleccione un lote</option>
       </select>
     </div>
+    </div>
 
     <!-- Precio -->
+    <div class="field-emphasis">
     <div class="mb-3">
       <label for="precio" class="form-label">Precio del Lote:</label>
       <input type="number" step="0.01" class="form-control" name="precio" 
              value="{{ lote.precio if lote else (separacion.monto if separacion else '') }}" required>
     </div>
+    </div>
 
+    <div class="field-emphasis">
     <div class="mb-3">
       <label for="forma_pago" class="form-label">Forma de Pago:</label>
       <select name="forma_pago" class="form-control" required>
         <option value="contado">Contado</option>
         <option value="credito">Crédito</option>
       </select>
+    </div>
     </div>
 
     <!-- Campos de crédito -->
@@ -176,6 +430,7 @@
       </div>
     </div>
 
+    <div class="upload-box">
     <div class="mb-3">
       <label for="boucher_inicial" class="form-label">Boucher de pago (obligatorio):</label>
       <input type="file" class="form-control" name="boucher_inicial" required>
@@ -188,6 +443,7 @@
           <p class="text-muted mt-1"><small>⚠️ Debes subir el boucher de la compra o inicial.</small></p>
         </div>
       {% endif %}
+    </div>
     </div>
 
     <!-- 👇 Solo pedir fotos de DNI si no existen -->
@@ -228,15 +484,21 @@
       <input type="date" id="fecha_compra" name="fecha_compra" class="form-control">
     </div>
 
+      </div>
+    </div>
   </div>
 
   <input type="hidden" name="sep_id" value="{{ sep_id if sep_id else '' }}">
 
   <div class="col-12">
-    <button type="submit" class="btn btn-success">Registrar Compra</button>
-    <a href="javascript:history.back()" class="btn btn-secondary">Cancelar</a>
+    <div class="action-bar">
+      <button type="submit" class="btn btn-success">Registrar Compra</button>
+      <a href="javascript:history.back()" class="btn btn-secondary">Cancelar</a>
+    </div>
   </div>
 </form>
+
+</div>
 
 <script>
   const lotesData = {};

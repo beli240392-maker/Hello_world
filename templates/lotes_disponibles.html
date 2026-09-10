@@ -1,33 +1,335 @@
 {% extends "base.html" %}
 {% block content %}
-<h2>📋 Lotes por Manzana</h2>
 
-<div class="alert alert-info">
-  <strong>📊 Resumen:</strong>
-  <span class="badge bg-success">Disponibles: {{ total_disponibles }}</span>
-  <span class="badge bg-warning text-dark">Separados: {{ total_separados }}</span>
-  <span class="badge bg-danger">Vendidos: {{ total_vendidos }}</span>
-</div>
+<style>
+  .lotes-page{
+    max-width: 1180px;
+    margin: 0 auto;
+  }
 
-<div class="row">
-  {% for manzana, lotes in manzanas.items() %}
-  <div class="col-md-4 mb-4">
-    <div class="card shadow-sm">
-      <div class="card-header bg-dark text-white">
-        Manzana {{ manzana }}
-      </div>
-      <div class="card-body d-flex flex-wrap gap-2">
-        {% for lote in lotes %}
-          <a href="{{ url_for('detalle_lote', lote_id=lote.id) }}"
-             class="btn {% if lote.estado == 'disponible' %}btn-success
-                        {% elif lote.estado == 'vendido' %}btn-danger
-                        {% else %}btn-warning{% endif %} btn-sm">
-            Lt {{ lote.numero }}
-          </a>
-        {% endfor %}
+  .lotes-page .page-head{
+    background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+    border: 1px solid #e9ecef;
+    border-radius: 20px;
+    padding: 24px 26px;
+    box-shadow: 0 10px 30px rgba(15, 23, 42, .06);
+    margin-bottom: 22px;
+  }
+
+  .lotes-page .page-head-inner{
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .lotes-page .page-icon{
+    width: 54px;
+    height: 54px;
+    border-radius: 16px;
+    display: grid;
+    place-items: center;
+    background: #0d6efd;
+    color: #fff;
+    font-size: 24px;
+    flex: 0 0 auto;
+  }
+
+  .lotes-page .page-kicker{
+    text-transform: uppercase;
+    color: #0d6efd;
+    font-weight: 700;
+    font-size: .78rem;
+    margin-bottom: 2px;
+  }
+
+  .lotes-page .page-title{
+    font-size: 1.9rem;
+    font-weight: 800;
+    letter-spacing: -.025em;
+    margin: 0;
+    color: #172033;
+  }
+
+  .lotes-page .page-subtitle{
+    color: #64748b;
+    margin: .25rem 0 0;
+    font-size: .95rem;
+  }
+
+  .lotes-page .summary-card{
+    border: 1px solid #e9ecef;
+    border-radius: 18px;
+    box-shadow: 0 10px 28px rgba(15, 23, 42, .06);
+    background: #fff;
+    padding: 18px 20px;
+    height: 100%;
+  }
+
+  .lotes-page .summary-top{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .lotes-page .summary-label{
+    color: #64748b;
+    font-size: .82rem;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    font-weight: 700;
+  }
+
+  .lotes-page .summary-number{
+    font-size: 2rem;
+    font-weight: 800;
+    line-height: 1;
+    margin-top: 6px;
+  }
+
+  .lotes-page .summary-icon{
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    display: grid;
+    place-items: center;
+    font-size: 18px;
+  }
+
+  .lotes-page .summary-icon.disponible{
+    background: #eaf7ef;
+  }
+
+  .lotes-page .summary-icon.separado{
+    background: #fff6db;
+  }
+
+  .lotes-page .summary-icon.vendido{
+    background: #fdebec;
+  }
+
+  .lotes-page .legend-box{
+    border: 1px solid #e9ecef;
+    border-radius: 16px;
+    padding: 13px 16px;
+    background: #fff;
+    box-shadow: 0 8px 22px rgba(15, 23, 42, .04);
+  }
+
+  .lotes-page .legend-title{
+    font-weight: 700;
+    color: #334155;
+    margin-right: 8px;
+  }
+
+  .lotes-page .legend-item{
+    display: inline-flex;
+    align-items: center;
+    font-size: .88rem;
+    font-weight: 600;
+    color: #475569;
+  }
+
+  .lotes-page .summary-dot{
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: .45rem;
+  }
+
+  .lotes-page .dot-disponible{
+    background: #198754;
+  }
+
+  .lotes-page .dot-separado{
+    background: #ffc107;
+  }
+
+  .lotes-page .dot-vendido{
+    background: #dc3545;
+  }
+
+  .lotes-page .manzana-card{
+    border: 1px solid #e9ecef;
+    border-radius: 20px;
+    box-shadow: 0 12px 32px rgba(15, 23, 42, .07);
+    overflow: hidden;
+    height: 100%;
+    background: #fff;
+    transition: transform .18s ease, box-shadow .18s ease;
+  }
+
+  .lotes-page .manzana-card:hover{
+    transform: translateY(-2px);
+    box-shadow: 0 16px 36px rgba(15, 23, 42, .10);
+  }
+
+  .lotes-page .manzana-head{
+    padding: 16px 18px;
+    background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+    border-bottom: 1px solid #e9ecef;
+  }
+
+  .lotes-page .manzana-title{
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: #1e293b;
+  }
+
+  .lotes-page .manzana-subtitle{
+    margin-top: 2px;
+    color: #64748b;
+    font-size: .82rem;
+  }
+
+  .lotes-page .lotes-grid{
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(78px, 1fr));
+    gap: .7rem;
+  }
+
+  .lotes-page .lote-btn{
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    font-weight: 750;
+    padding: .55rem .5rem;
+    box-shadow: none;
+    transition: transform .15s ease, box-shadow .15s ease;
+  }
+
+  .lotes-page .lote-btn:hover{
+    transform: translateY(-1px);
+    box-shadow: 0 6px 14px rgba(15, 23, 42, .10);
+  }
+
+  @media (max-width: 575.98px){
+    .lotes-page .page-head{
+      padding: 20px;
+    }
+
+    .lotes-page .page-title{
+      font-size: 1.55rem;
+    }
+
+    .lotes-page .summary-number{
+      font-size: 1.7rem;
+    }
+
+    .lotes-page .lotes-grid{
+      grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
+    }
+
+    .lotes-page .legend-box .d-flex{
+      gap: 10px !important;
+    }
+  }
+</style>
+
+<div class="container-fluid lotes-page px-0 px-md-2">
+
+  <div class="page-head">
+    <div class="page-head-inner">
+      <div class="page-icon">📋</div>
+      <div>
+        <div class="page-kicker">Gestión de lotes</div>
+        <h2 class="page-title">Lotes por manzana</h2>
+        <p class="page-subtitle">Vista general del estado actual de los lotes.</p>
       </div>
     </div>
   </div>
-  {% endfor %}
+
+  <!-- RESUMEN -->
+  <div class="row g-3 mb-3">
+
+    <div class="col-12 col-md-4">
+      <div class="summary-card">
+        <div class="summary-top">
+          <div>
+            <div class="summary-label">Disponibles</div>
+            <div class="summary-number text-success">{{ total_disponibles }}</div>
+          </div>
+          <div class="summary-icon disponible">✅</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-md-4">
+      <div class="summary-card">
+        <div class="summary-top">
+          <div>
+            <div class="summary-label">Separados</div>
+            <div class="summary-number text-warning">{{ total_separados }}</div>
+          </div>
+          <div class="summary-icon separado">🟡</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-md-4">
+      <div class="summary-card">
+        <div class="summary-top">
+          <div>
+            <div class="summary-label">Vendidos</div>
+            <div class="summary-number text-danger">{{ total_vendidos }}</div>
+          </div>
+          <div class="summary-icon vendido">🔴</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- LEYENDA -->
+  <div class="legend-box mb-4">
+    <div class="d-flex flex-wrap align-items-center gap-3">
+      <span class="legend-title">Estado:</span>
+      <span class="legend-item">
+        <span class="summary-dot dot-disponible"></span>Disponible
+      </span>
+      <span class="legend-item">
+        <span class="summary-dot dot-separado"></span>Separado
+      </span>
+      <span class="legend-item">
+        <span class="summary-dot dot-vendido"></span>Vendido
+      </span>
+    </div>
+  </div>
+
+  <!-- MANZANAS -->
+  <div class="row g-4">
+    {% for manzana, lotes in manzanas.items() %}
+    <div class="col-12 col-md-6 col-xl-4">
+      <div class="card manzana-card">
+
+        <div class="manzana-head">
+          <h5 class="manzana-title">Manzana {{ manzana }}</h5>
+          <div class="manzana-subtitle">{{ lotes|length }} lote{% if lotes|length != 1 %}s{% endif %}</div>
+        </div>
+
+        <div class="card-body p-3">
+          <div class="lotes-grid">
+            {% for lote in lotes %}
+              <a href="{{ url_for('detalle_lote', lote_id=lote.id) }}"
+                 class="btn lote-btn
+                        {% if lote.estado == 'disponible' %}btn-success
+                        {% elif lote.estado == 'vendido' %}btn-danger
+                        {% else %}btn-warning{% endif %}">
+                Lt {{ lote.numero }}
+              </a>
+            {% endfor %}
+          </div>
+        </div>
+
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
 </div>
+
 {% endblock %}

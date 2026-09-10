@@ -1,21 +1,246 @@
 {% extends "base.html" %}
 {% block content %}
-<h2>➕ Agregar Lotes</h2>
 
-<form method="POST" action="{{ url_for('agregar_lotes') }}" class="card p-4 shadow-sm">
-  <div class="mb-3">
-  <label for="manzana" class="form-label">Manzana</label>
-  <input type="text" name="manzana" id="manzana" class="form-control" 
-         pattern="^[A-Z]{1}['\"]?$" 
-         title="Solo se permite una letra mayúscula y opcionalmente un apóstrofe (') o comillas (&quot;)" 
-         required>
-</div>
+<style>
+  .lotes-page{
+    max-width: 1040px;
+    margin: 0 auto;
+  }
 
-  <div class="mb-3">
-    <label for="total_lotes" class="form-label">Cantidad de Lotes</label>
-    <input type="number" name="total_lotes" id="total_lotes" min="1" required class="form-control">
+  .lotes-hero{
+    background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+    border: 1px solid #e9ecef;
+    border-radius: 20px;
+    padding: 24px 26px;
+    box-shadow: 0 10px 30px rgba(15, 23, 42, .06);
+  }
+
+  .lotes-icon{
+    width: 52px;
+    height: 52px;
+    border-radius: 16px;
+    display: grid;
+    place-items: center;
+    background: #0d6efd;
+    color: #fff;
+    font-size: 24px;
+    flex: 0 0 auto;
+  }
+
+  .step-bar{
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 22px 0;
+  }
+
+  .step{
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: .9rem;
+    color: #6c757d;
+    white-space: nowrap;
+  }
+
+  .step-dot{
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-weight: 700;
+    background: #e9ecef;
+    color: #6c757d;
+  }
+
+  .step.active{
+    color: #0d6efd;
+    font-weight: 600;
+  }
+
+  .step.active .step-dot{
+    background: #0d6efd;
+    color: #fff;
+  }
+
+  .step-line{
+    height: 2px;
+    background: #e9ecef;
+    flex: 1;
+    min-width: 24px;
+  }
+
+  .form-card{
+    border: 0;
+    border-radius: 20px;
+    box-shadow: 0 12px 35px rgba(15, 23, 42, .08);
+    overflow: hidden;
+  }
+
+  .form-card .card-body{
+    padding: 30px;
+  }
+
+  .field-box{
+    background: #f8fafc;
+    border: 1px solid #e9ecef;
+    border-radius: 16px;
+    padding: 18px;
+    height: 100%;
+  }
+
+  .field-label{
+    font-weight: 700;
+    color: #334155;
+    margin-bottom: 8px;
+  }
+
+  .form-control-lg{
+    border-radius: 12px;
+    min-height: 52px;
+    background: #fff;
+  }
+
+  .form-control-lg:focus{
+    box-shadow: 0 0 0 .2rem rgba(13,110,253,.12);
+  }
+
+  .hint-box{
+    border-radius: 14px;
+    background: #eef6ff;
+    border: 1px solid #d7e8ff;
+    padding: 14px 16px;
+    color: #475569;
+    font-size: .9rem;
+  }
+
+  .btn-next{
+    min-height: 50px;
+    border-radius: 12px;
+    font-weight: 700;
+    padding-left: 28px;
+    padding-right: 28px;
+  }
+
+  @media (max-width: 576px){
+    .lotes-hero{
+      padding: 20px;
+    }
+
+    .form-card .card-body{
+      padding: 20px 16px;
+    }
+
+    .step{
+      font-size: .78rem;
+    }
+
+    .btn-next{
+      width: 100%;
+    }
+  }
+</style>
+
+<div class="lotes-page py-2 py-md-3">
+
+  <div class="lotes-hero">
+    <div class="d-flex align-items-center gap-3">
+      <div class="lotes-icon">🏘️</div>
+      <div>
+        <div class="text-uppercase text-primary fw-semibold small mb-1">
+          Gestión de lotes
+        </div>
+        <h2 class="mb-1 fw-bold">Agregar nuevos lotes</h2>
+        <p class="text-muted mb-0">
+          Define la manzana y la cantidad de lotes que deseas registrar.
+        </p>
+      </div>
+    </div>
   </div>
 
-  <button type="submit" class="btn btn-primary">Continuar</button>
-</form>
+  <div class="step-bar">
+    <div class="step active">
+      <span class="step-dot">1</span>
+      <span>Datos iniciales</span>
+    </div>
+
+    <div class="step-line"></div>
+
+    <div class="step">
+      <span class="step-dot">2</span>
+      <span>Áreas de lotes</span>
+    </div>
+  </div>
+
+  <form method="POST"
+        action="{{ url_for('agregar_lotes') }}"
+        class="card form-card">
+
+    <div class="card-body">
+
+      <div class="row g-3">
+
+        <div class="col-md-6">
+          <div class="field-box">
+            <label for="manzana" class="field-label">
+              Manzana
+            </label>
+
+            <input type="text"
+                   name="manzana"
+                   id="manzana"
+                   class="form-control form-control-lg text-uppercase"
+                   pattern="^[A-Z]{1}['\"]?$"
+                   title="Solo se permite una letra mayúscula y opcionalmente un apóstrofe (') o comillas (&quot;)"
+                   placeholder="Ej.: A"
+                   autocomplete="off"
+                   required>
+
+            <div class="form-text mt-2">
+              Ingresa una letra mayúscula.
+            </div>
+          </div>
+        </div>
+
+        <div class="col-md-6">
+          <div class="field-box">
+            <label for="total_lotes" class="field-label">
+              Cantidad de lotes
+            </label>
+
+            <input type="number"
+                   name="total_lotes"
+                   id="total_lotes"
+                   min="1"
+                   class="form-control form-control-lg"
+                   placeholder="Ej.: 10"
+                   required>
+
+            <div class="form-text mt-2">
+              Los números de lote se generarán automáticamente.
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="hint-box d-flex gap-2 align-items-start mt-4">
+        <span>💡</span>
+        <span>
+          En el siguiente paso ingresarás el área en m² de cada lote antes de guardarlos.
+        </span>
+      </div>
+
+      <div class="d-flex justify-content-end mt-4">
+        <button type="submit" class="btn btn-primary btn-next">
+          Continuar <span class="ms-1">→</span>
+        </button>
+      </div>
+
+    </div>
+  </form>
+
+</div>
+
 {% endblock %}

@@ -1,33 +1,411 @@
 {% extends "base.html" %}
 {% block content %}
-<h2>🏡 Bienvenido al Sistema de Lotes</h2>
-<p>Desde aquí puedes administrar los lotes, registrar compras y gestionar clientes.</p>
 
-{% if lotizacion %}
-  <div class="alert alert-info">
-    📍 Estás trabajando en la lotización:
-    <strong>{{ lotizacion.nombre }}</strong>
+<style>
+  .home-dashboard{
+    max-width: 1180px;
+    margin: 0 auto;
+  }
+
+  /* ENCABEZADO */
+  .home-dashboard .hero-card{
+    background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+    border: 1px solid #e9ecef;
+    border-radius: 20px;
+    box-shadow: 0 10px 30px rgba(15, 23, 42, .06);
+    overflow: hidden;
+    margin-bottom: 22px;
+  }
+
+  .home-dashboard .hero-main{
+    padding: 24px 26px;
+  }
+
+  .home-dashboard .hero-inner{
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .home-dashboard .hero-icon{
+    width: 54px;
+    height: 54px;
+    border-radius: 16px;
+    display: grid;
+    place-items: center;
+    background: #0d6efd;
+    color: #fff;
+    font-size: 24px;
+    flex: 0 0 auto;
+  }
+
+  .home-dashboard .hero-kicker{
+    text-transform: uppercase;
+    color: #0d6efd;
+    font-weight: 700;
+    font-size: .78rem;
+    margin-bottom: 2px;
+  }
+
+  .home-dashboard .hero-title{
+    margin: 0;
+    font-size: 1.9rem;
+    font-weight: 800;
+    letter-spacing: -.025em;
+    color: #172033;
+  }
+
+  .home-dashboard .hero-text{
+    margin: .25rem 0 0;
+    color: #64748b;
+    font-size: .95rem;
+  }
+
+  .home-dashboard .lotizacion-box{
+    padding: 14px 26px;
+    border-top: 1px solid #e9ecef;
+    background: #f8fafc;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .home-dashboard .lotizacion-label{
+    color: #64748b;
+    font-size: .76rem;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    font-weight: 700;
+    margin-bottom: 2px;
+  }
+
+  .home-dashboard .lotizacion-name{
+    font-weight: 800;
+    font-size: 1rem;
+    color: #1e293b;
+  }
+
+  /* RESUMEN */
+  .home-dashboard .stat-card{
+    border: 1px solid #e9ecef;
+    border-radius: 18px;
+    box-shadow: 0 10px 28px rgba(15, 23, 42, .06);
+    background: #fff;
+    padding: 18px 20px;
+    height: 100%;
+  }
+
+  .home-dashboard .stat-top{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .home-dashboard .stat-label{
+    color: #64748b;
+    font-size: .82rem;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    font-weight: 700;
+  }
+
+  .home-dashboard .stat-number{
+    font-size: 2rem;
+    font-weight: 800;
+    line-height: 1;
+    margin-top: 6px;
+  }
+
+  .home-dashboard .stat-icon{
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    display: grid;
+    place-items: center;
+    font-size: 18px;
+  }
+
+  .home-dashboard .stat-icon.disponible{
+    background: #eaf7ef;
+  }
+
+  .home-dashboard .stat-icon.separado{
+    background: #fff6db;
+  }
+
+  .home-dashboard .stat-icon.vendido{
+    background: #fdebec;
+  }
+
+  /* ACCESOS */
+  .home-dashboard .section-head{
+    margin-bottom: 14px;
+  }
+
+  .home-dashboard .section-title{
+    font-size: 1.1rem;
+    font-weight: 800;
+    margin-bottom: .15rem;
+    color: #1e293b;
+  }
+
+  .home-dashboard .section-subtitle{
+    color: #64748b;
+    font-size: .9rem;
+    margin-bottom: 0;
+  }
+
+  .home-dashboard .action-card{
+    height: 100%;
+    overflow: hidden;
+    background: #fff;
+    border: 1px solid #e9ecef;
+    border-radius: 18px;
+    box-shadow: 0 10px 28px rgba(15, 23, 42, .06);
+    transition: transform .18s ease, box-shadow .18s ease;
+  }
+
+  .home-dashboard .action-card:hover{
+    transform: translateY(-2px);
+    box-shadow: 0 14px 34px rgba(15, 23, 42, .10);
+  }
+
+  .home-dashboard .action-link{
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    height: 100%;
+    padding: 18px;
+    text-decoration: none;
+    color: inherit;
+  }
+
+  .home-dashboard .action-icon{
+    width: 48px;
+    height: 48px;
+    flex: 0 0 48px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.3rem;
+    background: #eef4ff;
+    border: 1px solid #dce8ff;
+  }
+
+  .home-dashboard .action-title{
+    font-weight: 800;
+    margin-bottom: .18rem;
+    color: #1e293b;
+  }
+
+  .home-dashboard .action-desc{
+    color: #64748b;
+    font-size: .84rem;
+    margin: 0;
+    line-height: 1.35;
+  }
+
+  .home-dashboard .action-arrow{
+    margin-left: auto;
+    color: #94a3b8;
+    font-size: 1.35rem;
+    font-weight: 700;
+  }
+
+  .home-dashboard .home-footer{
+    color: #94a3b8;
+    font-size: .88rem;
+  }
+
+  @media (max-width: 767.98px){
+    .home-dashboard .hero-main{
+      padding: 20px;
+    }
+
+    .home-dashboard .hero-title{
+      font-size: 1.55rem;
+    }
+
+    .home-dashboard .lotizacion-box{
+      padding: 13px 20px;
+      align-items: flex-start;
+      flex-direction: column;
+    }
+
+    .home-dashboard .stat-number{
+      font-size: 1.7rem;
+    }
+  }
+</style>
+
+<div class="container-fluid home-dashboard px-0 px-md-2">
+
+  <!-- CABECERA -->
+  <div class="hero-card">
+    <div class="hero-main">
+      <div class="hero-inner">
+        <div class="hero-icon">🏡</div>
+        <div>
+          <div class="hero-kicker">Panel principal</div>
+          <h2 class="hero-title">Bienvenido al Sistema de Lotes</h2>
+          <p class="hero-text">
+            Desde aquí puedes administrar los lotes, registrar compras y gestionar clientes.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    {% if lotizacion %}
+    <div class="lotizacion-box">
+      <div>
+        <div class="lotizacion-label">Lotización activa</div>
+        <div class="lotizacion-name">📍 {{ lotizacion.nombre }}</div>
+      </div>
+    </div>
+    {% endif %}
   </div>
-{% endif %}
 
-<p class="alert alert-info">
-  Actualmente hay <strong>{{ total_disponibles }}</strong> lotes disponibles,
-  <strong>{{ total_separados }}</strong> separados y
-  <strong>{{ total_vendidos }}</strong> vendidos.
-</p>
 
-<div class="d-flex flex-column gap-2">
-  <a href="{{ url_for('lotes_disponibles') }}" class="btn btn-info">📊 Ver Lotes Disponibles</a>
-  <a href="{{ url_for('registrar_separacion') }}" class="btn btn-warning">🔴 Registrar Separación</a>
-  <a href="{{ url_for('registrar_compra') }}" class="btn btn-success">📝 Registrar Compra</a>
-  <a href="{{ url_for('ver_cliente') }}" class="btn btn-dark">🔍 Buscar Cliente por DNI</a>
-  <a href="{{ url_for('agregar_lotes') }}" class="btn btn-primary">➕ Agregar Lotes</a>
-  <a href="{{ url_for('seleccionar_lotizacion') }}" class="btn btn-secondary">🔄 Cambiar Lotización</a>
+  <!-- RESUMEN -->
+  <div class="row g-3 mb-4">
+
+    <div class="col-12 col-md-4">
+      <div class="stat-card">
+        <div class="stat-top">
+          <div>
+            <div class="stat-label">Disponibles</div>
+            <div class="stat-number text-success">{{ total_disponibles }}</div>
+          </div>
+          <div class="stat-icon disponible">✅</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-md-4">
+      <div class="stat-card">
+        <div class="stat-top">
+          <div>
+            <div class="stat-label">Separados</div>
+            <div class="stat-number text-warning">{{ total_separados }}</div>
+          </div>
+          <div class="stat-icon separado">🟡</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-md-4">
+      <div class="stat-card">
+        <div class="stat-top">
+          <div>
+            <div class="stat-label">Vendidos</div>
+            <div class="stat-number text-danger">{{ total_vendidos }}</div>
+          </div>
+          <div class="stat-icon vendido">🔴</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+
+  <!-- ACCESOS RÁPIDOS -->
+  <div class="section-head">
+    <div class="section-title">Accesos rápidos</div>
+    <p class="section-subtitle">Selecciona una opción para continuar.</p>
+  </div>
+
+  <div class="row g-3 mb-4">
+
+    <div class="col-12 col-md-6 col-xl-4">
+      <div class="action-card">
+        <a href="{{ url_for('lotes_disponibles') }}" class="action-link">
+          <div class="action-icon">📊</div>
+          <div>
+            <div class="action-title">Ver Lotes Disponibles</div>
+            <p class="action-desc">Consulta lotes disponibles, separados y vendidos.</p>
+          </div>
+          <div class="action-arrow">›</div>
+        </a>
+      </div>
+    </div>
+
+    <div class="col-12 col-md-6 col-xl-4">
+      <div class="action-card">
+        <a href="{{ url_for('registrar_separacion') }}" class="action-link">
+          <div class="action-icon">🔴</div>
+          <div>
+            <div class="action-title">Registrar Separación</div>
+            <p class="action-desc">Registra una nueva separación de lote.</p>
+          </div>
+          <div class="action-arrow">›</div>
+        </a>
+      </div>
+    </div>
+
+    <div class="col-12 col-md-6 col-xl-4">
+      <div class="action-card">
+        <a href="{{ url_for('registrar_compra') }}" class="action-link">
+          <div class="action-icon">📝</div>
+          <div>
+            <div class="action-title">Registrar Compra</div>
+            <p class="action-desc">Registra la venta de un lote.</p>
+          </div>
+          <div class="action-arrow">›</div>
+        </a>
+      </div>
+    </div>
+
+    <div class="col-12 col-md-6 col-xl-4">
+      <div class="action-card">
+        <a href="{{ url_for('ver_cliente') }}" class="action-link">
+          <div class="action-icon">🔍</div>
+          <div>
+            <div class="action-title">Buscar Cliente por DNI</div>
+            <p class="action-desc">Consulta la ficha y operaciones de un cliente.</p>
+          </div>
+          <div class="action-arrow">›</div>
+        </a>
+      </div>
+    </div>
+
+    <div class="col-12 col-md-6 col-xl-4">
+      <div class="action-card">
+        <a href="{{ url_for('agregar_lotes') }}" class="action-link">
+          <div class="action-icon">➕</div>
+          <div>
+            <div class="action-title">Agregar Lotes</div>
+            <p class="action-desc">Incorpora nuevos lotes a la lotización.</p>
+          </div>
+          <div class="action-arrow">›</div>
+        </a>
+      </div>
+    </div>
+
+    <div class="col-12 col-md-6 col-xl-4">
+      <div class="action-card">
+        <a href="{{ url_for('seleccionar_lotizacion') }}" class="action-link">
+          <div class="action-icon">🔄</div>
+          <div>
+            <div class="action-title">Cambiar Lotización</div>
+            <p class="action-desc">Cambia el proyecto en el que estás trabajando.</p>
+          </div>
+          <div class="action-arrow">›</div>
+        </a>
+      </div>
+    </div>
+
+  </div>
+
+
+  <hr>
+
+  <footer class="text-center mt-4 mb-3 home-footer">
+    <p class="mb-0">Sistema de Lotes — Versión 1.0.3 | © 2025 - Beli</p>
+  </footer>
+
 </div>
-
-<hr>
-<footer class="text-center mt-4 mb-3 text-muted" style="font-size: 0.9rem;">
-  <p>Sistema de Lotes — Versión 1.0.3 | ©  2025  - Beli</p>
-</footer>
 
 {% endblock %}
