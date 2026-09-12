@@ -624,10 +624,32 @@ def registrar_compra():
             db.session.commit()  # ✅ Commit para guardar las fotos solo si se subieron
 
         # Lote
+        # Lote
         lote_id = request.form.get("lote")
+
         if not lote_id and lote:
             lote_id = lote.id
+
         lote = Lote.query.get(lote_id)
+
+        # ✅ Evitar convertir dos veces una separación
+        sep_id_form = request.form.get("sep_id")
+
+        if sep_id_form:
+            compra_existente = Compra.query.filter_by(lote_id=lote.id).first()
+
+            if compra_existente:
+                flash(
+                    "⚠️ Esta separación ya fue convertida en compra anteriormente.",
+                    "warning"
+                )
+                return redirect(
+                    url_for(
+                        "ver_cliente",
+                        cliente_id=compra_existente.cliente_id
+                    )
+                )
+
         lote.estado = "vendido"
 
         # ✅ Guardar boucher inicial
@@ -826,8 +848,6 @@ def registrar_separacion():
 
 
 # ------------------- VER CLIENTE -------------------
-# ------------------- VER CLIENTE -------------------
-# ------------------- VER CLIENTE -------------------
 @app.route("/ver_cliente", methods=["GET", "POST"])
 @lotizacion_required
 @login_required
@@ -838,18 +858,25 @@ def ver_cliente():
     compras_credito = []
     historial = []
 
+    # Vouchers de separaciones que fueron convertidas en compra
+    vouchers_separacion = {}
+
     # Obtener lotización activa desde la sesión
     lotizacion = None
     if "lotizacion_id" in session:
         lotizacion = Lotizacion.query.get(session["lotizacion_id"])
+
     lotizacion_id = lotizacion.id if lotizacion else None
 
     # Buscar cliente
     cliente_id = request.args.get("cliente_id")
+
     if cliente_id:
         cliente = Cliente.query.get(int(cliente_id))
+
     elif request.method == "POST":
         criterio = request.form.get("criterio")
+
         if criterio and lotizacion_id:
             cliente = (
                 Cliente.query
@@ -857,17 +884,23 @@ def ver_cliente():
                 .join(Compra, isouter=True)
                 .join(Lote, isouter=True)
                 .filter(
-                    ((Cliente.dni == criterio) | (Cliente.apellidos.ilike(f"%{criterio}%"))),
+                    (
+                        (Cliente.dni == criterio)
+                        | (Cliente.apellidos.ilike(f"%{criterio}%"))
+                    ),
                     Lote.lotizacion_id == lotizacion_id
                 )
                 .distinct()
                 .all()
             )
+
     if isinstance(cliente, list):
         cliente = cliente[0] if cliente else None
 
-    # Si se encontró cliente, traer sus datos SOLO de la lotización activa
+    # Si se encontró cliente, traer sus datos SOLO
+    # de la lotización activa
     if cliente and lotizacion_id:
+
         separaciones = (
             Separacion.query
             .join(Lote)
@@ -911,6 +944,59 @@ def ver_cliente():
             .all()
         )
 
+        # =====================================================
+        # VOUCHER DE SEPARACIÓN CONVERTIDA EN COMPRA
+        # =====================================================
+        for compra in compras_contado + compras_credito:
+
+            # Revisamos el último evento importante de ese
+            # cliente y lote.
+            ultimo_evento = (
+                Historial.query
+                .filter(
+                    Historial.cliente_id == compra.cliente_id,
+                    Historial.lote_id == compra.lote_id,
+                    Historial.tipo.in_([
+                        "Separación convertida",
+                        "Compra liberada"
+                    ])
+                )
+                .order_by(
+                    Historial.fecha.desc(),
+                    Historial.id.desc()
+                )
+                .first()
+            )
+
+            # Solo si realmente provino de una separación
+            if (
+                ultimo_evento
+                and ultimo_evento.tipo == "Separación convertida"
+            ):
+
+                separacion_convertida = (
+                    Separacion.query
+                    .filter(
+                        Separacion.cliente_id == compra.cliente_id,
+                        Separacion.lote_id == compra.lote_id,
+                        Separacion.activa == False,
+                        Separacion.boucher.isnot(None)
+                    )
+                    .order_by(
+                        Separacion.fecha.desc(),
+                        Separacion.id.desc()
+                    )
+                    .first()
+                )
+
+                if (
+                    separacion_convertida
+                    and separacion_convertida.boucher
+                ):
+                    vouchers_separacion[compra.id] = (
+                        separacion_convertida
+                    )
+
     return render_template(
         "ver_cliente.html",
         cliente=cliente,
@@ -918,10 +1004,11 @@ def ver_cliente():
         compras_contado=compras_contado,
         compras_credito=compras_credito,
         historial=historial,
+        vouchers_separacion=vouchers_separacion,
         now=datetime.now(lima),
-        lotizacion=lotizacion,pytz=pytz
+        lotizacion=lotizacion,
+        pytz=pytz
     )
-
 
 # ------------------- DETALLE CUOTAS -------------------
 @app.route("/detalle_cuotas/<int:compra_id>")
@@ -1180,26 +1267,32 @@ def liberar_separacion(sep_id):
 def convertir_separacion(sep_id):
     sep = Separacion.query.get_or_404(sep_id)
 
-    bloqueo = bloquear_si_no_es_lotizacion_activa(sep.lote.lotizacion_id)
+    bloqueo = bloquear_si_no_es_lotizacion_activa(
+        sep.lote.lotizacion_id
+    )
     if bloqueo:
         return bloqueo
+
     if not sep.activa:
-        flash("La separación ya no está activa.", "danger")
-        return redirect(url_for("ver_cliente"))
-    cliente = sep.cliente
-    lote = sep.lote
-    compra = Compra(cliente_id=cliente.id, lote_id=lote.id, forma_pago="contado",
-                    precio=sep.monto, inicial=sep.monto, cuotas_total=0,
-                    cuota_monto=0, fecha_compra=datetime.utcnow())
-    db.session.add(compra)
-    sep.activa = False
-    lote.estado = "vendido"
-    historial = Historial(cliente_id=cliente.id, lote_id=lote.id, tipo="Separación convertida",
-                          detalle=f"Separación de S/ {sep.monto:.2f} convertida en compra", fecha=datetime.utcnow())
-    db.session.add(historial)
-    db.session.commit()
-    flash("Separación convertida en compra.", "success")
-    return redirect(url_for("ver_cliente", cliente_id=cliente.id))
+        flash(
+            "La separación ya no está activa.",
+            "danger"
+        )
+        return redirect(
+            url_for(
+                "ver_cliente",
+                cliente_id=sep.cliente_id
+            )
+        )
+
+    # Ya no crea la compra directamente.
+    # Envía al formulario normal de compra.
+    return redirect(
+        url_for(
+            "registrar_compra",
+            sep_id=sep.id
+        )
+    )
 
 # ------------------- LOGIN LOTIZACION -------------------
 @app.route("/seleccionar_lotizacion", methods=["GET", "POST"])

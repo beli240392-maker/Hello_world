@@ -737,11 +737,21 @@
                 <td>{{ c.fecha_compra.strftime("%d/%m/%Y") }}</td>
 
                 <td>
+                  {% set sep_convertida = vouchers_separacion.get(c.id) %}
+
+                  {% if sep_convertida and sep_convertida.boucher %}
+                    <a href="{{ url_for('static', filename=sep_convertida.boucher) }}"
+                       target="_blank"
+                       class="btn btn-outline-warning btn-sm mb-1">
+                      🟡 Voucher separación
+                    </a>
+                  {% endif %}
+
                   {% if c.boucher_inicial %}
                     <a href="{{ url_for('static', filename=c.boucher_inicial) }}"
                        target="_blank"
                        class="btn btn-outline-primary btn-sm">
-                      Ver Boucher
+                      🔵 Voucher compra
                     </a>
 
                     {% if current_user.rol == "admin" %}
@@ -756,7 +766,9 @@
                     </form>
                     {% endif %}
                   {% else %}
-                    <span class="text-muted">No disponible</span>
+                    {% if not sep_convertida %}
+                      <span class="text-muted">No disponible</span>
+                    {% endif %}
                   {% endif %}
                 </td>
 
@@ -1085,14 +1097,26 @@
                 <td>{{ c.fecha_compra.strftime("%d/%m/%Y") }}</td>
 
                 <td>
+                  {% set sep_convertida = vouchers_separacion.get(c.id) %}
+
+                  {% if sep_convertida and sep_convertida.boucher %}
+                    <a href="{{ url_for('static', filename=sep_convertida.boucher) }}"
+                       target="_blank"
+                       class="btn btn-outline-warning btn-sm mb-1">
+                      🟡 Voucher separación
+                    </a>
+                  {% endif %}
+
                   {% if c.boucher_inicial %}
                     <a href="{{ url_for('static', filename=c.boucher_inicial) }}"
                        target="_blank"
                        class="btn btn-outline-primary btn-sm">
-                      Ver Voucher
+                      🔵 Voucher compra
                     </a>
                   {% else %}
-                    <span class="text-muted">No disponible</span>
+                    {% if not sep_convertida %}
+                      <span class="text-muted">No disponible</span>
+                    {% endif %}
                   {% endif %}
                 </td>
 
