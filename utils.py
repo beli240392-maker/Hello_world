@@ -19,17 +19,39 @@ def admin_required(f):
 def lotizacion_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        # Verificamos si el usuario está autenticado
+
         if not current_user.is_authenticated:
             flash("Debes iniciar sesión primero.", "warning")
             return redirect(url_for("login"))
 
-        # Verificamos si seleccionó una lotización
-        if "lotizacion_id" not in session or not session["lotizacion_id"]:
-            flash("Debes seleccionar una lotización para continuar.", "warning")
+        lotizacion_id = session.get("lotizacion_id")
+
+        if not lotizacion_id:
+            flash(
+                "Debes seleccionar una lotización para continuar.",
+                "warning"
+            )
             return redirect(url_for("seleccionar_lotizacion"))
 
+        # Verificar que el usuario realmente tenga permiso
+        if current_user.rol != "superadmin":
+
+            if not current_user.puede_acceder_lotizacion(lotizacion_id):
+
+                session.pop("lotizacion_id", None)
+                session.pop("lotizacion_nombre", None)
+
+                flash(
+                    "No tienes acceso a esa lotización.",
+                    "danger"
+                )
+
+                return redirect(
+                    url_for("seleccionar_lotizacion")
+                )
+
         return f(*args, **kwargs)
+
     return decorated_function
 
 def superadmin_required(f):

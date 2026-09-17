@@ -173,6 +173,9 @@ def login():
             )
 
         login_user(usuario)
+        # ✅ Guardar último inicio de sesión correcto
+        usuario.ultimo_login = hora_local_peru()
+        db.session.commit()
         session["lotizacion_id"] = lot.id
         session["lotizacion_nombre"] = lot.nombre
         return redirect(url_for("home"))

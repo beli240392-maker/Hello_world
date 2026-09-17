@@ -246,6 +246,7 @@ class Usuario(UserMixin, db.Model):
     password_hash = db.Column(db.String(255), nullable=False)
     rol = db.Column(db.String(20), nullable=False, default="user")
     activo = db.Column(db.Boolean, default=True)
+    ultimo_login = db.Column(db.DateTime, nullable=True)
     lotizaciones = db.relationship(
     "Lotizacion",
     secondary=usuario_lotizaciones,

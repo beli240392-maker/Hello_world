@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container py-3">
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+    <div>
+      <h2 class="mb-1">Permisos por Lotización</h2>
+      <p class="text-muted mb-0">Asigna a cada usuario únicamente los proyectos que puede utilizar.</p>
+    </div>
+    <a href="{{ url_for('panel_superadmin') }}" class="btn btn-outline-secondary">Volver al panel</a>
+  </div>
+
+  <div class="alert alert-info">
+    <strong>Superadmin:</strong> tiene acceso automático a todas las lotizaciones.
+  </div>
+
+  {% for usuario in usuarios %}
+    <div class="card shadow-sm border-0 mb-3">
+      <div class="card-body">
+        <div class="mb-3">
+          <h5 class="mb-1">{{ usuario.username }}</h5>
+          <span class="badge bg-secondary">{{ usuario.rol }}</span>
+          {% if not usuario.activo %}
+            <span class="badge bg-danger">Inactivo</span>
+          {% endif %}
+        </div>
+
+        {% if usuario.rol == "superadmin" %}
+          <div class="text-success fw-semibold">✓ Acceso a todas las lotizaciones</div>
+        {% else %}
+          <form method="POST">
+            <input type="hidden" name="usuario_id" value="{{ usuario.id }}">
+            <div class="row g-2 mb-3">
+              {% for lot in lotizaciones %}
+                <div class="col-12 col-md-6 col-lg-4">
+                  <label class="border rounded-3 p-3 w-100 h-100 d-flex align-items-center gap-2">
+                    <input class="form-check-input mt-0"
+                           type="checkbox"
+                           name="lotizacion_ids"
+                           value="{{ lot.id }}"
+                           {% if lot in usuario.lotizaciones %}checked{% endif %}>
+                    <span>{{ lot.nombre }}</span>
+                  </label>
+                </div>
+              {% endfor %}
+            </div>
+            <button type="submit" class="btn btn-primary">
+              Guardar permisos de {{ usuario.username }}
+            </button>
+          </form>
+        {% endif %}
+      </div>
+    </div>
+  {% else %}
+    <div class="alert alert-warning">No hay usuarios registrados.</div>
+  {% endfor %}
+</div>
+{% endblock %}

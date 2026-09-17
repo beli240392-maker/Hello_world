@@ -150,6 +150,7 @@
               <th>Usuario</th>
               <th class="text-center">Rol</th>
               <th class="text-center">Estado</th>
+              <th class="text-center">Última conexión</th>
               <th class="text-center">Permisos</th>
               <th class="text-center">Acciones</th>
             </tr>
@@ -183,6 +184,15 @@
                   <span class="badge bg-success">Activo</span>
                 {% else %}
                   <span class="badge bg-secondary">Inactivo</span>
+                {% endif %}
+              </td>
+
+              <td class="text-center">
+                {% if u.ultimo_login %}
+                  <div class="small fw-semibold">{{ u.ultimo_login.strftime("%d/%m/%Y") }}</div>
+                  <div class="small text-muted">{{ u.ultimo_login.strftime("%H:%M") }}</div>
+                {% else %}
+                  <span class="text-muted small">Nunca</span>
                 {% endif %}
               </td>
 
