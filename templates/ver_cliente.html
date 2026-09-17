@@ -734,10 +734,19 @@
 
                 <td><strong>S/ {{ "%.2f"|format(c.precio) }}</strong></td>
 
-                <td>{{ c.fecha_compra.strftime("%d/%m/%Y") }}</td>
+                {% set sep_convertida = vouchers_separacion.get(c.id) %}
+                <td>
+                  <div>
+                    <strong>Compra:</strong> {{ c.fecha_compra.strftime("%d/%m/%Y") }}
+                  </div>
+                  {% if sep_convertida %}
+                    <div class="small text-muted mt-1">
+                      <strong>Separación:</strong> {{ sep_convertida.fecha.strftime("%d/%m/%Y") }}
+                    </div>
+                  {% endif %}
+                </td>
 
                 <td>
-                  {% set sep_convertida = vouchers_separacion.get(c.id) %}
 
                   {% if sep_convertida and sep_convertida.boucher %}
                     <a href="{{ url_for('static', filename=sep_convertida.boucher) }}"
@@ -1094,10 +1103,19 @@
                   </div>
                 </td>
 
-                <td>{{ c.fecha_compra.strftime("%d/%m/%Y") }}</td>
+                {% set sep_convertida = vouchers_separacion.get(c.id) %}
+                <td>
+                  <div>
+                    <strong>Compra:</strong> {{ c.fecha_compra.strftime("%d/%m/%Y") }}
+                  </div>
+                  {% if sep_convertida %}
+                    <div class="small text-muted mt-1">
+                      <strong>Separación:</strong> {{ sep_convertida.fecha.strftime("%d/%m/%Y") }}
+                    </div>
+                  {% endif %}
+                </td>
 
                 <td>
-                  {% set sep_convertida = vouchers_separacion.get(c.id) %}
 
                   {% if sep_convertida and sep_convertida.boucher %}
                     <a href="{{ url_for('static', filename=sep_convertida.boucher) }}"

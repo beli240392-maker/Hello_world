@@ -288,7 +288,10 @@
                 <select id="manzana" name="manzana" class="form-control" required>
                   <option value="">Seleccione una manzana</option>
                   {% for mz in lotes|groupby("manzana") %}
-                    <option value="{{ mz.grouper }}">{{ mz.grouper }}</option>
+                    <option value="{{ mz.grouper }}"
+                            {% if lote and lote.manzana == mz.grouper %}selected{% endif %}>
+                      {{ mz.grouper }}
+                    </option>
                   {% endfor %}
                 </select>
               </div>
@@ -365,21 +368,37 @@
   const manzanaSelect = document.getElementById("manzana");
   const loteSelect = document.getElementById("lote");
 
-  manzanaSelect.addEventListener("change", function () {
-    const selectedMz = this.value;
+  const preselectedMz = "{{ lote.manzana if lote else '' }}";
+  const preselectedLoteId = "{{ lote.id if lote else '' }}";
+
+  function cargarLotes(selectedMz) {
     loteSelect.innerHTML = '<option value="">Seleccione un lote</option>';
 
     if (selectedMz && lotesData[selectedMz]) {
-      lotesData[selectedMz].forEach(lote => {
-        if (lote.estado === "disponible") {
+      lotesData[selectedMz].forEach(loteItem => {
+        if (loteItem.estado === "disponible") {
           const option = document.createElement("option");
-          option.value = lote.id;
-          option.textContent = "Lt " + lote.numero;
+          option.value = loteItem.id;
+          option.textContent = "Lt " + loteItem.numero;
+
+          if (preselectedLoteId && String(loteItem.id) === String(preselectedLoteId)) {
+            option.selected = true;
+          }
+
           loteSelect.appendChild(option);
         }
       });
     }
+  }
+
+  manzanaSelect.addEventListener("change", function () {
+    cargarLotes(this.value);
   });
+
+  if (preselectedMz) {
+    manzanaSelect.value = preselectedMz;
+    cargarLotes(preselectedMz);
+  }
   const dniInput = document.querySelector("input[name='dni']");
 
 dniInput.addEventListener("blur", function() {

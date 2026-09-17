@@ -177,10 +177,24 @@
       </div>
 
       <div class="mt-4">
-        <a href="{{ url_for('editar_area', lote_id=lote.id) }}"
-           class="btn btn-warning btn-sm">
-          ✏️ Editar Área
-        </a>
+        <div class="action-bar">
+          {% if lote.estado == "disponible" %}
+            <a href="{{ url_for('registrar_separacion', lote_id=lote.id) }}"
+               class="btn btn-warning">
+              🟡 Separar lote
+            </a>
+
+            <a href="{{ url_for('registrar_compra', lote_id=lote.id) }}"
+               class="btn btn-success">
+              🟢 Registrar compra
+            </a>
+          {% endif %}
+
+          <a href="{{ url_for('editar_area', lote_id=lote.id) }}"
+             class="btn btn-outline-secondary">
+            ✏️ Editar Área
+          </a>
+        </div>
       </div>
     </div>
   </div>

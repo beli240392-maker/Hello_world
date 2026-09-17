@@ -485,6 +485,10 @@ def agregar_comentario(compra_id):
 
     # Redirigir de vuelta a la vista del cliente correcto
     return redirect(url_for("ver_cliente", cliente_id=compra.cliente_id))
+
+
+
+# ------------------- REGISTRAR SEPARACION -------------------
 @app.route("/registrar_compra", methods=["GET", "POST"]) 
 @lotizacion_required
 @login_required
@@ -518,9 +522,49 @@ def registrar_compra():
 
     sep_id = request.args.get("sep_id")
     cliente_id_param = request.args.get("cliente_id")
+    lote_id_param = request.args.get("lote_id")
+
     lote = None
     cliente = None
     separacion = None
+
+    # Si viene desde Detalle del Lote
+    if lote_id_param and not sep_id and lotizacion:
+        lote = (
+            Lote.query
+            .filter_by(
+                id=int(lote_id_param),
+                lotizacion_id=lotizacion.id,
+                estado="disponible"
+            )
+            .first()
+        )
+
+        if not lote:
+            flash("⚠️ El lote no está disponible o no pertenece a la lotización activa.", "warning")
+            return redirect(url_for("lotes_disponibles"))
+
+        if lote not in lotes:
+            lotes.append(lote)
+
+    # ✅ Si viene lote_id desde "Detalle del Lote", cargar ese lote disponible
+    if lote_id_param and not sep_id and lotizacion:
+        lote = (
+            Lote.query
+            .filter_by(
+                id=int(lote_id_param),
+                lotizacion_id=lotizacion.id,
+                estado="disponible"
+            )
+            .first()
+        )
+
+        if not lote:
+            flash("⚠️ El lote no está disponible o no pertenece a la lotización activa.", "warning")
+            return redirect(url_for("lotes_disponibles"))
+
+        if lote not in lotes:
+            lotes.append(lote)
 
     # ✅ Si viene cliente_id, cargar el cliente existente
     if cliente_id_param:
@@ -739,7 +783,6 @@ def registrar_compra():
         lotizacion=lotizacion
     )
 
-# ------------------- REGISTRAR SEPARACION -------------------
 @app.route("/registrar_separacion", methods=["GET", "POST"])
 @lotizacion_required
 @login_required
@@ -749,8 +792,34 @@ def registrar_separacion():
         lotizacion = Lotizacion.query.get(session["lotizacion_id"])
 
     lotes = []
+    lote = None
+
     if lotizacion:
-        lotes = Lote.query.filter_by(estado="disponible", lotizacion_id=lotizacion.id).all()
+        lotes = Lote.query.filter_by(
+            estado="disponible",
+            lotizacion_id=lotizacion.id
+        ).all()
+
+        # ✅ Si viene lote_id desde "Detalle del Lote", cargar ese lote disponible
+        lote_id_param = request.args.get("lote_id", type=int)
+
+        if lote_id_param:
+            lote = (
+                Lote.query
+                .filter_by(
+                    id=lote_id_param,
+                    lotizacion_id=lotizacion.id,
+                    estado="disponible"
+                )
+                .first()
+            )
+
+            if not lote:
+                flash(
+                    "⚠️ El lote no está disponible o no pertenece a la lotización activa.",
+                    "warning"
+                )
+                return redirect(url_for("lotes_disponibles"))
 
     if request.method == "POST":
         nombre = request.form["nombre"].strip().lower()
@@ -760,7 +829,6 @@ def registrar_separacion():
         direccion = request.form.get("direccion").strip().lower()
         ciudad = request.form.get("ciudad").strip().lower()
         correo = request.form.get("correo", "").strip().lower()
-       
 
         # 🔹 Nuevos campos
         estado_civil = request.form.get("estado_civil").strip().lower()
@@ -779,12 +847,12 @@ def registrar_separacion():
                 telefono=telefono,
                 direccion=direccion,
                 ciudad=ciudad,
-                estado_civil=estado_civil,   # 🔹 agregado
-                ocupacion=ocupacion,        # 🔹 agregado
+                estado_civil=estado_civil,
+                ocupacion=ocupacion,
                 correo=correo if correo else None
             )
             db.session.add(cliente)
-            db.session.commit()  # 👈 ahora cliente.id está disponible
+            db.session.commit()
         else:
             # 🔹 Si ya existe, actualizar sus datos
             cliente.estado_civil = estado_civil or cliente.estado_civil
@@ -792,7 +860,7 @@ def registrar_separacion():
             cliente.telefono = telefono or cliente.telefono
             cliente.direccion = direccion or cliente.direccion
             cliente.ciudad = ciudad or cliente.ciudad
-            cliente.correo = correo or cliente.correo 
+            cliente.correo = correo or cliente.correo
 
         # ✅ Subida de fotos de DNI
         dni_frontal_file = request.files.get("dni_frontal")
@@ -822,10 +890,9 @@ def registrar_separacion():
         if boucher_file and boucher_file.filename:
             boucher_path = guardar_boucher(boucher_file)
 
-
         # ✅ Crear la separación con cliente_id correcto
         separacion = Separacion(
-            cliente_id=cliente.id,   # 👈 ahora nunca será None
+            cliente_id=cliente.id,
             lote_id=lote_id,
             monto=monto,
             fecha=hora_local_peru(),
@@ -843,7 +910,13 @@ def registrar_separacion():
         flash("Separación registrada correctamente.", "success")
         return redirect(url_for("ver_cliente", cliente_id=cliente.id))
 
-    return render_template("registrar_separacion.html", lotes=lotes, lotizacion=lotizacion)
+    return render_template(
+        "registrar_separacion.html",
+        lotes=lotes,
+        lote=lote,
+        lotizacion=lotizacion
+    )
+
 
 
 
