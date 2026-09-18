@@ -442,6 +442,39 @@ def agregar_lotes():
     # GET
     return render_template("agregar_lotes_inicio.html")
 
+
+@app.route("/eliminar_lote/<int:lote_id>", methods=["POST"])
+@login_required
+@lotizacion_required
+@superadmin_required
+def eliminar_lote(lote_id):
+    lote = Lote.query.get_or_404(lote_id)
+
+    bloqueo = bloquear_si_no_es_lotizacion_activa(lote.lotizacion_id)
+    if bloqueo:
+        return bloqueo
+
+    # Solo lotes disponibles
+    if lote.estado != "disponible":
+        flash("⚠️ Solo se pueden eliminar lotes disponibles.", "warning")
+        return redirect(url_for("lotes_disponibles"))
+
+    # Verificar que nunca haya tenido movimientos
+    tiene_compra = Compra.query.filter_by(lote_id=lote.id).first()
+    tiene_separacion = Separacion.query.filter_by(lote_id=lote.id).first()
+    tiene_historial = Historial.query.filter_by(lote_id=lote.id).first()
+    tiene_voucher = Voucher.query.filter_by(lote_id=lote.id).first()
+
+    if tiene_compra or tiene_separacion or tiene_historial or tiene_voucher:
+        flash("⚠️ Este lote tiene movimientos y no puede eliminarse.", "warning")
+        return redirect(url_for("lotes_disponibles"))
+
+    db.session.delete(lote)
+    db.session.commit()
+
+    flash("✅ Lote eliminado correctamente.", "success")
+    return redirect(url_for("lotes_disponibles"))
+
 # ------------------- REGISTRAR AREA DE LOTE -------------------
 
 @app.route("/editar_area/<int:lote_id>", methods=["GET", "POST"])
