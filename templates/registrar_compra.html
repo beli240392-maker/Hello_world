@@ -353,8 +353,21 @@
         <input type="text" class="form-control" name="direccion" value="{{ cliente.direccion if cliente else '' }}" required>
       </div>
       <div class="mb-3">
-        <label for="ciudad" class="form-label">Ciudad:</label>
-        <input type="text" class="form-control" name="ciudad" value="{{ cliente.ciudad if cliente else '' }}" required>
+        <label for="ciudad" class="form-label">Distrito:</label>
+        <input type="text" class="form-control" name="ciudad"
+              value="{{ cliente.ciudad if cliente else '' }}" required>
+      </div>
+
+      <div class="mb-3">
+        <label for="provincia" class="form-label">Provincia:</label>
+        <input type="text" class="form-control" name="provincia"
+              value="{{ cliente.provincia if cliente else '' }}">
+      </div>
+
+      <div class="mb-3">
+        <label for="departamento" class="form-label">Departamento:</label>
+        <input type="text" class="form-control" name="departamento"
+              value="{{ cliente.departamento if cliente else '' }}">
       </div>
     {% endif %}
       </div>
@@ -457,7 +470,7 @@
       </div>
     </div>
     {% else %}
-    <div class="mb-3">
+    <div class="mb-3" id="dniFrontalUpload">
       <label for="dni_frontal" class="form-label">Foto DNI (Frontal):</label>
       <input type="file" class="form-control" name="dni_frontal" accept="image/*" {% if not cliente or not cliente.id %}required{% endif %}>
     </div>
@@ -473,7 +486,7 @@
       </div>
     </div>
     {% else %}
-    <div class="mb-3">
+    <div class="mb-3" id="dniReversoUpload">
       <label for="dni_reverso" class="form-label">Foto DNI (Reverso):</label>
       <input type="file" class="form-control" name="dni_reverso" accept="image/*" {% if not cliente or not cliente.id %}required{% endif %}>
     </div>
@@ -580,6 +593,31 @@ dniInput.addEventListener("blur", function() {
                 document.querySelector("input[name='telefono']").value = data.telefono;
                 document.querySelector("input[name='direccion']").value = data.direccion;
                 document.querySelector("input[name='ciudad']").value = data.ciudad;
+                document.querySelector("input[name='provincia']").value = data.provincia || "";
+                document.querySelector("input[name='departamento']").value = data.departamento || "";
+                if (data.dni_frontal) {
+                    const bloqueFrontal = document.getElementById("dniFrontalUpload");
+                    if (bloqueFrontal) {
+                        bloqueFrontal.innerHTML = `
+                            <label class="form-label">Foto DNI Frontal (Ya registrada):</label>
+                            <div class="alert alert-success mb-0">
+                                ✅ DNI frontal ya registrado. No es necesario volver a subirlo.
+                            </div>
+                        `;
+                    }
+                }
+
+                if (data.dni_reverso) {
+                    const bloqueReverso = document.getElementById("dniReversoUpload");
+                    if (bloqueReverso) {
+                        bloqueReverso.innerHTML = `
+                            <label class="form-label">Foto DNI Reverso (Ya registrada):</label>
+                            <div class="alert alert-success mb-0">
+                                ✅ DNI reverso ya registrado. No es necesario volver a subirlo.
+                            </div>
+                        `;
+                    }
+                }
 
                 let hiddenId = document.querySelector("input[name='cliente_id']");
                 if (!hiddenId) {

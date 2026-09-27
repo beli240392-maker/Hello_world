@@ -1,13 +1,83 @@
 {% extends "base.html" %}
 {% block content %}
+
 <h2>🏡 Crear Nueva Lotización</h2>
 
 <form method="POST" class="card p-4 shadow-sm">
+
+  {% if csrf_token is defined %}
+    <input type="hidden"
+           name="csrf_token"
+           value="{{ csrf_token() }}">
+  {% endif %}
+
   <div class="mb-3">
-    <label for="nombre" class="form-label">Nombre de la Lotización</label>
-    <input type="text" name="nombre" id="nombre" required class="form-control">
+    <label for="nombre" class="form-label">
+      Nombre de la Lotización
+    </label>
+
+    <input type="text"
+           name="nombre"
+           id="nombre"
+           required
+           maxlength="100"
+           class="form-control"
+           value="{{ request.form.get('nombre', '') }}">
   </div>
 
-  <button type="submit" class="btn btn-primary">Crear Lotización</button>
+  <div class="row">
+
+    <div class="col-md-4 mb-3">
+      <label for="distrito" class="form-label">
+        Distrito
+      </label>
+
+      <input type="text"
+             name="distrito"
+             id="distrito"
+             required
+             maxlength="100"
+             class="form-control"
+             placeholder="Ejemplo: Bagua Grande"
+             value="{{ request.form.get('distrito', '') }}">
+    </div>
+
+    <div class="col-md-4 mb-3">
+      <label for="provincia" class="form-label">
+        Provincia
+      </label>
+
+      <input type="text"
+             name="provincia"
+             id="provincia"
+             required
+             maxlength="100"
+             class="form-control"
+             placeholder="Ejemplo: Utcubamba"
+             value="{{ request.form.get('provincia', '') }}">
+    </div>
+
+    <div class="col-md-4 mb-3">
+      <label for="departamento" class="form-label">
+        Departamento
+      </label>
+
+      <input type="text"
+             name="departamento"
+             id="departamento"
+             required
+             maxlength="100"
+             class="form-control"
+             placeholder="Ejemplo: Amazonas"
+             value="{{ request.form.get('departamento', '') }}">
+    </div>
+
+  </div>
+
+  <button type="submit" class="btn btn-primary">
+    Crear Lotización
+  </button>
+
 </form>
+
 {% endblock %}

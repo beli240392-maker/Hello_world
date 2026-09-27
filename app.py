@@ -25,6 +25,12 @@ from dotenv import load_dotenv
 from sqlalchemy import func
 from sqlalchemy import or_
 
+import json
+import hashlib
+import secrets
+from decimal import Decimal, InvalidOperation
+from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
+
 
 load_dotenv()  # Cargar variables del archivo .env
 
@@ -251,6 +257,8 @@ def editar_cliente(cliente_id):
         cliente.estado_civil = request.form.get("estado_civil", "No registrado").strip().lower()
         cliente.ocupacion = request.form.get("ocupacion", "No registrada").strip().lower()
         cliente.ciudad = request.form["ciudad"].strip().lower()
+        cliente.provincia = request.form.get("provincia", "").strip().lower()
+        cliente.departamento = request.form.get("departamento", "").strip().lower()
         cliente.direccion = request.form["direccion"].strip().lower()
         cliente.correo = request.form.get("correo", "").strip().lower()
 
@@ -279,7 +287,7 @@ def get_lotes(lotizacion_id):
     ]
     return jsonify(data)
 
-@app.route("/detalle_lote/<int:lote_id>")
+@app.route("/detalle_lote/<int:lote_id>", methods=["GET", "POST"])
 @login_required
 @lotizacion_required
 def detalle_lote(lote_id):
@@ -288,18 +296,106 @@ def detalle_lote(lote_id):
     bloqueo = bloquear_si_no_es_lotizacion_activa(lote.lotizacion_id)
     if bloqueo:
         return bloqueo
+
+    error_linderos = None
+
+    # Guardar los linderos y el perímetro del formulario
+    if request.method == "POST":
+        campos = (
+            "lindero_frente",
+            "lindero_derecha",
+            "lindero_izquierda",
+            "lindero_fondo",
+        )
+
+        datos = {
+            campo: request.form.get(campo, "").strip()
+            for campo in campos
+        }
+
+        perimetro_texto = (
+            request.form.get("perimetro", "")
+            .strip()
+            .replace(",", ".")
+        )
+
+        perimetro = None
+
+        if perimetro_texto:
+            try:
+                perimetro = float(perimetro_texto)
+
+                if not (0 < perimetro < float("inf")):
+                    raise ValueError()
+
+            except ValueError:
+                error_linderos = (
+                    "El perímetro debe ser un número mayor que cero."
+                )
+
+        if error_linderos is None:
+            try:
+                for campo, valor in datos.items():
+                    setattr(lote, campo, valor or None)
+
+                lote.perimetro = perimetro
+
+                db.session.commit()
+
+                flash(
+                    "Linderos y perímetro guardados correctamente.",
+                    "success"
+                )
+
+                return redirect(
+                    url_for("detalle_lote", lote_id=lote.id)
+                    + "#linderos"
+                )
+
+            except Exception:
+                db.session.rollback()
+
+                current_app.logger.exception(
+                    "Error al guardar linderos del lote %s",
+                    lote_id
+                )
+
+                error_linderos = (
+                    "No se pudieron guardar los datos. "
+                    "Inténtalo nuevamente."
+                )
+
+    # Consultar la compra o separación del lote
     compra = None
     separacion = None
+
     if lote.estado == "vendido":
-        compra = Compra.query.filter_by(lote_id=lote.id).first()
+        compra = Compra.query.filter_by(
+            lote_id=lote.id
+        ).first()
+
     elif lote.estado == "separado":
-        separacion = Separacion.query.filter_by(lote_id=lote.id, activa=True).first()
+        separacion = Separacion.query.filter_by(
+            lote_id=lote.id,
+            activa=True
+        ).first()
 
+    # Consultar la lotización activa
     lotizacion = None
-    if "lotizacion_id" in session:
-        lotizacion = Lotizacion.query.get(session["lotizacion_id"])
 
-    return render_template("detalle_lote.html", lote=lote, compra=compra, separacion=separacion, lotizacion=lotizacion)
+    if "lotizacion_id" in session:
+        lotizacion = Lotizacion.query.get(
+            session["lotizacion_id"]
+        )
+
+    return render_template(
+        "detalle_lote.html",
+        lote=lote,
+        compra=compra,
+        separacion=separacion,
+        lotizacion=lotizacion,
+        error_linderos=error_linderos
+    )
 
 @app.route("/estado_pagos")
 def estado_pagos():
@@ -624,6 +720,8 @@ def registrar_compra():
         telefono = request.form.get("telefono", "").strip()
         direccion = request.form.get("direccion", "").strip().lower()
         ciudad = request.form.get("ciudad", "").strip().lower()
+        provincia = request.form.get("provincia", "").strip().lower()
+        departamento = request.form.get("departamento", "").strip().lower()
         estado_civil = request.form.get("estado_civil", "").strip().lower()
         ocupacion = request.form.get("ocupacion", "").strip().lower()
 
@@ -645,6 +743,8 @@ def registrar_compra():
                 cliente.telefono = telefono
                 cliente.direccion = direccion
                 cliente.ciudad = ciudad
+                cliente.provincia = provincia
+                cliente.departamento = departamento
                 cliente.estado_civil = estado_civil
                 cliente.ocupacion = ocupacion
                 if correo:
@@ -662,6 +762,8 @@ def registrar_compra():
                 telefono=telefono,
                 direccion=direccion,
                 ciudad=ciudad,
+                provincia=provincia,
+                departamento=departamento,
                 estado_civil=estado_civil,  
                 ocupacion=ocupacion,
                 correo=correo if correo else None 
@@ -674,6 +776,8 @@ def registrar_compra():
             cliente.telefono = telefono
             cliente.direccion = direccion
             cliente.ciudad = ciudad
+            cliente.provincia = provincia
+            cliente.departamento = departamento
             cliente.estado_civil = estado_civil
             cliente.ocupacion = ocupacion
             if correo:  # 👈 NUEVO: Solo actualiza si hay correo
@@ -864,6 +968,8 @@ def registrar_separacion():
         telefono = request.form.get("telefono").strip()
         direccion = request.form.get("direccion").strip().lower()
         ciudad = request.form.get("ciudad").strip().lower()
+        provincia = request.form.get("provincia", "").strip().lower()
+        departamento = request.form.get("departamento", "").strip().lower()
         correo = request.form.get("correo", "").strip().lower()
 
         # 🔹 Nuevos campos
@@ -883,6 +989,8 @@ def registrar_separacion():
                 telefono=telefono,
                 direccion=direccion,
                 ciudad=ciudad,
+                provincia=provincia,
+                departamento=departamento,
                 estado_civil=estado_civil,
                 ocupacion=ocupacion,
                 correo=correo if correo else None
@@ -896,6 +1004,8 @@ def registrar_separacion():
             cliente.telefono = telefono or cliente.telefono
             cliente.direccion = direccion or cliente.direccion
             cliente.ciudad = ciudad or cliente.ciudad
+            cliente.provincia = provincia or cliente.provincia
+            cliente.departamento = departamento or cliente.departamento
             cliente.correo = correo or cliente.correo
 
         # ✅ Subida de fotos de DNI
@@ -1679,7 +1789,11 @@ def get_cliente_por_dni():
         "ocupacion": cliente.ocupacion or "",
         "telefono": cliente.telefono or "",
         "direccion": cliente.direccion or "",
-        "ciudad": cliente.ciudad or ""
+        "ciudad": cliente.ciudad or "",
+        "provincia": cliente.provincia or "",
+        "departamento": cliente.departamento or "",
+        "dni_frontal": cliente.dni_frontal or "",
+        "dni_reverso": cliente.dni_reverso or ""
     })
 
 @app.route("/exportar_ventas", methods=["GET"])
@@ -2380,28 +2494,98 @@ def cambiar_rol(usuario_id):
  
  
 # ------------------- CREAR LOTIZACIÓN (solo superadmin) -------------------
+# ------------------- CREAR LOTIZACIÓN -------------------
+
 @app.route("/superadmin/crear_lotizacion", methods=["GET", "POST"])
 @login_required
 @superadmin_required
 def crear_lotizacion():
     if request.method == "POST":
         nombre = request.form.get("nombre", "").strip()
-        if not nombre:
-            flash("El nombre es obligatorio.", "danger")
-            return redirect(url_for("crear_lotizacion"))
- 
+        distrito = request.form.get("distrito", "").strip()
+        provincia = request.form.get("provincia", "").strip()
+        departamento = request.form.get("departamento", "").strip()
+
+        valores = (
+            nombre,
+            distrito,
+            provincia,
+            departamento,
+        )
+
+        if not all(valores):
+            flash(
+                "Completa el nombre, distrito, provincia y departamento.",
+                "danger"
+            )
+
+            return render_template(
+                "crear_lotizacion.html",
+                desde_superadmin=True
+            )
+
+        if any(len(valor) > 100 for valor in valores):
+            flash(
+                "Cada campo admite como máximo 100 caracteres.",
+                "danger"
+            )
+
+            return render_template(
+                "crear_lotizacion.html",
+                desde_superadmin=True
+            )
+
         if Lotizacion.query.filter_by(nombre=nombre).first():
-            flash("Ya existe una lotización con ese nombre.", "warning")
-            return redirect(url_for("crear_lotizacion"))
- 
-        nueva = Lotizacion(nombre=nombre)
-        db.session.add(nueva)
-        db.session.commit()
-        flash(f"✅ Lotización '{nombre}' creada.", "success")
+            flash(
+                "Ya existe una lotización con ese nombre.",
+                "warning"
+            )
+
+            return render_template(
+                "crear_lotizacion.html",
+                desde_superadmin=True
+            )
+
+        try:
+            nueva = Lotizacion(
+                nombre=nombre,
+                distrito=distrito,
+                provincia=provincia,
+                departamento=departamento
+            )
+
+            db.session.add(nueva)
+            db.session.commit()
+
+        except Exception:
+            db.session.rollback()
+
+            current_app.logger.exception(
+                "Error al crear la lotización"
+            )
+
+            flash(
+                "No se pudo crear la lotización. "
+                "Revisa los datos e inténtalo nuevamente.",
+                "danger"
+            )
+
+            return render_template(
+                "crear_lotizacion.html",
+                desde_superadmin=True
+            )
+
+        flash(
+            f"✅ Lotización '{nombre}' creada con su ubicación.",
+            "success"
+        )
+
         return redirect(url_for("panel_superadmin"))
- 
-    return render_template("crear_lotizacion.html", desde_superadmin=True)
- 
+
+    return render_template(
+        "crear_lotizacion.html",
+        desde_superadmin=True
+    )
  
 # ------------------- ELIMINAR LOTIZACIÓN (solo superadmin) -------------------
 @app.route("/superadmin/eliminar_lotizacion/<int:lot_id>", methods=["POST"])
@@ -2613,6 +2797,1151 @@ def eliminar_documento_drive(doc_id):
 
     return redirect(request.referrer)
 
+
+
+# ------------------- EDITAR UBICACIÓN DE LOTIZACIÓN -------------------
+
+@app.route(
+    "/superadmin/editar_ubicacion/<int:lot_id>",
+    methods=["POST"]
+)
+@login_required
+@superadmin_required
+def editar_ubicacion_lotizacion(lot_id):
+    lotizacion = Lotizacion.query.get_or_404(lot_id)
+
+    distrito = request.form.get("distrito", "").strip()
+    provincia = request.form.get("provincia", "").strip()
+    departamento = request.form.get("departamento", "").strip()
+
+    valores = (distrito, provincia, departamento)
+
+    if not all(valores):
+        flash(
+            "Completa el distrito, la provincia y el departamento.",
+            "danger"
+        )
+        return redirect(url_for("panel_superadmin"))
+
+    if any(len(valor) > 100 for valor in valores):
+        flash(
+            "Cada campo admite como máximo 100 caracteres.",
+            "danger"
+        )
+        return redirect(url_for("panel_superadmin"))
+
+    try:
+        lotizacion.distrito = distrito
+        lotizacion.provincia = provincia
+        lotizacion.departamento = departamento
+
+        db.session.commit()
+
+        flash(
+            f"Ubicación de '{lotizacion.nombre}' actualizada.",
+            "success"
+        )
+
+    except Exception:
+        db.session.rollback()
+
+        current_app.logger.exception(
+            "Error al actualizar la ubicación de la lotización %s",
+            lot_id
+        )
+
+        flash(
+            "No se pudo guardar la ubicación. Inténtalo nuevamente.",
+            "danger"
+        )
+
+    return redirect(url_for("panel_superadmin"))
+
+
+
+
+_LM_CAMPOS = ('lindero_frente', 'lindero_derecha', 'lindero_izquierda', 'lindero_fondo')
+
+
+def _lm_numero(valor):
+    texto = str(valor).strip()
+    return str(int(texto)) if texto.isdigit() else texto
+
+
+def _lm_huella(lote):
+    datos = [lote.lotizacion_id, lote.manzana, lote.numero, str(lote.area)]
+    datos += [getattr(lote, campo) for campo in _LM_CAMPOS]
+    datos.append(str(lote.perimetro))
+    return hashlib.sha256(json.dumps(datos, ensure_ascii=False).encode()).hexdigest()
+
+
+def _lm_extraer(texto):
+    texto = texto.replace('\r\n', '\n').replace('\r', '\n').replace('\xa0', ' ')
+    cabecera = r'^[ \t]*MANZANA[ \t]+(.+?)[ \t]*[-–—][ \t]*LOTE[ \t]+(\d+)([^\n]*)$'
+    bloques = list(re.finditer(cabecera, texto, re.I | re.M))
+    if not bloques or len(bloques) > 200:
+        raise ValueError('Pega entre 1 y 200 lotes con encabezados como MANZANA A - LOTE 01.')
+    patron = r'^[ \t]*(?:por[ \t]+(?:el|la)[ \t]+)?(frente|derecha(?:[ \t]+entrando)?|izquierda(?:[ \t]+entrando)?|fondo|per[ií]metro|[aá]rea(?:[ \t]+total|[ \t]+y[ \t]+per[ií]metro)?)[ \t]*(?::|[-–]|(?=$))[ \t]*'
+    filas = []
+    for i, bloque in enumerate(bloques):
+        fin = bloques[i + 1].start() if i + 1 < len(bloques) else len(texto)
+        cuerpo = texto[bloque.end():fin]
+        marcas = list(re.finditer(patron, cuerpo, re.I | re.M))
+        dato = {}
+        error = ''
+        for j, marca in enumerate(marcas):
+            etiqueta = marca.group(1).lower()
+            if etiqueta.startswith(('área', 'area')):
+                if 'per' in etiqueta:
+                    continue
+                campo = 'area_memoria'
+            elif etiqueta.startswith('frente'):
+                campo = 'lindero_frente'
+            elif etiqueta.startswith('derecha'):
+                campo = 'lindero_derecha'
+            elif etiqueta.startswith('izquierda'):
+                campo = 'lindero_izquierda'
+            elif etiqueta.startswith('fondo'):
+                campo = 'lindero_fondo'
+            else:
+                campo = 'perimetro'
+            limite = marcas[j + 1].start() if j + 1 < len(marcas) else len(cuerpo)
+            if campo in dato:
+                error = 'Hay campos repetidos.'
+            dato[campo] = cuerpo[marca.end():limite].strip()
+        fila = {'manzana': bloque.group(1).strip().upper(), 'numero': _lm_numero(bloque.group(2)),
+                'dato': dato, 'estado': error, 'listo': False}
+        if bloque.group(3).strip():
+            fila['estado'] = 'Revisar: ' + bloque.group(3).strip()
+        if any(not dato.get(c) for c in (*_LM_CAMPOS, 'perimetro')):
+            fila['estado'] = 'Faltan linderos o perímetro.'
+        for campo in ('perimetro', 'area_memoria'):
+            if campo not in dato:
+                continue
+            numero = re.fullmatch(r'(\d+(?:[.,]\d+)?)[ \t]*(?:ml\.?|m\.?|metros?\.?|m²|m2)?\.?', dato[campo], re.I)
+            if not numero or Decimal(numero.group(1).replace(',', '.')) <= 0:
+                fila['estado'] = 'Medida inválida: ' + campo
+            else:
+                dato[campo] = numero.group(1).replace(',', '.')
+        filas.append(fila)
+    claves = [(f['manzana'], f['numero']) for f in filas]
+    for fila in filas:
+        if claves.count((fila['manzana'], fila['numero'])) > 1:
+            fila['estado'] = 'Lote repetido en el texto.'
+    return filas
+
+
+@app.route('/superadmin/linderos_manzana', methods=['GET', 'POST'])
+@login_required
+@superadmin_required
+def linderos_manzana():
+    firmador = URLSafeTimedSerializer(app.config['SECRET_KEY'], salt='linderos-manzana-v1')
+    if request.method == 'GET':
+        proyecto_id = request.args.get('lotizacion_id', type=int)
+        proyecto = Lotizacion.query.get(proyecto_id) if proyecto_id else None
+        if not proyecto:
+            return jsonify(error='Selecciona un proyecto válido.'), 400
+        manzanas = db.session.query(Lote.manzana).filter_by(lotizacion_id=proyecto.id).distinct().order_by(Lote.manzana).all()
+        csrf = session.setdefault('lm_csrf', secrets.token_hex(32))
+        return jsonify(manzanas=[m[0] for m in manzanas], csrf=csrf)
+
+    datos = request.get_json(silent=True)
+    if not isinstance(datos, dict):
+        return jsonify(error='Solicitud inválida.'), 400
+    if not session.get('lm_csrf') or datos.get('csrf') != session['lm_csrf']:
+        return jsonify(error='Recarga el panel y selecciona el proyecto nuevamente.'), 403
+
+    try:
+        if datos.get('accion') == 'revisar':
+            texto = datos.get('texto', '')
+            if not isinstance(texto, str) or len(texto) > 120000:
+                raise ValueError('El texto supera el tamaño permitido.')
+            proyecto_id = int(datos.get('lotizacion_id') or 0)
+            manzana = str(datos.get('manzana', '')).strip()
+            lotes = Lote.query.filter_by(lotizacion_id=proyecto_id, manzana=manzana).all()
+            if not lotes:
+                raise ValueError('Esa manzana no tiene lotes en el proyecto seleccionado.')
+            indice = {}
+            for lote in lotes:
+                indice.setdefault(_lm_numero(lote.numero), []).append(lote)
+            filas = _lm_extraer(texto)
+            guardar = []
+            for fila in filas:
+                if fila['estado']:
+                    continue
+                candidatos = indice.get(fila['numero'], [])
+                if fila['manzana'] != manzana.upper():
+                    fila['estado'] = 'Pertenece a otra manzana.'
+                elif len(candidatos) != 1:
+                    fila['estado'] = 'Lote inexistente o número ambiguo.'
+                else:
+                    lote = candidatos[0]
+                    if any(getattr(lote, c) for c in _LM_CAMPOS) or lote.perimetro is not None:
+                        fila['estado'] = 'Ya tiene datos; editar individualmente.'
+                    elif 'area_memoria' in fila['dato'] and abs(Decimal(str(lote.area)) - Decimal(fila['dato']['area_memoria'])) > Decimal('0.01'):
+                        fila['estado'] = 'El área difiere de la registrada.'
+                    else:
+                        fila['listo'] = True
+                        fila['estado'] = 'Listo para guardar'
+                        guardar.append({'id': lote.id, 'huella': _lm_huella(lote), 'dato': fila['dato']})
+            token = firmador.dumps({'usuario': current_user.id, 'proyecto': proyecto_id, 'manzana': manzana, 'lotes': guardar}) if guardar else None
+            return jsonify(filas=filas, token=token, listos=len(guardar))
+
+        if datos.get('accion') == 'guardar':
+            token = datos.get('token')
+            if not isinstance(token, str) or len(token) > 500000:
+                raise ValueError('Primero revisa el texto.')
+            revision = firmador.loads(token, max_age=1800)
+            if revision['usuario'] != current_user.id:
+                raise ValueError('La revisión pertenece a otra sesión de usuario.')
+            ids = [f['id'] for f in revision['lotes']]
+            lotes = Lote.query.filter(Lote.id.in_(ids), Lote.lotizacion_id == revision['proyecto'], Lote.manzana == revision['manzana']).with_for_update().all()
+            indice = {l.id: l for l in lotes}
+            for fila in revision['lotes']:
+                lote = indice.get(fila['id'])
+                if not lote or _lm_huella(lote) != fila['huella']:
+                    raise ValueError('Un lote cambió después de revisar. Vuelve a pulsar Separar y revisar.')
+            for fila in revision['lotes']:
+                lote = indice[fila['id']]
+                for campo in _LM_CAMPOS:
+                    setattr(lote, campo, fila['dato'][campo])
+                lote.perimetro = float(fila['dato']['perimetro'])
+            db.session.commit()
+            return jsonify(mensaje=f'Se guardaron los linderos de {len(ids)} lotes.')
+        raise ValueError('Acción inválida.')
+    except (BadSignature, SignatureExpired):
+        db.session.rollback()
+        return jsonify(error='La revisión venció o no es válida. Revisa el texto nuevamente.'), 400
+    except (ValueError, TypeError, InvalidOperation) as exc:
+        db.session.rollback()
+        return jsonify(error=str(exc)), 400
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception('Error en carga de linderos por manzana')
+        return jsonify(error='No se pudo completar la operación. Revisa el registro de errores del servidor.'), 500
+
+
+# CONFIGURACIÓN Y GENERACIÓN DE ACTAS
+
+@app.template_global()
+def token_config_acta():
+    import secrets
+
+    if not session.get("acta_csrf"):
+        session["acta_csrf"] = secrets.token_urlsafe(32)
+
+    return session["acta_csrf"]
+
+
+@app.route(
+    "/superadmin/configurar_acta/<int:lot_id>",
+    methods=["POST"]
+)
+@login_required
+@superadmin_required
+def configurar_acta(lot_id):
+    import secrets
+    from PIL import Image, UnidentifiedImageError
+
+    recibido = request.form.get("acta_csrf", "")
+    esperado = session.get("acta_csrf", "")
+
+    if not esperado or not secrets.compare_digest(
+        recibido.encode(),
+        esperado.encode()
+    ):
+        return "Recarga el panel e inténtalo nuevamente.", 403
+
+    lot = Lotizacion.query.get_or_404(lot_id)
+
+    limites = {
+        "acta_empresa": 200,
+        "acta_ruc": 11,
+        "acta_domicilio": 250,
+        "acta_representante": 200,
+        "acta_cargo": 100,
+        "acta_dni_representante": 8,
+    }
+
+    datos = {
+        campo: request.form.get(campo, "").strip()
+        for campo in limites
+    }
+
+    try:
+        if not all(datos.values()):
+            raise ValueError(
+                "Completa todos los datos de la empresa. "
+                "El logo es opcional."
+            )
+
+        if any(
+            len(datos[campo]) > limite
+            for campo, limite in limites.items()
+        ):
+            raise ValueError(
+                "Uno de los campos supera el tamaño permitido."
+            )
+
+        if not re.fullmatch(r"[0-9]{11}", datos["acta_ruc"]):
+            raise ValueError("El RUC debe tener 11 dígitos.")
+
+        if not re.fullmatch(
+            r"[0-9]{8}",
+            datos["acta_dni_representante"]
+        ):
+            raise ValueError(
+                "El DNI del representante debe tener 8 dígitos."
+            )
+
+        archivo = request.files.get("acta_logo")
+        quitar_logo = request.form.get("quitar_logo") == "1"
+        nuevo_logo = None
+
+        if archivo and archivo.filename:
+            if quitar_logo:
+                raise ValueError(
+                    'Desmarca "Quitar logo" si quieres subir uno nuevo.'
+                )
+
+            contenido = archivo.stream.read(
+                5 * 1024 * 1024 + 1
+            )
+
+            if len(contenido) > 5 * 1024 * 1024:
+                raise ValueError(
+                    "El logo debe pesar como máximo 5 MB."
+                )
+
+            try:
+                with Image.open(io.BytesIO(contenido)) as imagen:
+                    if imagen.format not in ("PNG", "JPEG"):
+                        raise ValueError(
+                            "El logo debe ser una imagen PNG o JPG."
+                        )
+
+                    if imagen.width * imagen.height > 12000000:
+                        raise ValueError(
+                            "El logo es demasiado grande. "
+                            "Usa una imagen menor a 12 megapíxeles."
+                        )
+
+                    imagen = imagen.convert("RGBA")
+                    imagen.thumbnail((1000, 1000))
+
+                    salida = io.BytesIO()
+                    imagen.save(salida, format="PNG")
+                    nuevo_logo = salida.getvalue()
+
+            except (
+                UnidentifiedImageError,
+                OSError,
+                Image.DecompressionBombError
+            ):
+                raise ValueError(
+                    "No se pudo leer el logo. Selecciona otro PNG o JPG."
+                )
+
+        for campo, valor in datos.items():
+            setattr(lot, campo, valor)
+
+        if nuevo_logo is not None:
+            lot.acta_logo = nuevo_logo
+        elif quitar_logo:
+            lot.acta_logo = None
+
+        db.session.commit()
+
+        flash(
+            f"Configuración del acta guardada para {lot.nombre}.",
+            "success"
+        )
+
+    except ValueError as error:
+        db.session.rollback()
+        flash(str(error), "danger")
+
+    except Exception:
+        db.session.rollback()
+
+        current_app.logger.exception(
+            "Error al configurar el acta del proyecto %s",
+            lot_id
+        )
+
+        flash(
+            "No se pudo guardar la configuración del acta.",
+            "danger"
+        )
+
+    return redirect(url_for("panel_superadmin"))
+
+
+@app.route("/superadmin/logo_acta/<int:lot_id>")
+@login_required
+@superadmin_required
+def logo_acta(lot_id):
+    lot = Lotizacion.query.get_or_404(lot_id)
+
+    if not lot.acta_logo:
+        return "", 404
+
+    respuesta = send_file(
+        io.BytesIO(lot.acta_logo),
+        mimetype="image/png"
+    )
+
+    respuesta.headers["Cache-Control"] = "private, no-store"
+
+    return respuesta
+
+
+def _crear_pdf_acta(datos, logo, fecha):
+    import io
+    from decimal import Decimal, InvalidOperation
+    from xml.sax.saxutils import escape
+
+    from reportlab.lib import colors
+    from reportlab.lib.enums import TA_CENTER, TA_LEFT
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.lib.utils import ImageReader
+    from reportlab.platypus import (
+        SimpleDocTemplate, Paragraph, Spacer,
+        Table, TableStyle, KeepTogether,
+    )
+    from reportlab.platypus.doctemplate import LayoutError
+
+    def texto(valor):
+        return (
+            escape(str(valor))
+            .replace("\r\n", "\n")
+            .replace("\n", "<br/>")
+        )
+
+    def medida(valor, etiqueta):
+        try:
+            numero = Decimal(str(valor))
+            if not numero.is_finite() or numero <= 0:
+                raise InvalidOperation()
+        except (InvalidOperation, ValueError):
+            raise ValueError(
+                f"{etiqueta} debe ser un número mayor que cero."
+            )
+
+        entero, _, decimales = format(numero, "f").partition(".")
+        return entero + "." + decimales.rstrip("0").ljust(2, "0")
+
+    d = {
+        campo: texto(valor)
+        for campo, valor in datos.items()
+    }
+
+    d["area"] = medida(datos["area"], "El área")
+    d["perimetro"] = medida(datos["perimetro"], "El perímetro")
+
+    meses = (
+        "enero", "febrero", "marzo", "abril",
+        "mayo", "junio", "julio", "agosto",
+        "septiembre", "octubre", "noviembre", "diciembre",
+    )
+
+    fecha_texto = (
+        f"{fecha.day} de {meses[fecha.month - 1]} de {fecha.year}"
+    )
+
+    ancho, alto = letter
+    margen = 58
+
+    dorado = colors.HexColor("#A38043")
+    oscuro = colors.HexColor("#262D32")
+    gris = colors.HexColor("#656D75")
+    linea = colors.HexColor("#DDD7CB")
+
+    imagen = ImageReader(io.BytesIO(logo)) if logo else None
+
+    # Organiza el nombre de la empresa en la cabecera.
+    nombre_completo = " ".join(str(datos["empresa"]).split())
+    descriptor = ""
+    nombre_cabecera = nombre_completo
+
+    for prefijo in (
+        "CONSTRUCTORA E INMOBILIARIA",
+        "CONSTRUCTORA Y INMOBILIARIA",
+        "INMOBILIARIA Y CONSTRUCTORA",
+        "INMOBILIARIA",
+        "CONSTRUCTORA",
+    ):
+        if nombre_completo.upper().startswith(prefijo + " "):
+            descriptor = nombre_completo[:len(prefijo)]
+            nombre_cabecera = nombre_completo[len(prefijo):].strip()
+            break
+
+        x_empresa = margen + 92 if imagen else margen
+    x_separador = ancho - margen - 118
+    ancho_empresa = x_separador - 18 - x_empresa
+
+    estilo_descriptor = ParagraphStyle(
+        "descriptor",
+        fontName="Helvetica-Bold",
+        fontSize=8.3,
+        leading=11,
+        textColor=dorado,
+        alignment=TA_LEFT,
+    )
+
+    descripcion = (
+        Paragraph(texto(descriptor.upper()), estilo_descriptor)
+        if descriptor else None
+    )
+
+    alto_descripcion = (
+        descripcion.wrap(ancho_empresa, 30)[1]
+        if descripcion else 0
+    )
+
+    for letra in (23, 21, 19, 17, 15, 13, 11):
+        estilo_empresa = ParagraphStyle(
+            "empresa",
+            fontName="Helvetica-Bold",
+            fontSize=letra,
+            leading=letra + 3,
+            textColor=oscuro,
+            alignment=TA_LEFT,
+        )
+
+        empresa = Paragraph(
+            texto(nombre_cabecera.upper()),
+            estilo_empresa,
+        )
+
+        _, alto_empresa = empresa.wrap(ancho_empresa, 70)
+
+        alto_cabecera = (
+            (alto_descripcion + 6 if descripcion else 0)
+            + alto_empresa
+        )
+
+        if alto_cabecera <= 70:
+            break
+
+    else:
+        raise ValueError(
+            "El nombre de la empresa es demasiado extenso "
+            "para el membrete."
+        )
+
+    def dibujar_logo(canvas, x, y, caja_ancho, caja_alto):
+        original_ancho, original_alto = imagen.getSize()
+
+        escala = min(
+            caja_ancho / original_ancho,
+            caja_alto / original_alto,
+        )
+
+        w = original_ancho * escala
+        h = original_alto * escala
+
+        canvas.drawImage(
+            imagen,
+            x + (caja_ancho - w) / 2,
+            y + (caja_alto - h) / 2,
+            width=w,
+            height=h,
+            mask="auto",
+        )
+
+    for tamano, interlineado in (
+        (10.5, 15),
+        (10.2, 14.5),
+        (9.8, 13.8),
+    ):
+        memoria = io.BytesIO()
+        paginas = [0]
+
+        cuerpo = ParagraphStyle(
+            "cuerpo",
+            fontName="Helvetica",
+            fontSize=tamano,
+            leading=interlineado,
+            textColor=oscuro,
+            alignment=TA_LEFT,
+            spaceAfter=11,
+        )
+
+        titulo = ParagraphStyle(
+            "titulo",
+            fontName="Helvetica-Bold",
+            fontSize=12,
+            leading=16,
+            alignment=TA_CENTER,
+            textColor=oscuro,
+            spaceAfter=19,
+        )
+
+        lindero = ParagraphStyle(
+            "lindero",
+            parent=cuerpo,
+            leftIndent=12,
+            spaceAfter=3,
+        )
+
+        perimetro = ParagraphStyle(
+            "perimetro",
+            parent=lindero,
+            spaceAfter=12,
+        )
+
+        fecha_estilo = ParagraphStyle(
+            "fecha",
+            parent=cuerpo,
+            alignment=TA_CENTER,
+            spaceAfter=0,
+        )
+
+        firma_estilo = ParagraphStyle(
+            "firma",
+            fontName="Helvetica-Bold",
+            fontSize=9.4,
+            leading=12.5,
+            alignment=TA_CENTER,
+            textColor=oscuro,
+        )
+
+        dni_estilo = ParagraphStyle(
+            "dni",
+            parent=firma_estilo,
+            fontName="Helvetica-Bold",
+            fontSize=9,
+            textColor=gris,
+        )
+
+        def membrete(canvas, documento):
+            paginas[0] = documento.page
+            canvas.saveState()
+
+            # Fondo beige superior.
+            beige_superior = colors.HexColor("#F2E9D8")
+            altura_fondo = 120
+            franjas = 80
+            altura_franja = altura_fondo / franjas
+
+            for i in range(franjas):
+                intensidad = (i + 1) / franjas
+
+                canvas.setFillColor(
+                    colors.Color(
+                        1 - (1 - beige_superior.red) * intensidad,
+                        1 - (1 - beige_superior.green) * intensidad,
+                        1 - (1 - beige_superior.blue) * intensidad,
+                    )
+                )
+
+                canvas.rect(
+                    0,
+                    alto - altura_fondo + i * altura_franja,
+                    ancho,
+                    altura_franja + 0.2,
+                    fill=1,
+                    stroke=0,
+                )
+
+            # Marco ondulado inferior.
+            canvas.setFillColor(colors.HexColor("#F1E8D3"))
+
+            curva = canvas.beginPath()
+            curva.moveTo(0, 0)
+            curva.lineTo(0, 164)
+
+            curva.curveTo(
+                ancho * 0.245, 50,
+                ancho * 0.572, 15,
+                ancho, 84,
+            )
+
+            curva.lineTo(ancho, 0)
+            curva.close()
+
+            canvas.drawPath(curva, fill=1, stroke=0)
+
+            canvas.setFillColor(dorado)
+            canvas.rect(0, 10, 15, 60, fill=1, stroke=0)
+
+            canvas.rect(
+                ancho - 15, 28, 15, 42,
+                fill=1, stroke=0,
+            )
+
+            if imagen:
+                # Marca de agua.
+                canvas.saveState()
+                canvas.setFillAlpha(0.045)
+
+                dibujar_logo(
+                    canvas,
+                    ancho / 2 - 130,
+                    260,
+                    260,
+                    260,
+                )
+
+                canvas.restoreState()
+
+                # Logo de la cabecera.
+                dibujar_logo(
+                    canvas,
+                    margen,
+                    alto - 101,
+                    72,
+                    72,
+                )
+
+            # Descripción, nombre de empresa y RUC.
+                        # Nombre de la empresa a la izquierda.
+            y_cabecera = alto - 65 + alto_cabecera / 2
+
+            if descripcion:
+                descripcion.drawOn(
+                    canvas,
+                    x_empresa,
+                    y_cabecera - alto_descripcion,
+                )
+
+                y_cabecera -= alto_descripcion + 6
+
+            empresa.drawOn(
+                canvas,
+                x_empresa,
+                y_cabecera - alto_empresa,
+            )
+
+            # Separador vertical del RUC.
+            canvas.setStrokeColor(linea)
+            canvas.setLineWidth(0.6)
+
+            canvas.line(
+                x_separador,
+                alto - 83,
+                x_separador,
+                alto - 47,
+            )
+
+            # RUC a la derecha.
+            canvas.setFillColor(gris)
+            canvas.setFont("Helvetica-Bold", 7.5)
+
+            canvas.drawRightString(
+                ancho - margen,
+                alto - 59,
+                "RUC Nº",
+            )
+
+            canvas.setFillColor(oscuro)
+            canvas.setFont("Helvetica-Bold", 11)
+
+            canvas.drawRightString(
+                ancho - margen,
+                alto - 75,
+                str(datos["ruc"]),
+            )
+
+            # Línea inferior del encabezado.
+            canvas.setStrokeColor(dorado)
+            canvas.setLineWidth(0.7)
+
+            canvas.line(
+                margen,
+                alto - 108,
+                ancho - margen,
+                alto - 108,
+            )
+            # Pie de página.
+            canvas.setFont("Helvetica-Bold", 6.8)
+            canvas.setFillColor(gris)
+
+            canvas.drawString(
+                margen,
+                22,
+                "ACTA DE ENTREGA DE LOTE DE TERRENO",
+            )
+
+            canvas.drawRightString(
+                ancho - margen,
+                22,
+                str(documento.page),
+            )
+
+            canvas.restoreState()
+
+        contenido = [
+            Paragraph(
+                "ACTA DE ENTREGA LOTE DE TERRENO",
+                titulo,
+            )
+        ]
+
+        contenido.append(
+            Paragraph(
+                f'Por el presente documento: La empresa '
+                f'<b>{d["empresa"]}</b>, '
+                f'con <b>RUC&nbsp;Nº&nbsp;{d["ruc"]}</b>, '
+                f'con domicilio legal en {d["domicilio_empresa"]}, '
+                f'representada por su {d["cargo"]} '
+                f'<b>{d["representante"]}</b>, '
+                f'con <b>DNI&nbsp;Nº&nbsp;{d["dni_representante"]}</b>, '
+                f'hace entrega a <b>{d["cliente"]}</b>, '
+                f'con <b>DNI&nbsp;Nº&nbsp;{d["dni"]}</b>, '
+                f'con domicilio en {d["direccion_cliente"]}, '
+                f'distrito de {d["distrito_cliente"]}, '
+                f'provincia de {d["provincia_cliente"]} '
+                f'y departamento de {d["departamento_cliente"]}.',
+                cuerpo,
+            )
+        )
+
+        contenido.append(
+            Paragraph(
+                f'El lote de terreno urbano Nº <b>{d["numero"]}</b> '
+                f'de la manzana <b>{d["manzana"]}</b>, '
+                f'con un área de <b>{d["area"]} m²</b>; '
+                f'cuyos linderos y medida perimétrica son:',
+                cuerpo,
+            )
+        )
+
+        # Linderos en una lista sencilla.
+        lista_linderos = []
+
+        for campo, nombre in (
+            ("frente", "Frente"),
+            ("derecha", "Derecha entrando"),
+            ("izquierda", "Izquierda entrando"),
+            ("fondo", "Fondo"),
+        ):
+            lista_linderos.append(
+                Paragraph(
+                    f'<b>{nombre}:</b> {d[campo]}',
+                    lindero,
+                )
+            )
+
+        lista_linderos.append(
+            Paragraph(
+                f'<b>Perímetro: {d["perimetro"]} ml.</b>',
+                perimetro,
+            )
+        )
+
+        contenido.append(KeepTogether(lista_linderos))
+
+        contenido.append(
+            Paragraph(
+                f'De la Lotización <b>“{d["proyecto"]}”</b>, '
+                f'ubicada en el distrito de {d["distrito_proyecto"]}, '
+                f'provincia de {d["provincia_proyecto"]}, '
+                f'departamento de {d["departamento_proyecto"]}.',
+                cuerpo,
+            )
+        )
+
+        contenido.append(
+            Paragraph(
+                f'La entrega de este terreno por parte de '
+                f'<b>{d["empresa"]}</b> se efectúa en conformidad '
+                f'con el Art. Nº 1583 del Código Civil. '
+                f'De esto, <b>EL COMPRADOR</b> adquiere la calidad prevista '
+                f'por el Art. Nº 905 del Código Civil, '
+                f'y en virtud de ello <b>{d["cliente"]}</b> '
+                f'y <b>{d["empresa"]}</b> aceptan los alcances '
+                f'que se realicen sobre el predio; '
+                f'la exclusividad y responsabilidad corresponden '
+                f'al <b>COMPRADOR</b> sobre el área de su propiedad.',
+                cuerpo,
+            )
+        )
+
+        contenido.append(
+            Paragraph(
+                f'El comprador, <b>{d["cliente"]}</b>, declara '
+                f'que recibe el terreno a su satisfacción, '
+                f'acepta y da conformidad con todo lo expuesto '
+                f'en el <b>ACTA DE ENTREGA</b>.',
+                cuerpo,
+            )
+        )
+
+        # Firma del cliente centrada.
+        bloque_firma = Table(
+            [
+                [Paragraph(d["cliente"], firma_estilo)],
+                [Paragraph(f'DNI Nº {d["dni"]}', dni_estilo)],
+            ],
+            colWidths=[300],
+            hAlign="CENTER",
+        )
+
+        bloque_firma.setStyle(TableStyle([
+            ("LINEABOVE", (0, 0), (0, 0), 0.6, gris),
+            ("TOPPADDING", (0, 0), (0, 0), 7),
+            ("TOPPADDING", (0, 1), (0, 1), 1),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+        ]))
+
+        contenido.append(
+            KeepTogether([
+                Spacer(1, 7),
+                Paragraph(
+                    f'{d["distrito_proyecto"]}, {fecha_texto}',
+                    fecha_estilo,
+                ),
+                Spacer(1, 46),
+                bloque_firma,
+            ])
+        )
+
+        documento = SimpleDocTemplate(
+            memoria,
+            pagesize=letter,
+            leftMargin=margen - 6,
+            rightMargin=margen - 6,
+            topMargin=126,
+            bottomMargin=106,
+            title="Acta de entrega de lote de terreno",
+            author=str(datos["empresa"]),
+        )
+
+        try:
+            documento.build(
+                contenido,
+                onFirstPage=membrete,
+                onLaterPages=membrete,
+            )
+        except LayoutError:
+            continue
+
+        if paginas[0] == 1:
+            memoria.seek(0)
+            return memoria
+
+    raise ValueError(
+        "El texto es demasiado extenso para una hoja. "
+        "Revisa la información del lote y la empresa."
+    )
+
+@app.route("/generar_acta_entrega/<int:compra_id>")
+@login_required
+@lotizacion_required
+def generar_acta_entrega(compra_id):
+    compra = Compra.query.get_or_404(compra_id)
+    lote = compra.lote
+
+    bloqueo = bloquear_si_no_es_lotizacion_activa(
+        lote.lotizacion_id
+    )
+
+    if bloqueo:
+        return bloqueo
+
+    if compra.anulada or lote.estado != "vendido":
+        flash(
+            "El acta requiere una compra vigente de un lote vendido.",
+            "warning"
+        )
+        return redirect(
+            url_for("detalle_lote", lote_id=lote.id)
+        )
+
+    proyecto = lote.lotizacion
+    cliente = compra.cliente
+
+    if not proyecto or not cliente:
+        flash(
+            "No se encontró el proyecto o el cliente de la compra.",
+            "danger"
+        )
+        return redirect(
+            url_for("detalle_lote", lote_id=lote.id)
+        )
+
+    campos = {
+        "empresa": (
+            proyecto.acta_empresa,
+            "empresa del acta"
+        ),
+        "ruc": (
+            proyecto.acta_ruc,
+            "RUC de la empresa"
+        ),
+        "domicilio_empresa": (
+            proyecto.acta_domicilio,
+            "domicilio de la empresa"
+        ),
+        "representante": (
+            proyecto.acta_representante,
+            "representante"
+        ),
+        "cargo": (
+            proyecto.acta_cargo,
+            "cargo del representante"
+        ),
+        "dni_representante": (
+            proyecto.acta_dni_representante,
+            "DNI del representante"
+        ),
+        "nombre": (
+            cliente.nombre,
+            "nombre del cliente"
+        ),
+        "apellidos": (
+            cliente.apellidos,
+            "apellidos del cliente"
+        ),
+        "dni": (
+            cliente.dni,
+            "DNI del cliente"
+        ),
+        "direccion_cliente": (
+            cliente.direccion,
+            "dirección del cliente"
+        ),
+        "distrito_cliente": (
+            cliente.ciudad,
+            "distrito del cliente"
+        ),
+        "provincia_cliente": (
+            cliente.provincia,
+            "provincia del cliente"
+        ),
+        "departamento_cliente": (
+            cliente.departamento,
+            "departamento del cliente"
+        ),
+        "proyecto": (
+            proyecto.nombre,
+            "nombre del proyecto"
+        ),
+        "distrito_proyecto": (
+            getattr(proyecto, "distrito", None),
+            "distrito del proyecto"
+        ),
+        "provincia_proyecto": (
+            getattr(proyecto, "provincia", None),
+            "provincia del proyecto"
+        ),
+        "departamento_proyecto": (
+            getattr(proyecto, "departamento", None),
+            "departamento del proyecto"
+        ),
+        "manzana": (
+            lote.manzana,
+            "manzana"
+        ),
+        "numero": (
+            lote.numero,
+            "número de lote"
+        ),
+        "area": (
+            lote.area,
+            "área del lote"
+        ),
+        "frente": (
+            lote.lindero_frente,
+            "lindero frente"
+        ),
+        "derecha": (
+            lote.lindero_derecha,
+            "lindero derecha"
+        ),
+        "izquierda": (
+            lote.lindero_izquierda,
+            "lindero izquierda"
+        ),
+        "fondo": (
+            lote.lindero_fondo,
+            "lindero fondo"
+        ),
+        "perimetro": (
+            lote.perimetro,
+            "perímetro"
+        ),
+    }
+
+    faltantes = [
+        etiqueta
+        for valor, etiqueta in campos.values()
+        if valor is None or not str(valor).strip()
+    ]
+
+    if faltantes:
+        flash(
+            "Falta completar: " + ", ".join(faltantes) + ".",
+            "warning"
+        )
+        return redirect(
+            url_for("detalle_lote", lote_id=lote.id)
+        )
+
+    datos = {
+        campo: str(valor).strip()
+        for campo, (valor, _) in campos.items()
+    }
+
+    datos["cliente"] = (
+        datos.pop("nombre") + " " + datos.pop("apellidos")
+    ).upper()
+
+    try:
+        fecha = datetime.now(
+            pytz.timezone("America/Lima")
+        ).date()
+
+        archivo = _crear_pdf_acta(
+            datos,
+            proyecto.acta_logo,
+            fecha
+        )
+
+        nombre = secure_filename(
+            f"acta_Mz_{lote.manzana}_Lote_{lote.numero}"
+            f"_compra_{compra.id}.pdf"
+        )
+
+        respuesta = send_file(
+            archivo,
+            mimetype="application/pdf",
+            as_attachment=True,
+            download_name=nombre
+        )
+
+        respuesta.headers["Cache-Control"] = "private, no-store"
+
+        return respuesta
+
+    except ValueError as error:
+        flash(str(error), "warning")
+
+    except ImportError:
+        flash(
+            "Falta instalar ReportLab en el entorno "
+            "de Python del sistema.",
+            "danger"
+        )
+
+    except Exception:
+        current_app.logger.exception(
+            "Error al generar el acta de la compra %s",
+            compra_id
+        )
+
+        flash(
+            "No se pudo generar el acta. "
+            "Revisa el registro de errores del servidor.",
+            "danger"
+        )
+
+    return redirect(
+        url_for("detalle_lote", lote_id=lote.id)
+    )
 
 
 # ------------------- MAIN -------------------

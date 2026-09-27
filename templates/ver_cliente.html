@@ -516,20 +516,27 @@
 
                   <div class="info-label">Correo</div>
                   <div class="info-value">{{ cliente.correo or "No registrado" }}</div>
+
+                  <div class="info-label">Estado Civil</div>
+                  <div class="info-value text-capitalize">{{ cliente.estado_civil or "No registrado" }}</div>
                 </div>
 
                 <div class="col-12 col-sm-6">
-                  <div class="info-label">Estado Civil</div>
-                  <div class="info-value text-capitalize">{{ cliente.estado_civil or "No registrado" }}</div>
-
+                
                   <div class="info-label">Ocupación</div>
                   <div class="info-value text-capitalize">{{ cliente.ocupacion or "No registrada" }}</div>
 
                   <div class="info-label">Dirección</div>
                   <div class="info-value text-capitalize">{{ cliente.direccion or "No registrada" }}</div>
 
-                  <div class="info-label">Ciudad</div>
-                  <div class="info-value text-capitalize">{{ cliente.ciudad or "No registrada" }}</div>
+                  <div class="info-label">Distrito</div>
+                  <div class="info-value text-capitalize">{{ cliente.ciudad or "No registrado" }}</div>
+
+                  <div class="info-label">Provincia</div>
+                  <div class="info-value text-capitalize">{{ cliente.provincia or "No registrada" }}</div>
+
+                  <div class="info-label">Departamento</div>
+                  <div class="info-value text-capitalize">{{ cliente.departamento or "No registrado" }}</div>
                 </div>
               </div>
             </div>

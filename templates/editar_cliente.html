@@ -36,9 +36,23 @@
       <input type="text" name="telefono" id="telefono" value="{{ cliente.telefono }}" class="form-control">
     </div>
     <div class="col-md-6 mb-3">
-      <label for="ciudad" class="form-label">Ciudad</label>
-      <input type="text" name="ciudad" id="ciudad" value="{{ cliente.ciudad }}" class="form-control">
-    </div>
+  <label for="ciudad" class="form-label">Distrito</label>
+  <input type="text" name="ciudad" id="ciudad"
+         value="{{ cliente.ciudad or '' }}" class="form-control">
+</div>
+
+<div class="col-md-6 mb-3">
+  <label for="provincia" class="form-label">Provincia</label>
+  <input type="text" name="provincia" id="provincia"
+         value="{{ cliente.provincia or '' }}" class="form-control">
+</div>
+
+<div class="col-md-6 mb-3">
+  <label for="departamento" class="form-label">Departamento</label>
+  <input type="text" name="departamento" id="departamento"
+         value="{{ cliente.departamento or '' }}" class="form-control">
+</div>
+    
     <div class="col-md-6 mb-3">
       <label for="direccion" class="form-label">Dirección</label>
       <input type="text" name="direccion" id="direccion" value="{{ cliente.direccion }}" class="form-control">

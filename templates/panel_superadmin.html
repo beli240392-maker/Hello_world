@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+
 {% block content %}
 
 <div class="d-flex justify-content-between align-items-center mb-4">
@@ -6,9 +7,7 @@
   <span class="badge bg-danger fs-6">Solo tú puedes ver esto</span>
 </div>
 
-<!-- ══════════════════════════════════════════
-     TARJETAS DE RESUMEN
-══════════════════════════════════════════ -->
+<!-- TARJETAS DE RESUMEN -->
 <div class="row g-3 mb-4">
   <div class="col-6 col-md-2">
     <div class="card text-center border-primary h-100">
@@ -18,6 +17,7 @@
       </div>
     </div>
   </div>
+
   <div class="col-6 col-md-2">
     <div class="card text-center border-success h-100">
       <div class="card-body py-3">
@@ -26,6 +26,7 @@
       </div>
     </div>
   </div>
+
   <div class="col-6 col-md-2">
     <div class="card text-center border-info h-100">
       <div class="card-body py-3">
@@ -34,6 +35,7 @@
       </div>
     </div>
   </div>
+
   <div class="col-6 col-md-2">
     <div class="card text-center border-secondary h-100">
       <div class="card-body py-3">
@@ -42,6 +44,7 @@
       </div>
     </div>
   </div>
+
   <div class="col-6 col-md-2">
     <div class="card text-center border-dark h-100">
       <div class="card-body py-3">
@@ -50,6 +53,7 @@
       </div>
     </div>
   </div>
+
   <div class="col-6 col-md-2">
     <div class="card text-center border-warning h-100">
       <div class="card-body py-3">
@@ -62,14 +66,15 @@
 
 <div class="row g-4">
 
-  <!-- ══════════════════════════════════════════
-       COLUMNA IZQUIERDA
-  ══════════════════════════════════════════ -->
+  <!-- COLUMNA IZQUIERDA -->
   <div class="col-md-6">
 
     <!-- Actividad por vendedor -->
     <div class="card mb-4 shadow-sm">
-      <div class="card-header bg-dark text-white">📊 Actividad por usuario</div>
+      <div class="card-header bg-dark text-white">
+        📊 Actividad por usuario
+      </div>
+
       <div class="card-body p-0">
         <table class="table table-sm table-hover mb-0">
           <thead class="table-light">
@@ -79,20 +84,27 @@
               <th class="text-center">Separaciones</th>
             </tr>
           </thead>
+
           <tbody>
             {% for v in ventas_por_usuario %}
-            {% set sep = separaciones_por_usuario | selectattr('0', 'equalto', v[0]) | first %}
-            <tr>
-              <td>{{ v[0] }}</td>
-              <td class="text-center">
-                <span class="badge bg-success">{{ v[1] }}</span>
-              </td>
-              <td class="text-center">
-                <span class="badge bg-warning text-dark">{{ sep[1] if sep else 0 }}</span>
-              </td>
-            </tr>
+              {% set sep = separaciones_por_usuario | selectattr('0', 'equalto', v[0]) | first %}
+              <tr>
+                <td>{{ v[0] }}</td>
+                <td class="text-center">
+                  <span class="badge bg-success">{{ v[1] }}</span>
+                </td>
+                <td class="text-center">
+                  <span class="badge bg-warning text-dark">
+                    {{ sep[1] if sep else 0 }}
+                  </span>
+                </td>
+              </tr>
             {% else %}
-            <tr><td colspan="3" class="text-center text-muted">Sin datos</td></tr>
+              <tr>
+                <td colspan="3" class="text-center text-muted">
+                  Sin datos
+                </td>
+              </tr>
             {% endfor %}
           </tbody>
         </table>
@@ -101,7 +113,10 @@
 
     <!-- Últimas compras registradas -->
     <div class="card shadow-sm">
-      <div class="card-header bg-success text-white">🕐 Últimas 10 compras</div>
+      <div class="card-header bg-success text-white">
+        🕐 Últimas 10 compras
+      </div>
+
       <div class="card-body p-0">
         <table class="table table-sm table-hover mb-0">
           <thead class="table-light">
@@ -113,17 +128,22 @@
               <th>Fecha</th>
             </tr>
           </thead>
+
           <tbody>
             {% for c in ultimas_compras %}
-            <tr>
-              <td>{{ c.cliente.apellidos }}</td>
-              <td>Mz {{ c.lote.manzana }} Lt {{ c.lote.numero }}</td>
-              <td>S/ {{ "%.0f"|format(c.precio) }}</td>
-              <td>{{ c.usuario.username if c.usuario else "—" }}</td>
-              <td>{{ c.fecha_compra.strftime("%d/%m/%Y") }}</td>
-            </tr>
+              <tr>
+                <td>{{ c.cliente.apellidos }}</td>
+                <td>Mz {{ c.lote.manzana }} Lt {{ c.lote.numero }}</td>
+                <td>S/ {{ "%.0f"|format(c.precio) }}</td>
+                <td>{{ c.usuario.username if c.usuario else "—" }}</td>
+                <td>{{ c.fecha_compra.strftime("%d/%m/%Y") }}</td>
+              </tr>
             {% else %}
-            <tr><td colspan="5" class="text-center text-muted">Sin compras</td></tr>
+              <tr>
+                <td colspan="5" class="text-center text-muted">
+                  Sin compras
+                </td>
+              </tr>
             {% endfor %}
           </tbody>
         </table>
@@ -132,17 +152,20 @@
 
   </div>
 
-  <!-- ══════════════════════════════════════════
-       COLUMNA DERECHA
-  ══════════════════════════════════════════ -->
+  <!-- COLUMNA DERECHA -->
   <div class="col-md-6">
 
     <!-- Gestión de usuarios -->
     <div class="card mb-4 shadow-sm">
       <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
         <span>👤 Usuarios del sistema</span>
-        <a href="{{ url_for('crear_usuario') }}" class="btn btn-light btn-sm">➕ Nuevo</a>
+
+        <a href="{{ url_for('crear_usuario') }}"
+           class="btn btn-light btn-sm">
+          ➕ Nuevo
+        </a>
       </div>
+
       <div class="card-body p-0">
         <table class="table table-sm table-hover mb-0">
           <thead class="table-light">
@@ -155,75 +178,98 @@
               <th class="text-center">Acciones</th>
             </tr>
           </thead>
+
           <tbody>
             {% for u in usuarios %}
-            <tr>
-              <td>
-                {{ u.username }}
-                {% if u.id == current_user.id %}
-                  <span class="badge bg-secondary ms-1">Tú</span>
-                {% endif %}
-              </td>
-              <td class="text-center">
-                {% if u.id == current_user.id %}
-                  <span class="badge bg-danger">{{ u.rol }}</span>
-                {% else %}
-                  <form method="POST" action="{{ url_for('cambiar_rol', usuario_id=u.id) }}" class="d-inline">
-                    <select name="rol" class="form-select form-select-sm d-inline-block w-auto"
-                            onchange="this.form.submit()">
-                      <option value="vendedor"   {% if u.rol == 'vendedor'   %}selected{% endif %}>vendedor</option>
-                      <option value="admin"      {% if u.rol == 'admin'      %}selected{% endif %}>admin</option>
-                      <option value="superadmin" {% if u.rol == 'superadmin' %}selected{% endif %}>superadmin</option>
-                    </select>
-                  </form>
-                {% endif %}
-              </td>
-              <td class="text-center">
-                {% set activo = u.activo if u.activo is defined else True %}
-                {% if activo %}
-                  <span class="badge bg-success">Activo</span>
-                {% else %}
-                  <span class="badge bg-secondary">Inactivo</span>
-                {% endif %}
-              </td>
+              <tr>
+                <td>
+                  {{ u.username }}
 
-              <td class="text-center">
-                {% if u.ultimo_login %}
-                  <div class="small fw-semibold">{{ u.ultimo_login.strftime("%d/%m/%Y") }}</div>
-                  <div class="small text-muted">{{ u.ultimo_login.strftime("%H:%M") }}</div>
-                {% else %}
-                  <span class="text-muted small">Nunca</span>
-                {% endif %}
-              </td>
+                  {% if u.id == current_user.id %}
+                    <span class="badge bg-secondary ms-1">Tú</span>
+                  {% endif %}
+                </td>
 
-              <td class="text-center">
-                {% if u.rol == 'superadmin' %}
-                  <span class="badge bg-success">Acceso total</span>
-                {% else %}
-                  <button type="button"
-                          class="btn btn-sm btn-outline-primary"
-                          data-bs-toggle="modal"
-                          data-bs-target="#modalPermisos{{ u.id }}">
-                    🔐 Permisos
-                  </button>
-                {% endif %}
-              </td>
+                <td class="text-center">
+                  {% if u.id == current_user.id %}
+                    <span class="badge bg-danger">{{ u.rol }}</span>
+                  {% else %}
+                    <form method="POST"
+                          action="{{ url_for('cambiar_rol', usuario_id=u.id) }}"
+                          class="d-inline">
+                      <select name="rol"
+                              class="form-select form-select-sm d-inline-block w-auto"
+                              onchange="this.form.submit()">
+                        <option value="vendedor"
+                                {% if u.rol == 'vendedor' %}selected{% endif %}>
+                          vendedor
+                        </option>
+                        <option value="admin"
+                                {% if u.rol == 'admin' %}selected{% endif %}>
+                          admin
+                        </option>
+                        <option value="superadmin"
+                                {% if u.rol == 'superadmin' %}selected{% endif %}>
+                          superadmin
+                        </option>
+                      </select>
+                    </form>
+                  {% endif %}
+                </td>
 
-              <td class="text-center">
-                {% if u.id != current_user.id %}
-                <form method="POST" action="{{ url_for('toggle_usuario', usuario_id=u.id) }}"
-                      onsubmit="return confirm('¿Cambiar estado de {{ u.username }}?');">
+                <td class="text-center">
                   {% set activo = u.activo if u.activo is defined else True %}
-                  <button type="submit"
-                          class="btn btn-sm {{ 'btn-warning' if activo else 'btn-success' }}">
-                    {{ '🔒 Desactivar' if activo else '🔓 Activar' }}
-                  </button>
-                </form>
-                {% else %}
-                  <span class="text-muted">—</span>
-                {% endif %}
-              </td>
-            </tr>
+
+                  {% if activo %}
+                    <span class="badge bg-success">Activo</span>
+                  {% else %}
+                    <span class="badge bg-secondary">Inactivo</span>
+                  {% endif %}
+                </td>
+
+                <td class="text-center">
+                  {% if u.ultimo_login %}
+                    <div class="small fw-semibold">
+                      {{ u.ultimo_login.strftime("%d/%m/%Y") }}
+                    </div>
+                    <div class="small text-muted">
+                      {{ u.ultimo_login.strftime("%H:%M") }}
+                    </div>
+                  {% else %}
+                    <span class="text-muted small">Nunca</span>
+                  {% endif %}
+                </td>
+
+                <td class="text-center">
+                  {% if u.rol == 'superadmin' %}
+                    <span class="badge bg-success">Acceso total</span>
+                  {% else %}
+                    <button type="button"
+                            class="btn btn-sm btn-outline-primary"
+                            data-bs-toggle="modal"
+                            data-bs-target="#modalPermisos{{ u.id }}">
+                      🔐 Permisos
+                    </button>
+                  {% endif %}
+                </td>
+
+                <td class="text-center">
+                  {% if u.id != current_user.id %}
+                    <form method="POST"
+                          action="{{ url_for('toggle_usuario', usuario_id=u.id) }}"
+                          onsubmit="return confirm('¿Cambiar estado de {{ u.username }}?');">
+                      {% set activo = u.activo if u.activo is defined else True %}
+
+                      <button type="submit"
+                              class="btn btn-sm {{ 'btn-warning' if activo else 'btn-success' }}">
+                        {{ '🔒 Desactivar' if activo else '🔓 Activar' }}
+                      </button>
+                    </form>
+                  {% else %}
+                    <span class="text-muted">—</span>
+                  {% endif %}
+                </td>
+              </tr>
             {% endfor %}
           </tbody>
         </table>
@@ -233,59 +279,76 @@
     {# Modales de permisos por usuario #}
     {% for u in usuarios %}
       {% if u.rol != 'superadmin' %}
-      <div class="modal fade" id="modalPermisos{{ u.id }}" tabindex="-1"
-           aria-labelledby="modalPermisosLabel{{ u.id }}" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
-          <div class="modal-content">
-            <form method="POST" action="{{ url_for('permisos_lotizaciones') }}">
-              <div class="modal-header bg-primary text-white">
-                <h5 class="modal-title" id="modalPermisosLabel{{ u.id }}">
-                  🔐 Permisos de {{ u.username }}
-                </h5>
-                <button type="button" class="btn-close btn-close-white"
-                        data-bs-dismiss="modal" aria-label="Cerrar"></button>
-              </div>
+        <div class="modal fade"
+             id="modalPermisos{{ u.id }}"
+             tabindex="-1"
+             aria-labelledby="modalPermisosLabel{{ u.id }}"
+             aria-hidden="true">
+          <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
 
-              <div class="modal-body">
-                <input type="hidden" name="usuario_id" value="{{ u.id }}">
+              <form method="POST"
+                    action="{{ url_for('permisos_lotizaciones') }}">
+                <div class="modal-header bg-primary text-white">
+                  <h5 class="modal-title"
+                      id="modalPermisosLabel{{ u.id }}">
+                    🔐 Permisos de {{ u.username }}
+                  </h5>
 
-                <p class="text-muted small mb-3">
-                  Marca únicamente las lotizaciones a las que este usuario podrá ingresar.
-                </p>
-
-                {% for lot in lotizaciones %}
-                <div class="form-check border rounded p-2 mb-2">
-                  <input class="form-check-input ms-0 me-2"
-                         type="checkbox"
-                         name="lotizacion_ids"
-                         value="{{ lot.id }}"
-                         id="permiso_{{ u.id }}_{{ lot.id }}"
-                         {% if lot in u.lotizaciones %}checked{% endif %}>
-                  <label class="form-check-label w-100"
-                         for="permiso_{{ u.id }}_{{ lot.id }}">
-                    {{ lot.nombre }}
-                  </label>
+                  <button type="button"
+                          class="btn-close btn-close-white"
+                          data-bs-dismiss="modal"
+                          aria-label="Cerrar"></button>
                 </div>
-                {% endfor %}
 
-                {% if not lotizaciones %}
-                <div class="alert alert-warning mb-0">
-                  No hay lotizaciones registradas.
+                <div class="modal-body">
+                  <input type="hidden"
+                         name="usuario_id"
+                         value="{{ u.id }}">
+
+                  <p class="text-muted small mb-3">
+                    Marca únicamente las lotizaciones a las que este usuario podrá ingresar.
+                  </p>
+
+                  {% for lot in lotizaciones %}
+                    <div class="form-check border rounded p-2 mb-2">
+                      <input class="form-check-input ms-0 me-2"
+                             type="checkbox"
+                             name="lotizacion_ids"
+                             value="{{ lot.id }}"
+                             id="permiso_{{ u.id }}_{{ lot.id }}"
+                             {% if lot in u.lotizaciones %}checked{% endif %}>
+
+                      <label class="form-check-label w-100"
+                             for="permiso_{{ u.id }}_{{ lot.id }}">
+                        {{ lot.nombre }}
+                      </label>
+                    </div>
+                  {% endfor %}
+
+                  {% if not lotizaciones %}
+                    <div class="alert alert-warning mb-0">
+                      No hay lotizaciones registradas.
+                    </div>
+                  {% endif %}
                 </div>
-                {% endif %}
-              </div>
 
-              <div class="modal-footer">
-                <button type="button" class="btn btn-secondary"
-                        data-bs-dismiss="modal">Cancelar</button>
-                <button type="submit" class="btn btn-primary">
-                  💾 Guardar permisos
-                </button>
-              </div>
-            </form>
+                <div class="modal-footer">
+                  <button type="button"
+                          class="btn btn-secondary"
+                          data-bs-dismiss="modal">
+                    Cancelar
+                  </button>
+
+                  <button type="submit" class="btn btn-primary">
+                    💾 Guardar permisos
+                  </button>
+                </div>
+              </form>
+
+            </div>
           </div>
         </div>
-      </div>
       {% endif %}
     {% endfor %}
 
@@ -293,44 +356,664 @@
     <div class="card shadow-sm">
       <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
         <span>🏘️ Lotizaciones</span>
-        <a href="{{ url_for('crear_lotizacion') }}" class="btn btn-light btn-sm">➕ Nueva</a>
+
+        <a href="{{ url_for('crear_lotizacion') }}"
+           class="btn btn-light btn-sm">
+          ➕ Nueva
+        </a>
       </div>
+
       <div class="card-body p-0">
-        <table class="table table-sm table-hover mb-0">
-          <thead class="table-light">
-            <tr>
-              <th>Nombre</th>
-              <th class="text-center">Lotes</th>
-              <th class="text-center">Eliminar</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for lot in lotizaciones %}
-            {% set n_lotes = lot.lotes | length %}
-            <tr>
-              <td>{{ lot.nombre }}</td>
-              <td class="text-center">
-                <span class="badge bg-secondary">{{ n_lotes }}</span>
-              </td>
-              <td class="text-center">
-                {% if n_lotes == 0 %}
-                <form method="POST"
-                      action="{{ url_for('eliminar_lotizacion', lot_id=lot.id) }}"
-                      onsubmit="return confirm('¿Eliminar lotización {{ lot.nombre }}?');">
-                  <button type="submit" class="btn btn-danger btn-sm">🗑️</button>
-                </form>
-                {% else %}
-                  <span class="text-muted small">Tiene lotes</span>
-                {% endif %}
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+        <div class="table-responsive">
+          <table class="table table-sm table-hover mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Nombre</th>
+                <th class="text-center">Lotes</th>
+                <th class="text-center">Ubicación</th>
+                <th class="text-center">Eliminar</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {% for lot in lotizaciones %}
+                {% set n_lotes = lot.lotes | length %}
+
+                <tr>
+                  <td>{{ lot.nombre }}</td>
+
+                  <td class="text-center">
+                    <span class="badge bg-secondary">
+                      {{ n_lotes }}
+                    </span>
+                  </td>
+
+                  <td class="text-center">
+                    <button type="button"
+                            class="btn btn-outline-primary btn-sm"
+                            data-bs-toggle="modal"
+                            data-bs-target="#modalUbicacion{{ lot.id }}">
+                      ✏️ Editar ubicación
+                    </button>
+                    <button type="button"
+                            class="btn btn-outline-primary btn-sm mt-1"
+                            data-bs-toggle="modal"
+                            data-bs-target="#modalActa{{ lot.id }}">
+                      📄 Configurar acta
+                    </button>
+
+                  </td>
+
+                  <td class="text-center">
+                    {% if n_lotes == 0 %}
+                      <form method="POST"
+                            action="{{ url_for('eliminar_lotizacion', lot_id=lot.id) }}"
+                            onsubmit="return confirm('¿Eliminar lotización {{ lot.nombre }}?');">
+                        <button type="submit"
+                                class="btn btn-danger btn-sm">
+                          🗑️
+                        </button>
+                      </form>
+                    {% else %}
+                      <span class="text-muted small">Tiene lotes</span>
+                    {% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
 
+    <!-- Ventanas para editar la ubicación -->
+    {% for lot in lotizaciones %}
+      <div class="modal fade"
+           id="modalUbicacion{{ lot.id }}"
+           tabindex="-1"
+           aria-labelledby="tituloUbicacion{{ lot.id }}"
+           aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+          <div class="modal-content">
+
+            <form method="POST"
+                  action="{{ url_for('editar_ubicacion_lotizacion', lot_id=lot.id) }}">
+
+              {% if csrf_token is defined %}
+                <input type="hidden"
+                       name="csrf_token"
+                       value="{{ csrf_token() }}">
+              {% endif %}
+
+              <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"
+                    id="tituloUbicacion{{ lot.id }}">
+                  📍 Ubicación de {{ lot.nombre }}
+                </h5>
+
+                <button type="button"
+                        class="btn-close btn-close-white"
+                        data-bs-dismiss="modal"
+                        aria-label="Cerrar"></button>
+              </div>
+
+              <div class="modal-body">
+                <div class="mb-3">
+                  <label for="distrito_{{ lot.id }}"
+                         class="form-label">
+                    Distrito
+                  </label>
+
+                  <input type="text"
+                         id="distrito_{{ lot.id }}"
+                         name="distrito"
+                         class="form-control"
+                         maxlength="100"
+                         required
+                         value="{{ lot.distrito or '' }}">
+                </div>
+
+                <div class="mb-3">
+                  <label for="provincia_{{ lot.id }}"
+                         class="form-label">
+                    Provincia
+                  </label>
+
+                  <input type="text"
+                         id="provincia_{{ lot.id }}"
+                         name="provincia"
+                         class="form-control"
+                         maxlength="100"
+                         required
+                         value="{{ lot.provincia or '' }}">
+                </div>
+
+                <div class="mb-3">
+                  <label for="departamento_{{ lot.id }}"
+                         class="form-label">
+                    Departamento
+                  </label>
+
+                  <input type="text"
+                         id="departamento_{{ lot.id }}"
+                         name="departamento"
+                         class="form-control"
+                         maxlength="100"
+                         required
+                         value="{{ lot.departamento or '' }}">
+                </div>
+              </div>
+
+              <div class="modal-footer">
+                <button type="button"
+                        class="btn btn-secondary"
+                        data-bs-dismiss="modal">
+                  Cancelar
+                </button>
+
+                <button type="submit" class="btn btn-primary">
+                  💾 Guardar ubicación
+                </button>
+              </div>
+            </form>
+
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+
   </div>
 </div>
+
+<!-- CARGA DE LINDEROS POR MANZANA -->
+<div class="card mt-4 shadow-sm" id="carga-linderos">
+  <div class="card-header bg-secondary text-white">
+    📐 Cargar linderos por manzana
+  </div>
+
+  <div class="card-body">
+    <div class="row g-3">
+
+      <div class="col-md-6">
+        <label for="lm-proyecto" class="form-label">
+          Proyecto
+        </label>
+
+        <select id="lm-proyecto" class="form-select">
+          <option value="">Selecciona un proyecto</option>
+          {% for lot in lotizaciones %}
+            <option value="{{ lot.id }}">{{ lot.nombre }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="col-md-6">
+        <label for="lm-manzana" class="form-label">
+          Manzana
+        </label>
+
+        <select id="lm-manzana" class="form-select" disabled>
+          <option value="">Selecciona primero el proyecto</option>
+        </select>
+      </div>
+
+      <div class="col-12">
+        <label for="lm-texto" class="form-label">
+          Descripción de los lotes
+        </label>
+
+        <textarea
+          id="lm-texto"
+          class="form-control"
+          rows="10"
+          placeholder="MANZANA A - LOTE 01&#10;Por el Frente: ...&#10;Por la Derecha entrando: ...&#10;Por la Izquierda entrando: ...&#10;Por el Fondo: ...&#10;Perímetro: 52.00 ml.&#10;&#10;MANZANA A - LOTE 02&#10;..."
+        ></textarea>
+
+        <div class="form-text">
+          Pega los lotes de una sola manzana. Los lotes que ya tienen
+          linderos se editan desde su detalle individual.
+        </div>
+      </div>
+
+    </div>
+
+    <button type="button"
+            id="lm-revisar"
+            class="btn btn-outline-primary mt-3"
+            disabled>
+      Separar y revisar
+    </button>
+
+    <div id="lm-mensaje"
+         class="mt-3"
+         role="status"
+         hidden></div>
+
+    <div id="lm-resultados" class="mt-3" hidden>
+      <p id="lm-resumen" class="fw-semibold"></p>
+
+      <div class="table-responsive">
+        <table class="table table-sm table-hover align-middle">
+          <thead class="table-light">
+            <tr>
+              <th>Manzana</th>
+              <th>Lote</th>
+              <th>Resultado</th>
+              <th>Linderos detectados</th>
+            </tr>
+          </thead>
+          <tbody id="lm-filas"></tbody>
+        </table>
+      </div>
+
+      <button type="button"
+              id="lm-guardar"
+              class="btn btn-primary"
+              hidden>
+        Guardar lotes validados
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const url = {{ url_for('linderos_manzana')|tojson }};
+
+  const proyecto = document.getElementById('lm-proyecto');
+  const manzana = document.getElementById('lm-manzana');
+  const texto = document.getElementById('lm-texto');
+  const revisar = document.getElementById('lm-revisar');
+  const guardar = document.getElementById('lm-guardar');
+  const mensaje = document.getElementById('lm-mensaje');
+  const resultados = document.getElementById('lm-resultados');
+
+  let csrf = '';
+  let token = null;
+  let version = 0;
+  let carga = 0;
+  let cantidad = 0;
+
+  function avisar(valor, error = false) {
+    mensaje.textContent = valor;
+    mensaje.className =
+      'alert mt-3 ' + (error ? 'alert-danger' : 'alert-success');
+    mensaje.hidden = false;
+  }
+
+  function invalidar() {
+    version++;
+    token = null;
+    guardar.hidden = true;
+    resultados.hidden = true;
+    mensaje.hidden = true;
+  }
+
+  async function pedir(destino, datos) {
+    const opciones = {
+      credentials: 'same-origin',
+      headers: {}
+    };
+
+    if (datos) {
+      opciones.method = 'POST';
+      opciones.headers['Content-Type'] = 'application/json';
+
+      {% if csrf_token is defined %}
+        opciones.headers['X-CSRFToken'] = {{ csrf_token()|tojson }};
+      {% endif %}
+
+      opciones.body = JSON.stringify({
+        ...datos,
+        csrf
+      });
+    }
+
+    const respuesta = await fetch(destino, opciones);
+
+    if (
+      !(respuesta.headers.get('content-type') || '')
+        .includes('application/json')
+    ) {
+      throw new Error(
+        'No se recibió una respuesta válida. Comprueba tu sesión de superadmin.'
+      );
+    }
+
+    const contenido = await respuesta.json();
+
+    if (!respuesta.ok) {
+      throw new Error(
+        contenido.error || 'No se pudo completar la operación.'
+      );
+    }
+
+    return contenido;
+  }
+
+  proyecto.addEventListener('change', async () => {
+    invalidar();
+
+    const actual = ++carga;
+    csrf = '';
+
+    manzana.replaceChildren(
+      new Option('Selecciona una manzana', '')
+    );
+
+    manzana.disabled = true;
+    revisar.disabled = true;
+
+    if (!proyecto.value) return;
+
+    try {
+      const datos = await pedir(
+        url + '?lotizacion_id=' + encodeURIComponent(proyecto.value)
+      );
+
+      if (actual !== carga) return;
+
+      csrf = datos.csrf;
+
+      datos.manzanas.forEach(m => {
+        manzana.add(new Option(m, m));
+      });
+
+      manzana.disabled = !datos.manzanas.length;
+
+      if (!datos.manzanas.length) {
+        avisar('El proyecto no tiene manzanas registradas.', true);
+      }
+    } catch (error) {
+      if (actual === carga) {
+        avisar(error.message, true);
+      }
+    }
+  });
+
+  manzana.addEventListener('change', () => {
+    invalidar();
+    revisar.disabled = !manzana.value || !csrf;
+  });
+
+  texto.addEventListener('input', invalidar);
+
+  revisar.addEventListener('click', async () => {
+    invalidar();
+
+    const actual = version;
+    revisar.disabled = true;
+
+    try {
+      const datos = await pedir(url, {
+        accion: 'revisar',
+        lotizacion_id: proyecto.value,
+        manzana: manzana.value,
+        texto: texto.value
+      });
+
+      if (actual !== version) return;
+
+      const cuerpo = document.getElementById('lm-filas');
+      cuerpo.replaceChildren();
+
+      const campos = {
+        lindero_frente: 'Frente',
+        lindero_derecha: 'Derecha entrando',
+        lindero_izquierda: 'Izquierda entrando',
+        lindero_fondo: 'Fondo',
+        perimetro: 'Perímetro',
+        area_memoria: 'Área de la memoria'
+      };
+
+      datos.filas.forEach(fila => {
+        const tr = document.createElement('tr');
+
+        [fila.manzana, fila.numero, fila.estado].forEach((valor, i) => {
+          const td = document.createElement('td');
+          td.textContent = valor;
+
+          if (i === 2) {
+            td.className = fila.listo
+              ? 'text-success'
+              : 'text-danger';
+          }
+
+          tr.appendChild(td);
+        });
+
+        const celda = document.createElement('td');
+        const detalle = document.createElement('details');
+        const titulo = document.createElement('summary');
+
+        titulo.textContent = 'Ver datos';
+        detalle.appendChild(titulo);
+
+        Object.entries(campos).forEach(([campo, etiqueta]) => {
+          const p = document.createElement('p');
+
+          p.className = 'small mb-1';
+          p.style.whiteSpace = 'pre-line';
+          p.style.overflowWrap = 'anywhere';
+
+          p.textContent =
+            etiqueta + ': ' + (fila.dato[campo] || 'Sin detectar');
+
+          detalle.appendChild(p);
+        });
+
+        celda.appendChild(detalle);
+        tr.appendChild(celda);
+        cuerpo.appendChild(tr);
+      });
+
+      cantidad = datos.listos;
+      token = datos.token;
+
+      document.getElementById('lm-resumen').textContent =
+        datos.filas.length + ' lotes detectados; ' +
+        cantidad + ' listos para guardar.';
+
+      resultados.hidden = false;
+      guardar.hidden = !token;
+      guardar.textContent = 'Guardar ' + cantidad + ' lotes validados';
+
+    } catch (error) {
+      if (actual === version) {
+        avisar(error.message, true);
+      }
+    } finally {
+      revisar.disabled = !manzana.value || !csrf;
+    }
+  });
+
+  guardar.addEventListener('click', async () => {
+    if (!token) return;
+
+    const nombre = proyecto.options[proyecto.selectedIndex].text;
+
+    const confirmado = confirm(
+      '¿Guardar ' + cantidad +
+      ' lotes de la manzana ' + manzana.value +
+      ' del proyecto ' + nombre + '?'
+    );
+
+    if (!confirmado) return;
+
+    const controles = [
+      proyecto,
+      manzana,
+      texto,
+      revisar,
+      guardar
+    ];
+
+    controles.forEach(elemento => {
+      elemento.disabled = true;
+    });
+
+    try {
+      const datos = await pedir(url, {
+        accion: 'guardar',
+        token
+      });
+
+      invalidar();
+      avisar(datos.mensaje);
+
+    } catch (error) {
+      invalidar();
+      avisar(error.message, true);
+
+    } finally {
+      controles.forEach(elemento => {
+        elemento.disabled = false;
+      });
+
+      revisar.disabled = !manzana.value || !csrf;
+    }
+  });
+})();
+</script>
+
+<!-- CONFIGURACIÓN DE ACTA POR PROYECTO -->
+{% set campos_acta = [
+    ('acta_empresa', 'Razón social completa', 200),
+    ('acta_ruc', 'RUC', 11),
+    ('acta_domicilio', 'Domicilio legal de la empresa', 250),
+    ('acta_representante', 'Nombre completo del representante', 200),
+    ('acta_cargo', 'Cargo del representante', 100),
+    ('acta_dni_representante', 'DNI del representante', 8)
+] %}
+
+{% for lot in lotizaciones %}
+  <div class="modal fade"
+       id="modalActa{{ lot.id }}"
+       tabindex="-1"
+       aria-labelledby="tituloActa{{ lot.id }}"
+       aria-hidden="true">
+
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+      <div class="modal-content">
+
+        <form method="POST"
+              enctype="multipart/form-data"
+              class="d-flex flex-column"
+              style="min-height: 0; overflow: hidden;"
+              action="{{ url_for('configurar_acta', lot_id=lot.id) }}">
+
+          <input type="hidden"
+                 name="acta_csrf"
+                 value="{{ token_config_acta() }}">
+
+          {% if csrf_token is defined %}
+            <input type="hidden"
+                   name="csrf_token"
+                   value="{{ csrf_token() }}">
+          {% endif %}
+
+          <div class="modal-header bg-primary text-white">
+            <h5 class="modal-title"
+                id="tituloActa{{ lot.id }}">
+              📄 Acta de {{ lot.nombre }}
+            </h5>
+
+            <button type="button"
+                    class="btn-close btn-close-white"
+                    data-bs-dismiss="modal"
+                    aria-label="Cerrar"></button>
+          </div>
+
+          <div class="modal-body">
+            <div class="row g-3">
+
+              {% for campo, etiqueta, limite in campos_acta %}
+                <div class="{{ 'col-12' if campo in ['acta_empresa', 'acta_domicilio'] else 'col-md-6' }}">
+
+                  <label for="{{ campo }}_{{ lot.id }}"
+                         class="form-label">
+                    {{ etiqueta }}
+                  </label>
+
+                  <input
+                    type="text"
+                    id="{{ campo }}_{{ lot.id }}"
+                    name="{{ campo }}"
+                    class="form-control"
+                    maxlength="{{ limite }}"
+                    required
+                    {% if campo in ['acta_ruc', 'acta_dni_representante'] %}
+                      inputmode="numeric"
+                      pattern="{{ '[0-9]{11}' if campo == 'acta_ruc' else '[0-9]{8}' }}"
+                    {% endif %}
+                    value="{{ (lot|attr(campo)) or ('Gerente General' if campo == 'acta_cargo' else '') }}"
+                  >
+
+                </div>
+              {% endfor %}
+
+              <div class="col-12">
+                <label for="acta_logo_{{ lot.id }}"
+                       class="form-label">
+                  Logo del acta
+                </label>
+
+                <input type="file"
+                       id="acta_logo_{{ lot.id }}"
+                       name="acta_logo"
+                       class="form-control"
+                       accept="image/png,image/jpeg">
+
+                <div class="form-text">
+                  Opcional. PNG o JPG, máximo 5 MB.
+                </div>
+
+                {% if lot.acta_logo %}
+                  <img
+                    src="{{ url_for('logo_acta', lot_id=lot.id) }}"
+                    alt="Logo de {{ lot.nombre }}"
+                    class="img-fluid border rounded p-2 mt-3"
+                    style="max-height: 90px; background: white;"
+                  >
+
+                  <div class="form-check mt-2">
+                    <input type="checkbox"
+                           class="form-check-input"
+                           name="quitar_logo"
+                           value="1"
+                           id="quitar_logo_{{ lot.id }}">
+
+                    <label class="form-check-label"
+                           for="quitar_logo_{{ lot.id }}">
+                      Quitar el logo actual
+                    </label>
+                  </div>
+                {% endif %}
+              </div>
+
+            </div>
+
+            <p class="text-muted small mt-3 mb-0">
+              El acta usará el distrito del proyecto y la fecha actual de Perú.
+            </p>
+          </div>
+
+          <div class="modal-footer">
+            <button type="button"
+                    class="btn btn-secondary"
+                    data-bs-dismiss="modal">
+              Cancelar
+            </button>
+
+            <button type="submit" class="btn btn-primary">
+              💾 Guardar configuración
+            </button>
+          </div>
+
+        </form>
+      </div>
+    </div>
+  </div>
+{% endfor %}
 
 {% endblock %}

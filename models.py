@@ -32,6 +32,8 @@ class Cliente(db.Model):
     estado_civil = db.Column(db.String(50), default="No registrada")
     ocupacion = db.Column(db.String(100), default="No registrada")
     ciudad = db.Column(db.String(50))
+    provincia = db.Column(db.String(100), nullable=True)
+    departamento = db.Column(db.String(100), nullable=True)
     direccion = db.Column(db.String(200))
     dni_frontal = db.Column(db.String(200), nullable=True)
     dni_reverso = db.Column(db.String(200), nullable=True)
@@ -52,6 +54,11 @@ class Lote(db.Model):
     numero  = db.Column(db.String(10), nullable=False)
     area    = db.Column(db.Float, nullable=False)
     estado  = db.Column(db.String(20), nullable=False, default="disponible")
+    lindero_frente = db.Column(db.Text, nullable=True)
+    lindero_derecha = db.Column(db.Text, nullable=True)
+    lindero_izquierda = db.Column(db.Text, nullable=True)
+    lindero_fondo = db.Column(db.Text, nullable=True)
+    perimetro = db.Column(db.Float, nullable=True)
 
     # (tus relaciones existentes)
     compra        = db.relationship("Compra", backref="lote", uselist=False)
@@ -198,6 +205,16 @@ class Lotizacion(db.Model):
     __tablename__ = "lotizaciones"
     id = db.Column(db.Integer, primary_key=True)
     nombre = db.Column(db.String(100), nullable=False, unique=True)
+    distrito = db.Column(db.String(100), nullable=True)
+    provincia = db.Column(db.String(100), nullable=True)
+    departamento = db.Column(db.String(100), nullable=True)
+    acta_empresa = db.Column(db.String(200), nullable=True)
+    acta_ruc = db.Column(db.String(11), nullable=True)
+    acta_domicilio = db.Column(db.String(250), nullable=True)
+    acta_representante = db.Column(db.String(200), nullable=True)
+    acta_cargo = db.Column(db.String(100), nullable=True)
+    acta_dni_representante = db.Column(db.String(8), nullable=True)
+    acta_logo = db.Column(db.LargeBinary, nullable=True)
 
     lotes = db.relationship("Lote", backref="lotizacion", lazy=True)
 

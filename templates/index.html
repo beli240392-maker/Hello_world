@@ -260,9 +260,34 @@
 
     {% if lotizacion %}
     <div class="lotizacion-box">
-      <div>
+      <div class="w-100">
         <div class="lotizacion-label">Lotización activa</div>
         <div class="lotizacion-name">📍 {{ lotizacion.nombre }}</div>
+
+        <div class="row g-3 mt-1">
+
+          <div class="col-12 col-sm-4">
+            <div class="lotizacion-label">Distrito</div>
+            <div class="small fw-semibold" style="color: #1e293b;">
+              {{ lotizacion.distrito or 'Sin registrar' }}
+            </div>
+          </div>
+
+          <div class="col-12 col-sm-4">
+            <div class="lotizacion-label">Provincia</div>
+            <div class="small fw-semibold" style="color: #1e293b;">
+              {{ lotizacion.provincia or 'Sin registrar' }}
+            </div>
+          </div>
+
+          <div class="col-12 col-sm-4">
+            <div class="lotizacion-label">Departamento</div>
+            <div class="small fw-semibold" style="color: #1e293b;">
+              {{ lotizacion.departamento or 'Sin registrar' }}
+            </div>
+          </div>
+
+        </div>
       </div>
     </div>
     {% endif %}

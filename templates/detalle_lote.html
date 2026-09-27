@@ -50,6 +50,13 @@
     font-weight: 800;
   }
 
+  .detalle-lote-page .lindero-value {
+    font-size: 1rem;
+    font-weight: 600;
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+  }
+
   .detalle-lote-page .section-title {
     font-weight: 800;
     margin: 0;
@@ -109,6 +116,106 @@
     font-weight: 650;
   }
 
+  .detalle-lote-page #editor-linderos .form-control {
+    border-radius: 10px;
+  }
+
+  .detalle-lote-page [hidden] {
+    display: none !important;
+  }
+
+  /* Información principal del lote */
+  .detalle-lote-page .lote-resumen {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 1rem;
+    padding: 1.1rem 1.2rem;
+    border: 1px solid var(--bs-border-color);
+    border-radius: 14px;
+    background: var(--bs-tertiary-bg);
+  }
+
+  /* Cabecera de linderos y perímetro */
+  .detalle-lote-page .linderos-cabecera {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+
+  .detalle-lote-page .perimetro-box {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: .45rem 1rem;
+    padding: .7rem 1rem;
+    border: 1px solid var(--bs-border-color);
+    border-radius: 12px;
+    background: var(--bs-tertiary-bg);
+  }
+
+  .detalle-lote-page .perimetro-box .data-label {
+    margin: 0;
+  }
+
+  .detalle-lote-page .perimetro-valor {
+    font-size: 1.1rem;
+    font-weight: 800;
+  }
+
+  /* Linderos guardados */
+  .detalle-lote-page .linderos-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .9rem;
+  }
+
+  .detalle-lote-page .lindero-item {
+    min-width: 0;
+    padding: 1rem 1.1rem;
+    border: 1px solid var(--bs-border-color);
+    border-radius: 14px;
+    background: var(--bs-body-bg);
+  }
+
+  .detalle-lote-page .lindero-item .data-label {
+    margin-bottom: .5rem;
+  }
+
+  .detalle-lote-page .lindero-item .lindero-value {
+    line-height: 1.65;
+  }
+
+  /* Botones de la tarjeta */
+  .detalle-lote-page .lote-acciones {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem 1rem;
+    margin-top: 1.5rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--bs-border-color);
+  }
+
+  .detalle-lote-page .hero-card .action-bar .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: .4rem;
+    min-height: 42px;
+    padding: .6rem 1rem;
+    font-size: .9rem;
+  }
+
+  .detalle-lote-page #editor-linderos textarea {
+    min-height: 110px;
+    line-height: 1.6;
+    resize: vertical;
+  }
+
   @media (max-width: 575.98px) {
     .detalle-lote-page .hero-title {
       font-size: 1.2rem;
@@ -117,6 +224,24 @@
     .detalle-lote-page .action-bar .btn {
       width: 100%;
     }
+
+    .detalle-lote-page .lote-resumen {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      padding: 1rem;
+    }
+
+    .detalle-lote-page .linderos-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .detalle-lote-page .perimetro-box,
+    .detalle-lote-page .lote-acciones .action-bar {
+      width: 100%;
+    }
+
+    .detalle-lote-page .perimetro-box {
+      justify-content: space-between;
+    }
   }
 </style>
 
@@ -124,6 +249,7 @@
 
   <!-- CABECERA DEL LOTE -->
   <div class="card hero-card mb-4">
+
     <div class="hero-head d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
       <div>
         <h2 class="hero-title">🏡 Detalle del Lote</h2>
@@ -134,34 +260,42 @@
 
       <div>
         {% if lote.estado == "disponible" %}
-          <span class="badge bg-success fs-6 px-3 py-2">Disponible</span>
+          <span class="badge bg-success fs-6 px-3 py-2">
+            Disponible
+          </span>
         {% elif lote.estado == "vendido" %}
-          <span class="badge bg-danger fs-6 px-3 py-2">Vendido</span>
+          <span class="badge bg-danger fs-6 px-3 py-2">
+            Vendido
+          </span>
         {% else %}
-          <span class="badge bg-warning text-dark fs-6 px-3 py-2">Separado</span>
+          <span class="badge bg-warning text-dark fs-6 px-3 py-2">
+            Separado
+          </span>
         {% endif %}
       </div>
     </div>
 
     <div class="card-body p-3 p-md-4">
-      <div class="row g-3">
 
-        <div class="col-6 col-md-3">
+      <!-- DATOS GENERALES -->
+      <div class="lote-resumen">
+
+        <div>
           <div class="data-label">Manzana</div>
           <div class="data-value">{{ lote.manzana }}</div>
         </div>
 
-        <div class="col-6 col-md-3">
+        <div>
           <div class="data-label">Número</div>
           <div class="data-value">{{ lote.numero }}</div>
         </div>
 
-        <div class="col-6 col-md-3">
+        <div>
           <div class="data-label">Área</div>
           <div class="data-value">{{ lote.area }} m²</div>
         </div>
 
-        <div class="col-6 col-md-3">
+        <div>
           <div class="data-label">Estado</div>
           <div class="data-value">
             {% if lote.estado == "disponible" %}
@@ -176,9 +310,147 @@
 
       </div>
 
-      <div class="mt-4">
+      <!-- LINDEROS -->
+      {% set mostrar_formulario =
+          request.method == 'POST' and (error_linderos|default(false))
+      %}
+
+      {% set campos_linderos = [
+          ('lindero_frente', 'Frente'),
+          ('lindero_derecha', 'Derecha entrando'),
+          ('lindero_izquierda', 'Izquierda entrando'),
+          ('lindero_fondo', 'Fondo')
+      ] %}
+
+      <div class="mt-4" id="linderos">
+
+        <!-- INFORMACIÓN GUARDADA -->
+        <div id="lista-linderos"
+             {% if mostrar_formulario %}hidden{% endif %}>
+
+          <div class="linderos-cabecera">
+            <h3 class="section-title">Linderos del lote</h3>
+
+            <div class="perimetro-box">
+              <span class="data-label">Perímetro total</span>
+
+              <span class="perimetro-valor">
+                {% if lote.perimetro is not none %}
+                  {{ lote.perimetro }} m
+                {% else %}
+                  Sin registrar
+                {% endif %}
+              </span>
+            </div>
+          </div>
+
+          <div class="linderos-grid">
+            {% for campo, etiqueta in campos_linderos %}
+              <div class="lindero-item">
+                <div class="data-label">{{ etiqueta }}</div>
+
+                <div class="data-value lindero-value">{{ lote|attr(campo) or 'Sin registrar' }}</div>
+              </div>
+            {% endfor %}
+          </div>
+
+        </div>
+
+        <!-- EDICIÓN INDIVIDUAL -->
+        <div id="editor-linderos"
+             {% if not mostrar_formulario %}hidden{% endif %}>
+
+          <h3 class="section-title mb-3">Editar linderos</h3>
+
+          {% if error_linderos|default(false) %}
+            <div class="alert alert-danger" role="alert">
+              {{ error_linderos }}
+            </div>
+          {% endif %}
+
+          <form method="POST"
+                action="{{ url_for('detalle_lote', lote_id=lote.id) }}#linderos">
+
+            {% if csrf_token is defined %}
+              <input type="hidden"
+                     name="csrf_token"
+                     value="{{ csrf_token() }}">
+            {% endif %}
+
+            <div class="row g-3">
+
+              {% for campo, etiqueta in campos_linderos %}
+                <div class="col-12 col-md-6">
+                  <label for="{{ campo }}"
+                         class="data-label d-block mb-2">
+                    {{ etiqueta }}
+                  </label>
+
+                  <textarea
+                    id="{{ campo }}"
+                    name="{{ campo }}"
+                    class="form-control"
+                    rows="3"
+                    placeholder="Colindancia y medida en metros"
+                  >{{ request.form.get(campo, '') if request.method == 'POST' else (lote|attr(campo) or '') }}</textarea>
+                </div>
+              {% endfor %}
+
+              <div class="col-12 col-md-4">
+                <label for="perimetro"
+                       class="data-label d-block mb-2">
+                  Perímetro total (metros)
+                </label>
+
+                <input
+                  id="perimetro"
+                  name="perimetro"
+                  type="text"
+                  inputmode="decimal"
+                  class="form-control"
+                  placeholder="Ejemplo: 42.00"
+                  value="{{ request.form.get('perimetro', '') if request.method == 'POST' else (lote.perimetro if lote.perimetro is not none else '') }}"
+                >
+              </div>
+
+            </div>
+
+            <div class="action-bar mt-3">
+              <button type="submit" class="btn btn-primary">
+                💾 Guardar linderos
+              </button>
+
+              <a href="{{ url_for('detalle_lote', lote_id=lote.id) }}#linderos"
+                 class="btn btn-outline-secondary">
+                Cancelar
+              </a>
+            </div>
+
+          </form>
+        </div>
+
+      </div>
+
+      <!-- ACCIONES DEL LOTE -->
+      <div class="lote-acciones">
+
         <div class="action-bar">
-          {% if lote.estado == "disponible" %}
+          <button type="button"
+                  id="btn-editar-linderos"
+                  class="btn btn-outline-primary"
+                  aria-controls="editor-linderos"
+                  {% if mostrar_formulario %}hidden{% endif %}>
+            ✏️ Editar linderos
+          </button>
+
+          <a href="{{ url_for('editar_area', lote_id=lote.id) }}"
+             class="btn btn-outline-secondary">
+            ✏️ Editar Área
+          </a>
+        </div>
+
+        {% if lote.estado == "disponible" %}
+          <div class="action-bar">
             <a href="{{ url_for('registrar_separacion', lote_id=lote.id) }}"
                class="btn btn-warning">
               🟡 Separar lote
@@ -188,144 +460,165 @@
                class="btn btn-success">
               🟢 Registrar compra
             </a>
-          {% endif %}
+          </div>
+        {% endif %}
 
-          <a href="{{ url_for('editar_area', lote_id=lote.id) }}"
-             class="btn btn-outline-secondary">
-            ✏️ Editar Área
-          </a>
-        </div>
       </div>
+
     </div>
   </div>
-
 
   <!-- INFORMACIÓN DE COMPRA -->
   {% if compra %}
-  <div class="card info-card mb-4">
-    <div class="card-body p-3 p-md-4">
+    <div class="card info-card mb-4">
+      <div class="card-body p-3 p-md-4">
 
-      <div class="mb-3">
-        <h3 class="section-title">📝 Información de la Compra</h3>
-        <div class="section-subtitle">Datos principales de la operación registrada.</div>
-      </div>
-
-      <div class="client-box mb-3">
-        <div class="data-label">Cliente</div>
-        <div class="fw-bold fs-5">
-          {{ compra.cliente.nombre }} {{ compra.cliente.apellidos }}
-        </div>
-        <div class="small text-muted mt-1">
-          DNI: {{ compra.cliente.dni }}
-        </div>
-      </div>
-
-      <div class="row g-3 mb-3">
-        <div class="col-12 col-md-6">
-          <div class="amount-box h-100">
-            <div class="amount-label">Precio</div>
-            <div class="amount-value text-primary">
-              S/ {{ "%.2f"|format(compra.precio) }}
-            </div>
+        <div class="mb-3">
+          <h3 class="section-title">
+            📝 Información de la Compra
+          </h3>
+          <div class="section-subtitle">
+            Datos principales de la operación registrada.
           </div>
         </div>
 
-        <div class="col-12 col-md-6">
-          <div class="amount-box h-100">
-            <div class="amount-label">Forma de pago</div>
-            <div class="amount-value">
-              {{ compra.forma_pago|capitalize }}
-            </div>
+        <div class="client-box mb-3">
+          <div class="data-label">Cliente</div>
+
+          <div class="fw-bold fs-5">
+            {{ compra.cliente.nombre }}
+            {{ compra.cliente.apellidos }}
+          </div>
+
+          <div class="small text-muted mt-1">
+            DNI: {{ compra.cliente.dni }}
           </div>
         </div>
-      </div>
 
-      <div>
-        {% if compra.forma_pago == "credito" %}
-        <div class="detail-row d-flex justify-content-between gap-3">
-          <span class="text-muted">Inicial</span>
-          <strong>S/ {{ "%.2f"|format(compra.inicial) }}</strong>
+        <div class="row g-3 mb-3">
+
+          <div class="col-12 col-md-6">
+            <div class="amount-box h-100">
+              <div class="amount-label">Precio</div>
+              <div class="amount-value text-primary">
+                S/ {{ "%.2f"|format(compra.precio) }}
+              </div>
+            </div>
+          </div>
+
+          <div class="col-12 col-md-6">
+            <div class="amount-box h-100">
+              <div class="amount-label">Forma de pago</div>
+              <div class="amount-value">
+                {{ compra.forma_pago|capitalize }}
+              </div>
+            </div>
+          </div>
+
         </div>
 
-        <div class="detail-row d-flex justify-content-between gap-3">
-          <span class="text-muted">Cuotas</span>
-          <strong>
-            {{ compra.cuotas_total }}
-            (S/ {{ "%.2f"|format(compra.cuota_monto) }} cada una)
-          </strong>
+        <div>
+          {% if compra.forma_pago == "credito" %}
+            <div class="detail-row d-flex justify-content-between gap-3">
+              <span class="text-muted">Inicial</span>
+              <strong>
+                S/ {{ "%.2f"|format(compra.inicial) }}
+              </strong>
+            </div>
+
+            <div class="detail-row d-flex justify-content-between gap-3">
+              <span class="text-muted">Cuotas</span>
+              <strong>
+                {{ compra.cuotas_total }}
+                (S/ {{ "%.2f"|format(compra.cuota_monto) }} cada una)
+              </strong>
+            </div>
+          {% endif %}
+
+          <div class="detail-row d-flex justify-content-between gap-3">
+            <span class="text-muted">Fecha de compra</span>
+            <strong>
+              {{ compra.fecha_compra.strftime("%d/%m/%Y") }}
+            </strong>
+          </div>
         </div>
-        {% endif %}
 
-        <div class="detail-row d-flex justify-content-between gap-3">
-          <span class="text-muted">Fecha de compra</span>
-          <strong>{{ compra.fecha_compra.strftime("%d/%m/%Y") }}</strong>
+        <div class="action-bar mt-4">
+          <a href="{{ url_for('ver_cliente', cliente_id=compra.cliente.id) }}"
+            class="btn btn-info">
+            👤 Ver Cliente
+          </a>
+
+          {% if not compra.anulada and lote.estado == 'vendido' %}
+            <a href="{{ url_for('generar_acta_entrega', compra_id=compra.id) }}"
+              class="btn btn-primary">
+              📄 Generar acta de entrega
+            </a>
+          {% endif %}
         </div>
-      </div>
 
-      <div class="action-bar mt-4">
-        <a href="{{ url_for('ver_cliente', cliente_id=compra.cliente.id) }}"
-           class="btn btn-info">
-          👤 Ver Cliente
-        </a>
       </div>
-
     </div>
-  </div>
-
 
   <!-- INFORMACIÓN DE SEPARACIÓN -->
   {% elif separacion %}
-  <div class="card info-card mb-4">
-    <div class="card-body p-3 p-md-4">
+    <div class="card info-card mb-4">
+      <div class="card-body p-3 p-md-4">
 
-      <div class="mb-3">
-        <h3 class="section-title">🔴 Información de la Separación</h3>
-        <div class="section-subtitle">Datos principales de la separación registrada.</div>
-      </div>
-
-      <div class="client-box mb-3">
-        <div class="data-label">Cliente</div>
-        <div class="fw-bold fs-5">
-          {{ separacion.cliente.nombre }} {{ separacion.cliente.apellidos }}
-        </div>
-        <div class="small text-muted mt-1">
-          DNI: {{ separacion.cliente.dni }}
-        </div>
-      </div>
-
-      <div class="row g-3 mb-3">
-
-        <div class="col-12 col-md-6">
-          <div class="amount-box h-100">
-            <div class="amount-label">Monto de separación</div>
-            <div class="amount-value text-warning">
-              S/ {{ "%.2f"|format(separacion.monto) }}
-            </div>
+        <div class="mb-3">
+          <h3 class="section-title">
+            🔴 Información de la Separación
+          </h3>
+          <div class="section-subtitle">
+            Datos principales de la separación registrada.
           </div>
         </div>
 
-        <div class="col-12 col-md-6">
-          <div class="amount-box h-100">
-            <div class="amount-label">Fecha</div>
-            <div class="amount-value">
-              {{ separacion.fecha.strftime("%d/%m/%Y") }}
-            </div>
+        <div class="client-box mb-3">
+          <div class="data-label">Cliente</div>
+
+          <div class="fw-bold fs-5">
+            {{ separacion.cliente.nombre }}
+            {{ separacion.cliente.apellidos }}
+          </div>
+
+          <div class="small text-muted mt-1">
+            DNI: {{ separacion.cliente.dni }}
           </div>
         </div>
 
-      </div>
+        <div class="row g-3 mb-3">
 
-      <div class="action-bar">
-        <a href="{{ url_for('ver_cliente', cliente_id=separacion.cliente.id) }}"
-           class="btn btn-info">
-          👤 Ver Cliente
-        </a>
-      </div>
+          <div class="col-12 col-md-6">
+            <div class="amount-box h-100">
+              <div class="amount-label">Monto de separación</div>
+              <div class="amount-value text-warning">
+                S/ {{ "%.2f"|format(separacion.monto) }}
+              </div>
+            </div>
+          </div>
 
+          <div class="col-12 col-md-6">
+            <div class="amount-box h-100">
+              <div class="amount-label">Fecha</div>
+              <div class="amount-value">
+                {{ separacion.fecha.strftime("%d/%m/%Y") }}
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <div class="action-bar">
+          <a href="{{ url_for('ver_cliente', cliente_id=separacion.cliente.id) }}"
+             class="btn btn-info">
+            👤 Ver Cliente
+          </a>
+        </div>
+
+      </div>
     </div>
-  </div>
   {% endif %}
-
 
   <!-- VOLVER -->
   <div class="mb-4">
@@ -336,5 +629,23 @@
   </div>
 
 </div>
+
+<script>
+(() => {
+  const boton = document.getElementById("btn-editar-linderos");
+  const lista = document.getElementById("lista-linderos");
+  const editor = document.getElementById("editor-linderos");
+  const frente = document.getElementById("lindero_frente");
+
+  if (!boton || !lista || !editor || !frente) return;
+
+  boton.addEventListener("click", () => {
+    lista.hidden = true;
+    editor.hidden = false;
+    boton.hidden = true;
+    frente.focus();
+  });
+})();
+</script>
 
 {% endblock %}
