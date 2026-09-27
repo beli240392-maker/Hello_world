@@ -3198,6 +3198,7 @@ def logo_acta(lot_id):
 
 def _crear_pdf_acta(datos, logo, fecha):
     import io
+    import re
     from decimal import Decimal, InvalidOperation
     from xml.sax.saxutils import escape
 
@@ -3219,23 +3220,103 @@ def _crear_pdf_acta(datos, logo, fecha):
             .replace("\n", "<br/>")
         )
 
+    def iniciales_direccion(valor):
+        cadena = str(valor or "").strip()
+
+        conectores = {
+            "de", "del", "la", "las", "los",
+            "el", "y", "e", "en", "al",
+        }
+
+        abreviaturas = {
+            "av": "Av", "av.": "Av.",
+            "jr": "Jr", "jr.": "Jr.",
+            "urb": "Urb", "urb.": "Urb.",
+            "mz": "Mz", "mz.": "Mz.",
+            "lt": "Lt", "lt.": "Lt.",
+            "dpto": "Dpto", "dpto.": "Dpto.",
+            "int": "Int", "int.": "Int.",
+            "aa.hh.": "AA.HH.", "aa.hh": "AA.HH",
+            "a.h.": "A.H.", "a.h": "A.H",
+            "s/n": "S/N", "km": "Km", "km.": "Km.",
+        }
+
+        prefijos = {
+            "av", "jr", "urb", "avenida", "jirón", "jiron",
+            "calle", "pasaje", "urbanización", "urbanizacion",
+            "carretera", "aa.hh", "a.h",
+        }
+
+        romanos = {
+            "ii", "iii", "iv", "vi", "vii",
+            "viii", "ix", "xi", "xii",
+        }
+
+        inicio = True
+        fin_anterior = 0
+
+        def convertir(coincidencia):
+            nonlocal inicio, fin_anterior
+
+            separacion = cadena[fin_anterior:coincidencia.start()]
+
+            if any(signo in separacion for signo in (",", ";", "\n")):
+                inicio = True
+
+            palabra = coincidencia.group(0)
+            clave = palabra.lower()
+
+            if clave in abreviaturas:
+                resultado = abreviaturas[clave]
+            elif any(caracter.isdigit() for caracter in palabra):
+                resultado = palabra.upper()
+            elif clave in conectores and not inicio:
+                resultado = clave
+            elif len(palabra.rstrip(".")) == 1 or clave in romanos:
+                resultado = palabra.upper()
+            else:
+                resultado = palabra.capitalize()
+
+            inicio = clave.rstrip(".") in prefijos
+            fin_anterior = coincidencia.end()
+
+            return resultado
+
+        return re.sub(
+            r"[^\W_]+(?:[./][^\W_]+)*\.?",
+            convertir,
+            cadena,
+        )
+
     def medida(valor, etiqueta):
         try:
             numero = Decimal(str(valor))
+
             if not numero.is_finite() or numero <= 0:
                 raise InvalidOperation()
+
         except (InvalidOperation, ValueError):
             raise ValueError(
                 f"{etiqueta} debe ser un número mayor que cero."
             )
 
         entero, _, decimales = format(numero, "f").partition(".")
+
         return entero + "." + decimales.rstrip("0").ljust(2, "0")
 
     d = {
         campo: texto(valor)
         for campo, valor in datos.items()
     }
+
+    # Ajusta la presentación de la dirección solo en el PDF.
+    for campo in (
+        "direccion_cliente",
+        "distrito_cliente",
+        "provincia_cliente",
+        "departamento_cliente",
+    ):
+        d[campo] = texto(iniciales_direccion(datos[campo]))
 
     d["area"] = medida(datos["area"], "El área")
     d["perimetro"] = medida(datos["perimetro"], "El perímetro")
@@ -3256,11 +3337,10 @@ def _crear_pdf_acta(datos, logo, fecha):
     dorado = colors.HexColor("#A38043")
     oscuro = colors.HexColor("#262D32")
     gris = colors.HexColor("#656D75")
-    linea = colors.HexColor("#DDD7CB")
 
     imagen = ImageReader(io.BytesIO(logo)) if logo else None
 
-    # Organiza el nombre de la empresa en la cabecera.
+    # Membrete adaptable a la empresa de cada proyecto.
     nombre_completo = " ".join(str(datos["empresa"]).split())
     descriptor = ""
     nombre_cabecera = nombre_completo
@@ -3273,62 +3353,104 @@ def _crear_pdf_acta(datos, logo, fecha):
         "CONSTRUCTORA",
     ):
         if nombre_completo.upper().startswith(prefijo + " "):
-            descriptor = nombre_completo[:len(prefijo)]
+            descriptor = nombre_completo[:len(prefijo)].upper()
             nombre_cabecera = nombre_completo[len(prefijo):].strip()
             break
 
-        x_empresa = margen + 92 if imagen else margen
-    x_separador = ancho - margen - 118
-    ancho_empresa = x_separador - 18 - x_empresa
+    # Presenta S.A.C., S.R.L., etc. en un tamaño menor.
+    razon_social = ""
+
+    coincidencia = re.search(
+        r"\s+(S\.?A\.?C\.?|S\.?R\.?L\.?|S\.?A\.?|E\.?I\.?R\.?L\.?)$",
+        nombre_cabecera,
+        re.IGNORECASE,
+    )
+
+    if coincidencia:
+        razon_social = coincidencia.group(1).upper()
+        nombre_cabecera = nombre_cabecera[:coincidencia.start()].strip()
+
+    x_empresa = margen + 90 if imagen else margen
+    ancho_empresa = ancho - margen - x_empresa
+    alineacion = TA_LEFT if imagen else TA_CENTER
 
     estilo_descriptor = ParagraphStyle(
         "descriptor",
-        fontName="Helvetica-Bold",
-        fontSize=8.3,
-        leading=11,
-        textColor=dorado,
-        alignment=TA_LEFT,
+        fontName="Helvetica",
+        fontSize=7.5,
+        leading=10,
+        textColor=oscuro,
+        alignment=alineacion,
+    )
+
+    estilo_contacto = ParagraphStyle(
+        "contacto",
+        fontName="Helvetica",
+        fontSize=8.2,
+        leading=10.5,
+        textColor=gris,
+        alignment=alineacion,
     )
 
     descripcion = (
-        Paragraph(texto(descriptor.upper()), estilo_descriptor)
+        Paragraph(texto(descriptor), estilo_descriptor)
         if descriptor else None
     )
 
-    alto_descripcion = (
-        descripcion.wrap(ancho_empresa, 30)[1]
-        if descripcion else 0
+    ruc_cabecera = Paragraph(
+        f'<b>RUC {d["ruc"]}</b>',
+        estilo_contacto,
     )
 
-    for letra in (23, 21, 19, 17, 15, 13, 11):
+    domicilio_cabecera = Paragraph(
+        d["domicilio_empresa"],
+        estilo_contacto,
+    )
+
+    # Ajusta el nombre sin invadir el contenido del acta.
+    for letra in (32, 30, 28, 26, 23, 20, 17, 14, 11):
         estilo_empresa = ParagraphStyle(
             "empresa",
-            fontName="Helvetica-Bold",
+            fontName="Times-Bold",
             fontSize=letra,
-            leading=letra + 3,
+            leading=letra + 2,
             textColor=oscuro,
-            alignment=TA_LEFT,
+            alignment=alineacion,
         )
 
-        empresa = Paragraph(
-            texto(nombre_cabecera.upper()),
-            estilo_empresa,
+        nombre_html = texto(nombre_cabecera.upper())
+
+        if razon_social:
+            nombre_html += (
+                f' <font size="{max(9, letra * 0.48):.1f}">'
+                f'{texto(razon_social)}</font>'
+            )
+
+        empresa = Paragraph(nombre_html, estilo_empresa)
+
+        partes_cabecera = []
+
+        if descripcion:
+            partes_cabecera.append((descripcion, 4))
+
+        partes_cabecera.extend([
+            (empresa, 4),
+            (ruc_cabecera, 2),
+            (domicilio_cabecera, 0),
+        ])
+
+        alto_cabecera = sum(
+            parrafo.wrap(ancho_empresa, alto)[1] + espacio
+            for parrafo, espacio in partes_cabecera
         )
 
-        _, alto_empresa = empresa.wrap(ancho_empresa, 70)
-
-        alto_cabecera = (
-            (alto_descripcion + 6 if descripcion else 0)
-            + alto_empresa
-        )
-
-        if alto_cabecera <= 70:
+        if alto_cabecera <= 86:
             break
 
     else:
         raise ValueError(
-            "El nombre de la empresa es demasiado extenso "
-            "para el membrete."
+            "El nombre o el domicilio de la empresa es demasiado "
+            "extenso para el membrete."
         )
 
     def dibujar_logo(canvas, x, y, caja_ancho, caja_alto):
@@ -3372,11 +3494,21 @@ def _crear_pdf_acta(datos, logo, fecha):
         titulo = ParagraphStyle(
             "titulo",
             fontName="Helvetica-Bold",
-            fontSize=12,
-            leading=16,
+            fontSize=14,
+            leading=18,
             alignment=TA_CENTER,
             textColor=oscuro,
-            spaceAfter=19,
+            spaceAfter=5,
+        )
+
+        subtitulo = ParagraphStyle(
+            "proyecto",
+            fontName="Helvetica-Bold",
+            fontSize=8.3,
+            leading=11,
+            textColor=dorado,
+            alignment=TA_CENTER,
+            spaceAfter=14,
         )
 
         lindero = ParagraphStyle(
@@ -3420,33 +3552,7 @@ def _crear_pdf_acta(datos, logo, fecha):
             paginas[0] = documento.page
             canvas.saveState()
 
-            # Fondo beige superior.
-            beige_superior = colors.HexColor("#F2E9D8")
-            altura_fondo = 120
-            franjas = 80
-            altura_franja = altura_fondo / franjas
-
-            for i in range(franjas):
-                intensidad = (i + 1) / franjas
-
-                canvas.setFillColor(
-                    colors.Color(
-                        1 - (1 - beige_superior.red) * intensidad,
-                        1 - (1 - beige_superior.green) * intensidad,
-                        1 - (1 - beige_superior.blue) * intensidad,
-                    )
-                )
-
-                canvas.rect(
-                    0,
-                    alto - altura_fondo + i * altura_franja,
-                    ancho,
-                    altura_franja + 0.2,
-                    fill=1,
-                    stroke=0,
-                )
-
-            # Marco ondulado inferior.
+            # Conserva el marco ondulado inferior.
             canvas.setFillColor(colors.HexColor("#F1E8D3"))
 
             curva = canvas.beginPath()
@@ -3473,7 +3579,7 @@ def _crear_pdf_acta(datos, logo, fecha):
             )
 
             if imagen:
-                # Marca de agua.
+                # Conserva la marca de agua.
                 canvas.saveState()
                 canvas.setFillAlpha(0.045)
 
@@ -3487,74 +3593,45 @@ def _crear_pdf_acta(datos, logo, fecha):
 
                 canvas.restoreState()
 
-                # Logo de la cabecera.
+                # Logo de la configuración, con su transparencia.
                 dibujar_logo(
                     canvas,
                     margen,
-                    alto - 101,
+                    alto - 111,
                     72,
-                    72,
+                    82,
                 )
 
-            # Descripción, nombre de empresa y RUC.
-                        # Nombre de la empresa a la izquierda.
-            y_cabecera = alto - 65 + alto_cabecera / 2
+            # Encabezado sobre fondo blanco.
+            y_cabecera = alto - 27
 
-            if descripcion:
-                descripcion.drawOn(
-                    canvas,
-                    x_empresa,
-                    y_cabecera - alto_descripcion,
-                )
+            for parrafo, espacio in partes_cabecera:
+                _, altura = parrafo.wrap(ancho_empresa, alto)
+                y_cabecera -= altura
+                parrafo.drawOn(canvas, x_empresa, y_cabecera)
+                y_cabecera -= espacio
 
-                y_cabecera -= alto_descripcion + 6
-
-            empresa.drawOn(
-                canvas,
-                x_empresa,
-                y_cabecera - alto_empresa,
-            )
-
-            # Separador vertical del RUC.
-            canvas.setStrokeColor(linea)
-            canvas.setLineWidth(0.6)
-
-            canvas.line(
-                x_separador,
-                alto - 83,
-                x_separador,
-                alto - 47,
-            )
-
-            # RUC a la derecha.
-            canvas.setFillColor(gris)
-            canvas.setFont("Helvetica-Bold", 7.5)
-
-            canvas.drawRightString(
-                ancho - margen,
-                alto - 59,
-                "RUC Nº",
-            )
-
-            canvas.setFillColor(oscuro)
-            canvas.setFont("Helvetica-Bold", 11)
-
-            canvas.drawRightString(
-                ancho - margen,
-                alto - 75,
-                str(datos["ruc"]),
-            )
-
-            # Línea inferior del encabezado.
+            # Separador dorado.
             canvas.setStrokeColor(dorado)
             canvas.setLineWidth(0.7)
 
             canvas.line(
                 margen,
-                alto - 108,
+                alto - 120,
                 ancho - margen,
-                alto - 108,
+                alto - 120,
             )
+
+            canvas.setFillColor(dorado)
+            canvas.rect(
+                margen,
+                alto - 121,
+                62,
+                2.2,
+                fill=1,
+                stroke=0,
+            )
+
             # Pie de página.
             canvas.setFont("Helvetica-Bold", 6.8)
             canvas.setFillColor(gris)
@@ -3577,7 +3654,8 @@ def _crear_pdf_acta(datos, logo, fecha):
             Paragraph(
                 "ACTA DE ENTREGA LOTE DE TERRENO",
                 titulo,
-            )
+            ),
+            Paragraph(d["proyecto"], subtitulo),
         ]
 
         contenido.append(
@@ -3704,7 +3782,7 @@ def _crear_pdf_acta(datos, logo, fecha):
             pagesize=letter,
             leftMargin=margen - 6,
             rightMargin=margen - 6,
-            topMargin=126,
+            topMargin=136,
             bottomMargin=106,
             title="Acta de entrega de lote de terreno",
             author=str(datos["empresa"]),
