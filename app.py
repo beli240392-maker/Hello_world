@@ -3032,6 +3032,171 @@ def token_config_acta():
 
     return session["acta_csrf"]
 
+def _validar_margenes_acta(valores):
+    import math
+
+    valores = valores or {}
+
+    if not isinstance(valores, dict):
+        raise ValueError("La configuración de márgenes no es válida.")
+
+    resultado = {}
+
+    for campo, defecto in (
+        ("superior", 32),
+        ("inferior", 32),
+        ("izquierdo", 32),
+        ("derecho", 15),
+    ):
+        try:
+            valor = float(
+                str(valores.get(campo, defecto)).replace(",", ".")
+            )
+        except (ValueError, TypeError):
+            raise ValueError(
+                f"El margen {campo} debe ser un número en milímetros."
+            )
+
+        if not math.isfinite(valor) or not 0 <= valor <= 80:
+            raise ValueError(
+                f"El margen {campo} debe estar entre 0 y 80 mm."
+            )
+
+        resultado[campo] = valor
+
+    if resultado["izquierdo"] + resultado["derecho"] > 105:
+        raise ValueError(
+            "Los márgenes laterales no deben sumar más de 105 mm."
+        )
+
+    if resultado["superior"] + resultado["inferior"] > 150:
+        raise ValueError(
+            "Los márgenes superior e inferior no deben sumar más de 150 mm."
+        )
+
+    return resultado
+
+
+def _validar_membrete_acta(contenido):
+    import io
+
+    from pypdf import PdfReader, PdfWriter, Transformation
+    from pypdf.errors import PyPdfError
+    from pypdf.generic import NameObject, RectangleObject
+
+    contenido = bytes(contenido)
+
+    if not contenido or len(contenido) > 5 * 1024 * 1024:
+        raise ValueError("El membrete debe ser un PDF de máximo 5 MB.")
+
+    if not contenido.lstrip().startswith(b"%PDF-"):
+        raise ValueError("El archivo del membrete no es un PDF válido.")
+
+    try:
+        lector = PdfReader(io.BytesIO(contenido))
+
+        if lector.is_encrypted:
+            raise ValueError(
+                "El membrete debe ser un PDF sin contraseña."
+            )
+
+        if len(lector.pages) != 1:
+            raise ValueError(
+                "El membrete debe tener exactamente una página."
+            )
+
+        pagina = lector.pages[0]
+
+        if pagina.rotation:
+            pagina.transfer_rotation_to_content()
+
+        caja = pagina.cropbox
+        ancho = float(caja.width)
+        alto = float(caja.height)
+
+        if (
+            abs(ancho - 595.28) > 3
+            or abs(alto - 841.89) > 3
+            or float(pagina.get("/UserUnit", 1)) != 1
+        ):
+            raise ValueError(
+                "El membrete debe estar en tamaño A4 vertical."
+            )
+
+        pagina.add_transformation(
+            Transformation().translate(
+                -float(caja.left),
+                -float(caja.bottom),
+            )
+        )
+
+        for clave in (
+            "/MediaBox", "/CropBox", "/TrimBox",
+            "/BleedBox", "/ArtBox",
+        ):
+            pagina[NameObject(clave)] = RectangleObject(
+                (0, 0, ancho, alto)
+            )
+
+        escritor = PdfWriter()
+        escritor.add_page(
+            pagina,
+            excluded_keys=["/Annots", "/AA", "/B"],
+        )
+
+        salida = io.BytesIO()
+        escritor.write(salida)
+
+        resultado = salida.getvalue()
+
+        if len(resultado) > 5 * 1024 * 1024:
+            raise ValueError(
+                "El PDF procesado supera 5 MB. Reduce su tamaño."
+            )
+
+        return resultado
+
+    except ValueError:
+        raise
+
+    except (
+        PyPdfError, OSError, TypeError,
+        KeyError, IndexError, OverflowError,
+    ) as error:
+        raise ValueError(
+            "No se pudo leer el membrete. "
+            "Exporta nuevamente el archivo como PDF."
+        ) from error
+
+
+@app.route("/superadmin/membrete_acta/<int:lot_id>")
+@login_required
+@superadmin_required
+def membrete_acta(lot_id):
+    import io
+
+    lot = Lotizacion.query.get_or_404(lot_id)
+
+    if not lot.acta_membrete:
+        return "No hay un membrete guardado para este proyecto.", 404
+
+    respuesta = send_file(
+        io.BytesIO(lot.acta_membrete),
+        mimetype="application/pdf",
+        as_attachment=True,
+        download_name=f"membrete_proyecto_{lot.id}.pdf",
+    )
+
+    respuesta.headers["Cache-Control"] = "private, no-store"
+    respuesta.headers["X-Content-Type-Options"] = "nosniff"
+
+    return respuesta
+
+
+@app.route(
+    "/superadmin/configurar_acta/<int:lot_id>",
+    methods=["POST"]
+)
 
 @app.route(
     "/superadmin/configurar_acta/<int:lot_id>",
@@ -3040,8 +3205,9 @@ def token_config_acta():
 @login_required
 @superadmin_required
 def configurar_acta(lot_id):
+    import io
+    import re
     import secrets
-    from PIL import Image, UnidentifiedImageError
 
     recibido = request.form.get("acta_csrf", "")
     esperado = session.get("acta_csrf", "")
@@ -3069,10 +3235,12 @@ def configurar_acta(lot_id):
     }
 
     try:
+        from PIL import Image, UnidentifiedImageError
+
         if not all(datos.values()):
             raise ValueError(
                 "Completa todos los datos de la empresa. "
-                "El logo es opcional."
+                "El logo y el membrete PDF son opcionales."
             )
 
         if any(
@@ -3136,11 +3304,40 @@ def configurar_acta(lot_id):
             except (
                 UnidentifiedImageError,
                 OSError,
-                Image.DecompressionBombError
+                Image.DecompressionBombError,
             ):
                 raise ValueError(
                     "No se pudo leer el logo. Selecciona otro PNG o JPG."
                 )
+
+        archivo_membrete = request.files.get("acta_membrete")
+        quitar_membrete = request.form.get("quitar_membrete") == "1"
+        nuevo_membrete = None
+
+        if archivo_membrete and archivo_membrete.filename:
+            if quitar_membrete:
+                raise ValueError(
+                    'Desmarca "Quitar membrete" si quieres subir uno nuevo.'
+                )
+
+            contenido_pdf = archivo_membrete.stream.read(
+                5 * 1024 * 1024 + 1
+            )
+
+            nuevo_membrete = _validar_membrete_acta(contenido_pdf)
+
+        margenes = _validar_margenes_acta({
+            campo: request.form.get(
+                f"acta_margen_{campo}",
+                str(defecto),
+            )
+            for campo, defecto in (
+                ("superior", 32),
+                ("inferior", 32),
+                ("izquierdo", 32),
+                ("derecho", 15),
+            )
+        })
 
         for campo, valor in datos.items():
             setattr(lot, campo, valor)
@@ -3149,6 +3346,13 @@ def configurar_acta(lot_id):
             lot.acta_logo = nuevo_logo
         elif quitar_logo:
             lot.acta_logo = None
+
+        if nuevo_membrete is not None:
+            lot.acta_membrete = nuevo_membrete
+        elif quitar_membrete:
+            lot.acta_membrete = None
+
+        lot.acta_margenes = margenes
 
         db.session.commit()
 
@@ -3160,6 +3364,13 @@ def configurar_acta(lot_id):
     except ValueError as error:
         db.session.rollback()
         flash(str(error), "danger")
+
+    except ImportError:
+        db.session.rollback()
+        flash(
+            "Falta instalar pypdf o Pillow en este entorno de Python.",
+            "danger"
+        )
 
     except Exception:
         db.session.rollback()
@@ -3196,15 +3407,19 @@ def logo_acta(lot_id):
     return respuesta
 
 
-def _crear_pdf_acta(datos, logo, fecha):
+def _crear_pdf_acta(
+    datos, logo, fecha, membrete_pdf=None, margenes=None
+):
     import io
     import re
+
     from decimal import Decimal, InvalidOperation
     from xml.sax.saxutils import escape
 
     from reportlab.lib import colors
     from reportlab.lib.enums import TA_CENTER, TA_LEFT
     from reportlab.lib.pagesizes import letter
+    from reportlab.lib.units import mm
     from reportlab.lib.styles import ParagraphStyle
     from reportlab.lib.utils import ImageReader
     from reportlab.platypus import (
@@ -3309,7 +3524,6 @@ def _crear_pdf_acta(datos, logo, fecha):
         for campo, valor in datos.items()
     }
 
-    # Ajusta la presentación de la dirección solo en el PDF.
     for campo in (
         "direccion_cliente",
         "distrito_cliente",
@@ -3331,127 +3545,142 @@ def _crear_pdf_acta(datos, logo, fecha):
         f"{fecha.day} de {meses[fecha.month - 1]} de {fecha.year}"
     )
 
-    ancho, alto = letter
+    plantilla = None
+
+    if membrete_pdf:
+        from pypdf import PdfReader, PdfWriter
+
+        margenes = _validar_margenes_acta(margenes)
+        plantilla = _validar_membrete_acta(membrete_pdf)
+
+        lector_plantilla = PdfReader(io.BytesIO(plantilla))
+        pagina_base = lector_plantilla.pages[0]
+
+        ancho = float(pagina_base.mediabox.width)
+        alto = float(pagina_base.mediabox.height)
+    else:
+        ancho, alto = letter
+
     margen = 58
 
     dorado = colors.HexColor("#A38043")
     oscuro = colors.HexColor("#262D32")
     gris = colors.HexColor("#656D75")
 
-    imagen = ImageReader(io.BytesIO(logo)) if logo else None
-
-    # Membrete adaptable a la empresa de cada proyecto.
-    nombre_completo = " ".join(str(datos["empresa"]).split())
-    descriptor = ""
-    nombre_cabecera = nombre_completo
-
-    for prefijo in (
-        "CONSTRUCTORA E INMOBILIARIA",
-        "CONSTRUCTORA Y INMOBILIARIA",
-        "INMOBILIARIA Y CONSTRUCTORA",
-        "INMOBILIARIA",
-        "CONSTRUCTORA",
-    ):
-        if nombre_completo.upper().startswith(prefijo + " "):
-            descriptor = nombre_completo[:len(prefijo)].upper()
-            nombre_cabecera = nombre_completo[len(prefijo):].strip()
-            break
-
-    # Presenta S.A.C., S.R.L., etc. en un tamaño menor.
-    razon_social = ""
-
-    coincidencia = re.search(
-        r"\s+(S\.?A\.?C\.?|S\.?R\.?L\.?|S\.?A\.?|E\.?I\.?R\.?L\.?)$",
-        nombre_cabecera,
-        re.IGNORECASE,
+    imagen = (
+        ImageReader(io.BytesIO(logo))
+        if logo and not plantilla else None
     )
 
-    if coincidencia:
-        razon_social = coincidencia.group(1).upper()
-        nombre_cabecera = nombre_cabecera[:coincidencia.start()].strip()
+    if not plantilla:
+        nombre_completo = " ".join(str(datos["empresa"]).split())
+        descriptor = ""
+        nombre_cabecera = nombre_completo
 
-    x_empresa = margen + 90 if imagen else margen
-    ancho_empresa = ancho - margen - x_empresa
-    alineacion = TA_LEFT if imagen else TA_CENTER
+        for prefijo in (
+            "CONSTRUCTORA E INMOBILIARIA",
+            "CONSTRUCTORA Y INMOBILIARIA",
+            "INMOBILIARIA Y CONSTRUCTORA",
+            "INMOBILIARIA",
+            "CONSTRUCTORA",
+        ):
+            if nombre_completo.upper().startswith(prefijo + " "):
+                descriptor = nombre_completo[:len(prefijo)].upper()
+                nombre_cabecera = nombre_completo[len(prefijo):].strip()
+                break
 
-    estilo_descriptor = ParagraphStyle(
-        "descriptor",
-        fontName="Helvetica",
-        fontSize=7.5,
-        leading=10,
-        textColor=oscuro,
-        alignment=alineacion,
-    )
+        razon_social = ""
 
-    estilo_contacto = ParagraphStyle(
-        "contacto",
-        fontName="Helvetica",
-        fontSize=8.2,
-        leading=10.5,
-        textColor=gris,
-        alignment=alineacion,
-    )
+        coincidencia = re.search(
+            r"\s+(S\.?A\.?C\.?|S\.?R\.?L\.?|S\.?A\.?|E\.?I\.?R\.?L\.?)$",
+            nombre_cabecera,
+            re.IGNORECASE,
+        )
 
-    descripcion = (
-        Paragraph(texto(descriptor), estilo_descriptor)
-        if descriptor else None
-    )
+        if coincidencia:
+            razon_social = coincidencia.group(1).upper()
+            nombre_cabecera = nombre_cabecera[:coincidencia.start()].strip()
 
-    ruc_cabecera = Paragraph(
-        f'<b>RUC {d["ruc"]}</b>',
-        estilo_contacto,
-    )
+        x_empresa = margen + 90 if imagen else margen
+        ancho_empresa = ancho - margen - x_empresa
+        alineacion = TA_LEFT if imagen else TA_CENTER
 
-    domicilio_cabecera = Paragraph(
-        d["domicilio_empresa"],
-        estilo_contacto,
-    )
-
-    # Ajusta el nombre sin invadir el contenido del acta.
-    for letra in (32, 30, 28, 26, 23, 20, 17, 14, 11):
-        estilo_empresa = ParagraphStyle(
-            "empresa",
-            fontName="Times-Bold",
-            fontSize=letra,
-            leading=letra + 2,
+        estilo_descriptor = ParagraphStyle(
+            "descriptor",
+            fontName="Helvetica",
+            fontSize=7.5,
+            leading=10,
             textColor=oscuro,
             alignment=alineacion,
         )
 
-        nombre_html = texto(nombre_cabecera.upper())
+        estilo_contacto = ParagraphStyle(
+            "contacto",
+            fontName="Helvetica",
+            fontSize=8.2,
+            leading=10.5,
+            textColor=gris,
+            alignment=alineacion,
+        )
 
-        if razon_social:
-            nombre_html += (
-                f' <font size="{max(9, letra * 0.48):.1f}">'
-                f'{texto(razon_social)}</font>'
+        descripcion = (
+            Paragraph(texto(descriptor), estilo_descriptor)
+            if descriptor else None
+        )
+
+        ruc_cabecera = Paragraph(
+            f'<b>RUC {d["ruc"]}</b>',
+            estilo_contacto,
+        )
+
+        domicilio_cabecera = Paragraph(
+            d["domicilio_empresa"],
+            estilo_contacto,
+        )
+
+        for letra in (32, 30, 28, 26, 23, 20, 17, 14, 11):
+            estilo_empresa = ParagraphStyle(
+                "empresa",
+                fontName="Times-Bold",
+                fontSize=letra,
+                leading=letra + 2,
+                textColor=oscuro,
+                alignment=alineacion,
             )
 
-        empresa = Paragraph(nombre_html, estilo_empresa)
+            nombre_html = texto(nombre_cabecera.upper())
 
-        partes_cabecera = []
+            if razon_social:
+                nombre_html += (
+                    f' <font size="{max(9, letra * 0.48):.1f}">'
+                    f'{texto(razon_social)}</font>'
+                )
 
-        if descripcion:
-            partes_cabecera.append((descripcion, 4))
+            empresa = Paragraph(nombre_html, estilo_empresa)
 
-        partes_cabecera.extend([
-            (empresa, 4),
-            (ruc_cabecera, 2),
-            (domicilio_cabecera, 0),
-        ])
+            partes_cabecera = []
 
-        alto_cabecera = sum(
-            parrafo.wrap(ancho_empresa, alto)[1] + espacio
-            for parrafo, espacio in partes_cabecera
-        )
+            if descripcion:
+                partes_cabecera.append((descripcion, 4))
 
-        if alto_cabecera <= 86:
-            break
+            partes_cabecera.extend([
+                (empresa, 4),
+                (ruc_cabecera, 2),
+                (domicilio_cabecera, 0),
+            ])
 
-    else:
-        raise ValueError(
-            "El nombre o el domicilio de la empresa es demasiado "
-            "extenso para el membrete."
-        )
+            alto_cabecera = sum(
+                parrafo.wrap(ancho_empresa, alto)[1] + espacio
+                for parrafo, espacio in partes_cabecera
+            )
+
+            if alto_cabecera <= 86:
+                break
+        else:
+            raise ValueError(
+                "El nombre o el domicilio de la empresa es demasiado "
+                "extenso para el membrete."
+            )
 
     def dibujar_logo(canvas, x, y, caja_ancho, caja_alto):
         original_ancho, original_alto = imagen.getSize()
@@ -3506,7 +3735,10 @@ def _crear_pdf_acta(datos, logo, fecha):
             fontName="Helvetica-Bold",
             fontSize=8.3,
             leading=11,
-            textColor=dorado,
+            textColor=(
+                colors.HexColor("#20395E")
+                if plantilla else dorado
+            ),
             alignment=TA_CENTER,
             spaceAfter=14,
         )
@@ -3550,21 +3782,22 @@ def _crear_pdf_acta(datos, logo, fecha):
 
         def membrete(canvas, documento):
             paginas[0] = documento.page
+
+            if plantilla:
+                return
+
             canvas.saveState()
 
-            # Conserva el marco ondulado inferior.
             canvas.setFillColor(colors.HexColor("#F1E8D3"))
 
             curva = canvas.beginPath()
             curva.moveTo(0, 0)
             curva.lineTo(0, 164)
-
             curva.curveTo(
                 ancho * 0.245, 50,
                 ancho * 0.572, 15,
                 ancho, 84,
             )
-
             curva.lineTo(ancho, 0)
             curva.close()
 
@@ -3572,14 +3805,12 @@ def _crear_pdf_acta(datos, logo, fecha):
 
             canvas.setFillColor(dorado)
             canvas.rect(0, 10, 15, 60, fill=1, stroke=0)
-
             canvas.rect(
                 ancho - 15, 28, 15, 42,
                 fill=1, stroke=0,
             )
 
             if imagen:
-                # Conserva la marca de agua.
                 canvas.saveState()
                 canvas.setFillAlpha(0.045)
 
@@ -3593,7 +3824,6 @@ def _crear_pdf_acta(datos, logo, fecha):
 
                 canvas.restoreState()
 
-                # Logo de la configuración, con su transparencia.
                 dibujar_logo(
                     canvas,
                     margen,
@@ -3602,7 +3832,6 @@ def _crear_pdf_acta(datos, logo, fecha):
                     82,
                 )
 
-            # Encabezado sobre fondo blanco.
             y_cabecera = alto - 27
 
             for parrafo, espacio in partes_cabecera:
@@ -3611,7 +3840,6 @@ def _crear_pdf_acta(datos, logo, fecha):
                 parrafo.drawOn(canvas, x_empresa, y_cabecera)
                 y_cabecera -= espacio
 
-            # Separador dorado.
             canvas.setStrokeColor(dorado)
             canvas.setLineWidth(0.7)
 
@@ -3632,7 +3860,6 @@ def _crear_pdf_acta(datos, logo, fecha):
                 stroke=0,
             )
 
-            # Pie de página.
             canvas.setFont("Helvetica-Bold", 6.8)
             canvas.setFillColor(gris)
 
@@ -3687,7 +3914,6 @@ def _crear_pdf_acta(datos, logo, fecha):
             )
         )
 
-        # Linderos en una lista sencilla.
         lista_linderos = []
 
         for campo, nombre in (
@@ -3748,7 +3974,6 @@ def _crear_pdf_acta(datos, logo, fecha):
             )
         )
 
-        # Firma del cliente centrada.
         bloque_firma = Table(
             [
                 [Paragraph(d["cliente"], firma_estilo)],
@@ -3779,11 +4004,23 @@ def _crear_pdf_acta(datos, logo, fecha):
 
         documento = SimpleDocTemplate(
             memoria,
-            pagesize=letter,
-            leftMargin=margen - 6,
-            rightMargin=margen - 6,
-            topMargin=136,
-            bottomMargin=106,
+            pagesize=(ancho, alto),
+            leftMargin=(
+                margenes["izquierdo"] * mm
+                if plantilla else margen - 6
+            ),
+            rightMargin=(
+                margenes["derecho"] * mm
+                if plantilla else margen - 6
+            ),
+            topMargin=(
+                margenes["superior"] * mm
+                if plantilla else 136
+            ),
+            bottomMargin=(
+                margenes["inferior"] * mm
+                if plantilla else 106
+            ),
             title="Acta de entrega de lote de terreno",
             author=str(datos["empresa"]),
         )
@@ -3799,7 +4036,25 @@ def _crear_pdf_acta(datos, logo, fecha):
 
         if paginas[0] == 1:
             memoria.seek(0)
-            return memoria
+
+            if not plantilla:
+                return memoria
+
+            capa_texto = PdfReader(memoria)
+            pagina_base.merge_page(capa_texto.pages[0])
+
+            escritor = PdfWriter()
+            escritor.add_page(pagina_base)
+            escritor.add_metadata({
+                "/Title": "Acta de entrega de lote de terreno",
+                "/Author": str(datos["empresa"]),
+            })
+
+            salida = io.BytesIO()
+            escritor.write(salida)
+            salida.seek(0)
+
+            return salida
 
     raise ValueError(
         "El texto es demasiado extenso para una hoja. "
@@ -3976,7 +4231,9 @@ def generar_acta_entrega(compra_id):
         archivo = _crear_pdf_acta(
             datos,
             proyecto.acta_logo,
-            fecha
+            fecha,
+            membrete_pdf=proyecto.acta_membrete,
+            margenes=proyecto.acta_margenes,
         )
 
         nombre = secure_filename(
@@ -4000,8 +4257,8 @@ def generar_acta_entrega(compra_id):
 
     except ImportError:
         flash(
-            "Falta instalar ReportLab en el entorno "
-            "de Python del sistema.",
+            "Falta instalar ReportLab, Pillow o pypdf "
+            "en el entorno de Python del sistema.",
             "danger"
         )
 

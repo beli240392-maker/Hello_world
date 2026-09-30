@@ -215,6 +215,8 @@ class Lotizacion(db.Model):
     acta_cargo = db.Column(db.String(100), nullable=True)
     acta_dni_representante = db.Column(db.String(8), nullable=True)
     acta_logo = db.Column(db.LargeBinary, nullable=True)
+    acta_membrete = db.Column(db.LargeBinary, nullable=True)
+    acta_margenes = db.Column(db.JSON, nullable=True)
 
     lotes = db.relationship("Lote", backref="lotizacion", lazy=True)
 
