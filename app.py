@@ -728,8 +728,37 @@ def registrar_compra():
         precio = float(request.form.get("precio", 0))
         forma_pago = request.form["forma_pago"]
         inicial = float(request.form.get("inicial", 0)) if forma_pago == "credito" else 0
-        cuotas_total = int(request.form.get("cuotas", 0)) if forma_pago == "credito" else 0
         interes = float(request.form.get("interes") or 0) if forma_pago == "credito" else 0
+
+        try:
+            cuotas_total = (
+                int(request.form.get("cuotas") or 0)
+                if forma_pago == "credito" else 0
+            )
+        except (ValueError, TypeError):
+            cuotas_total = None
+
+        # Validar antes de guardar clientes, compras o cambiar el lote.
+        if forma_pago == "credito" and (
+            cuotas_total is None
+            or cuotas_total < 0
+            or (precio > inicial and cuotas_total == 0)
+        ):
+            flash(
+                "Si es una compra al credito , cuotas no puede ser cero. "
+                "Debes indicar al menos 1 cuota.",
+                "warning"
+            )
+
+            return render_template(
+                "registrar_compra.html",
+                lotes=lotes,
+                lote=lote,
+                cliente=cliente,
+                sep_id=sep_id,
+                separacion=separacion,
+                lotizacion=lotizacion
+            ), 400
        
         # Cliente
         # ✅ Si viene cliente_id en el formulario (hidden), usar ese cliente

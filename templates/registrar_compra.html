@@ -644,4 +644,112 @@ dniInput.addEventListener("blur", function() {
   
 </script>
 
+<script>
+(() => {
+  const cuotas = document.querySelector('input[name="cuotas"]');
+  const formulario = cuotas ? cuotas.form : null;
+
+  if (!formulario) return;
+
+  const formaPago = formulario.querySelector('[name="forma_pago"]');
+  const precio = formulario.querySelector('[name="precio"]');
+  const inicial = formulario.querySelector('[name="inicial"]');
+
+  cuotas.id = cuotas.id || 'cuotas';
+  cuotas.step = '1';
+
+  // Aviso debajo del campo de cuotas.
+  const aviso = document.createElement('div');
+  aviso.id = 'aviso-cuotas-compra';
+  aviso.className = 'text-danger small mt-1';
+  aviso.setAttribute('role', 'alert');
+  aviso.hidden = true;
+
+  cuotas.insertAdjacentElement('afterend', aviso);
+
+  const descripcionAnterior =
+    cuotas.getAttribute('aria-describedby') || '';
+
+  cuotas.setAttribute(
+    'aria-describedby',
+    (descripcionAnterior + ' ' + aviso.id).trim()
+  );
+
+  function validarCuotas(mostrarAviso = false) {
+    const esCredito = formaPago.value === 'credito';
+
+    const tieneSaldo =
+      Number(precio.value) > Number(inicial.value || 0);
+
+    const valor = cuotas.value.trim();
+    const cantidad = Number(valor);
+    let mensaje = '';
+
+    cuotas.required = esCredito && tieneSaldo;
+    cuotas.min = esCredito && tieneSaldo ? '1' : '0';
+
+    if (esCredito) {
+      if (
+        cuotas.validity.badInput ||
+        (
+          valor !== '' &&
+          (
+            !/^[0-9]+$/.test(valor) ||
+            !Number.isSafeInteger(cantidad)
+          )
+        )
+      ) {
+        mensaje = 'Ingresa una cantidad de cuotas entera y válida.';
+      } else if (
+        tieneSaldo &&
+        (valor === '' || cantidad < 1)
+      ) {
+        mensaje =
+          'Si queda saldo por pagar, debes indicar al menos 1 cuota.';
+      }
+    }
+
+    // Impide enviar el formulario mientras exista este error.
+    cuotas.setCustomValidity(mensaje);
+
+    const mostrar = mostrarAviso && mensaje !== '';
+
+    aviso.textContent = mostrar ? mensaje : '';
+    aviso.hidden = !mostrar;
+
+    cuotas.classList.toggle('is-invalid', mostrar);
+    cuotas.setAttribute(
+      'aria-invalid',
+      mensaje ? 'true' : 'false'
+    );
+
+    return mensaje === '';
+  }
+
+  cuotas.addEventListener('input', () => validarCuotas(true));
+  cuotas.addEventListener('blur', () => validarCuotas(true));
+  cuotas.addEventListener('invalid', () => validarCuotas(true));
+
+  [precio, inicial].forEach(campo => {
+    campo.addEventListener('input', () => {
+      validarCuotas(!aviso.hidden || cuotas.value !== '');
+    });
+  });
+
+  formaPago.addEventListener('change', () => {
+    validarCuotas(false);
+  });
+
+  formulario.addEventListener('submit', event => {
+    if (!validarCuotas(true)) {
+      event.preventDefault();
+      cuotas.focus();
+      cuotas.reportValidity();
+    }
+  });
+
+  validarCuotas(false);
+})();
+</script>
+
 {% endblock %}
