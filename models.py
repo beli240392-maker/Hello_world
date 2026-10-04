@@ -217,6 +217,11 @@ class Lotizacion(db.Model):
     acta_logo = db.Column(db.LargeBinary, nullable=True)
     acta_membrete = db.Column(db.LargeBinary, nullable=True)
     acta_margenes = db.Column(db.JSON, nullable=True)
+     # Configuración del plano de la lotización
+    plano_imagen = db.Column(db.LargeBinary, nullable=True)
+    plano_pdf = db.Column(db.LargeBinary, nullable=True)
+    plano_config = db.Column(db.JSON, nullable=True)
+    plano_nombre = db.Column(db.String(200), nullable=True)
 
     lotes = db.relationship("Lote", backref="lotizacion", lazy=True)
 

@@ -1,364 +1,654 @@
 {% extends "base.html" %}
 {% block content %}
 
+{% macro icono_lote(nombre) -%}
+  {% set trazos = {
+    'lote': 'M3 7l6-3 6 3 6-3v16l-6 3-6-3-6 3V7z M9 4v16 M15 7v16',
+    'editar': 'm16 3 5 5L8 21H3v-5L16 3z M13 6l5 5',
+    'guardar': 'M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h12l4 4v12a2 2 0 0 1-2 2z M7 3v6h10V3 M7 21v-8h10v8',
+    'documento': 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6 M8 13h8 M8 17h6',
+    'cliente': 'M16 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0 M4 21v-2a8 8 0 0 1 16 0v2',
+    'volver': 'M19 12H5 m6-6-6 6 6 6',
+    'frente': 'M12 20V4 m-6 6 6-6 6 6',
+    'derecha': 'M4 12h16 m-6-6 6 6-6 6',
+    'izquierda': 'M20 12H4 m6-6-6 6 6 6',
+    'fondo': 'M12 4v16 m-6-6 6 6 6-6',
+    'area': 'M4 9V4h5 M15 4h5v5 M20 15v5h-5 M9 20H4v-5',
+    'perimetro': 'M4 4h16v16H4z M8 4v3 M12 4v3 M16 4v3 M4 8h3 M4 12h3 M4 16h3',
+    'mas': 'M12 5v14 M5 12h14'
+  } %}
+
+  <svg
+    class="dl-icon"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="1.7"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    aria-hidden="true"
+    focusable="false">
+    <path d="{{ trazos[nombre] }}"/>
+  </svg>
+{%- endmacro %}
+
 <style>
+  /* BASE */
+
   .detalle-lote-page {
-    --dl-radius: 18px;
+    --dl-blue: #1264e8;
+    --dl-title: #172d4d;
+    --dl-muted: #64748b;
+    --dl-border: #e0e7f1;
+
+    max-width: 1180px;
+    margin: 0 auto;
+    color: #334155;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  }
+
+  .detalle-lote-page .dl-icon {
+    width: 19px;
+    height: 19px;
+    flex-shrink: 0;
   }
 
   .detalle-lote-page .hero-card,
   .detalle-lote-page .info-card {
-    border: 0;
-    border-radius: var(--dl-radius);
-    box-shadow: 0 8px 28px rgba(0,0,0,.07);
-    background: var(--bs-body-bg);
+    overflow: hidden;
+    margin-bottom: 22px;
+    background: #ffffff;
+    border: 1px solid var(--dl-border);
+    border-radius: 18px;
+    box-shadow: 0 7px 26px rgba(25, 55, 105, .06);
   }
 
-  .detalle-lote-page .hero-card {
-    overflow: hidden;
+  /* CABECERA DEL LOTE */
+
+  .detalle-lote-page .hero-card::before {
+    content: "";
+    display: block;
+    height: 4px;
+    background: linear-gradient(90deg, #1264e8, #5a8bf2, #8872e6);
   }
 
   .detalle-lote-page .hero-head {
-    padding: 1.25rem 1.4rem;
-    background: linear-gradient(135deg, var(--bs-dark), #343a40);
-    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
+    padding: 23px 25px;
+    background: linear-gradient(110deg, #edf4ff, #ffffff 85%);
+    border-bottom: 1px solid #e5edf8;
+  }
+
+  .detalle-lote-page .hero-identity {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    min-width: 0;
+  }
+
+  .detalle-lote-page .hero-symbol {
+    display: grid;
+    place-items: center;
+    width: 54px;
+    height: 54px;
+    flex: 0 0 54px;
+    background: var(--dl-blue);
+    color: #ffffff;
+    border: 3px solid #ffffff;
+    border-radius: 15px;
+    box-shadow: 0 5px 13px rgba(18, 100, 232, .17);
+  }
+
+  .detalle-lote-page .hero-symbol .dl-icon {
+    width: 25px;
+    height: 25px;
+  }
+
+  .detalle-lote-page .hero-kicker {
+    margin-bottom: 4px;
+    color: #2960ae;
+    font-size: .67rem;
+    font-weight: 700;
+    letter-spacing: .1em;
+    text-transform: uppercase;
   }
 
   .detalle-lote-page .hero-title {
     margin: 0;
-    font-size: 1.45rem;
-    font-weight: 800;
-    letter-spacing: -.02em;
+    color: var(--dl-title);
+    font-family: inherit;
+    font-size: clamp(1.25rem, 2.3vw, 1.65rem);
+    font-weight: 650;
+    letter-spacing: -.035em;
+    overflow-wrap: anywhere;
   }
 
-  .detalle-lote-page .hero-subtitle {
-    margin-top: .25rem;
-    opacity: .85;
-    font-size: .92rem;
+  /* ESTADO */
+
+  .detalle-lote-page .lote-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 7px 12px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    font-size: .8rem;
+    font-weight: 650;
+  }
+
+  .detalle-lote-page .lote-status::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    background: currentColor;
+    border-radius: 50%;
+  }
+
+  .detalle-lote-page .status-disponible {
+    background: #e9f7ef;
+    color: #147348;
+    border-color: #cfead9;
+  }
+
+  .detalle-lote-page .status-vendido {
+    background: #fff0f2;
+    color: #b73149;
+    border-color: #f7d9df;
+  }
+
+  .detalle-lote-page .status-separado {
+    background: #fff6e1;
+    color: #92600c;
+    border-color: #f2e0b2;
+  }
+
+  /* ÁREA Y PERÍMETRO */
+
+  .detalle-lote-page .lote-body,
+  .detalle-lote-page .operacion-body {
+    padding: 24px;
+  }
+
+  .detalle-lote-page .lote-resumen {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+    margin-bottom: 24px;
+  }
+
+  .detalle-lote-page .medida-card {
+    display: flex;
+    align-items: center;
+    gap: 13px;
+    padding: 15px 17px;
+    background: #f6f9fe;
+    border: 1px solid #e0e9f6;
+    border-radius: 12px;
+  }
+
+  .detalle-lote-page .medida-icon {
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    flex: 0 0 38px;
+    color: #2465be;
+    background: #e8f0ff;
+    border-radius: 10px;
   }
 
   .detalle-lote-page .data-label {
-    color: #6c757d;
-    font-size: .78rem;
-    text-transform: uppercase;
-    letter-spacing: .04em;
-    margin-bottom: .2rem;
+    margin-bottom: 4px;
+    color: var(--dl-muted);
+    font-size: .75rem;
+    font-weight: 500;
   }
 
   .detalle-lote-page .data-value {
-    font-size: 1.15rem;
-    font-weight: 800;
+    color: var(--dl-title);
+    font-size: 1.2rem;
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* LINDEROS */
+
+  .detalle-lote-page .section-title {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    margin: 0;
+    color: var(--dl-title);
+    font-family: inherit;
+    font-size: 1.02rem;
+    font-weight: 650;
+  }
+
+  .detalle-lote-page .section-title::before {
+    content: "";
+    flex: 0 0 4px;
+    width: 4px;
+    height: 17px;
+    border-radius: 3px;
+    background: var(--dl-blue);
+  }
+
+  .detalle-lote-page .section-subtitle {
+    margin: 6px 0 0;
+    color: var(--dl-muted);
+    font-size: .8rem;
+  }
+
+  .detalle-lote-page .linderos-heading {
+    margin-bottom: 15px;
+  }
+
+  .detalle-lote-page .linderos-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 13px;
+  }
+
+  .detalle-lote-page .lindero-item {
+    min-width: 0;
+    padding: 16px;
+    border: 1px solid #e0e7f1;
+    border-radius: 12px;
+    background: #ffffff;
+  }
+
+  .detalle-lote-page .lindero-label {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    margin-bottom: 10px;
+    color: #2f5383;
+    font-size: .8rem;
+    font-weight: 600;
+  }
+
+  .detalle-lote-page .lindero-label .dl-icon {
+    padding: 5px;
+    width: 29px;
+    height: 29px;
+    background: #eef4ff;
+    border-radius: 8px;
   }
 
   .detalle-lote-page .lindero-value {
-    font-size: 1rem;
-    font-weight: 600;
+    color: #33465f;
+    font-size: .91rem;
+    font-weight: 400;
+    line-height: 1.65;
     white-space: pre-line;
     overflow-wrap: anywhere;
   }
 
-  .detalle-lote-page .section-title {
-    font-weight: 800;
-    margin: 0;
-    font-size: 1.1rem;
-  }
+  /* BOTONES Y FORMULARIO */
 
-  .detalle-lote-page .section-subtitle {
-    color: #6c757d;
-    margin-top: .2rem;
-    font-size: .88rem;
-  }
-
-  .detalle-lote-page .client-box {
-    border: 1px solid var(--bs-border-color);
-    border-radius: 14px;
-    padding: 1rem;
-    background: var(--bs-tertiary-bg);
-  }
-
-  .detalle-lote-page .amount-box {
-    border-radius: 14px;
-    padding: 1rem;
-    background: var(--bs-tertiary-bg);
-    border: 1px solid var(--bs-border-color);
-  }
-
-  .detalle-lote-page .amount-label {
-    color: #6c757d;
-    font-size: .78rem;
-    text-transform: uppercase;
-    letter-spacing: .04em;
-  }
-
-  .detalle-lote-page .amount-value {
-    font-size: 1.35rem;
-    font-weight: 800;
-    margin-top: .15rem;
-  }
-
-  .detalle-lote-page .detail-row {
-    padding: .8rem 0;
-    border-bottom: 1px solid var(--bs-border-color);
-  }
-
-  .detalle-lote-page .detail-row:last-child {
-    border-bottom: 0;
+  .detalle-lote-page .lote-acciones {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 20px;
+    padding-top: 18px;
+    border-top: 1px solid #e8edf4;
   }
 
   .detalle-lote-page .action-bar {
     display: flex;
     flex-wrap: wrap;
-    gap: .65rem;
+    align-items: center;
+    gap: 9px;
   }
 
-  .detalle-lote-page .action-bar .btn {
-    border-radius: 10px;
-    font-weight: 650;
+  .detalle-lote-page .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    min-height: 39px;
+    padding: 9px 14px;
+    border-radius: 9px;
+    font-family: inherit;
+    font-size: .8rem;
+    font-weight: 600;
+    line-height: 1.35;
   }
 
-  .detalle-lote-page #editor-linderos .form-control {
-    border-radius: 10px;
+  .detalle-lote-page .btn-primary {
+    --bs-btn-bg: #1264e8;
+    --bs-btn-border-color: #1264e8;
+    --bs-btn-hover-bg: #0b55ca;
+    --bs-btn-hover-border-color: #0b55ca;
+  }
+
+  .detalle-lote-page .btn-outline-secondary {
+    --bs-btn-color: #52647d;
+    --bs-btn-border-color: #ccd7e5;
+    --bs-btn-hover-color: #234c80;
+    --bs-btn-hover-bg: #f0f5fc;
+    --bs-btn-hover-border-color: #99b5da;
+  }
+
+  .detalle-lote-page .btn:focus-visible {
+    outline: 3px solid #86b7fe;
+    outline-offset: 3px;
+  }
+
+  .detalle-lote-page .form-control {
+    font-family: inherit;
+    font-size: .9rem;
+    border-radius: 9px;
+    border-color: #cbd7e6;
+  }
+
+  .detalle-lote-page .form-control:focus {
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 3px rgba(18, 100, 232, .10);
+  }
+
+  .detalle-lote-page #editor-linderos textarea {
+    min-height: 105px;
+    line-height: 1.6;
+    resize: vertical;
   }
 
   .detalle-lote-page [hidden] {
     display: none !important;
   }
 
-  /* Información principal del lote */
-  .detalle-lote-page .lote-resumen {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 1rem;
-    padding: 1.1rem 1.2rem;
-    border: 1px solid var(--bs-border-color);
-    border-radius: 14px;
-    background: var(--bs-tertiary-bg);
+  /* INFORMACIÓN DE COMPRA O SEPARACIÓN */
+
+  .detalle-lote-page .operacion-heading {
+    margin-bottom: 18px;
   }
 
-  /* Cabecera de linderos y perímetro */
-  .detalle-lote-page .linderos-cabecera {
+  .detalle-lote-page .client-box {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
-    gap: 1rem;
-    margin-bottom: 1rem;
+    gap: 14px;
+    padding: 15px 17px;
+    margin-bottom: 16px;
+    border: 1px solid #e1e9f5;
+    border-radius: 12px;
+    background: #f6f9ff;
   }
 
-  .detalle-lote-page .perimetro-box {
+  .detalle-lote-page .client-identity {
     display: flex;
     align-items: center;
-    flex-wrap: wrap;
-    gap: .45rem 1rem;
-    padding: .7rem 1rem;
-    border: 1px solid var(--bs-border-color);
-    border-radius: 12px;
-    background: var(--bs-tertiary-bg);
+    gap: 12px;
+    min-width: 0;
   }
 
-  .detalle-lote-page .perimetro-box .data-label {
-    margin: 0;
+  .detalle-lote-page .client-symbol {
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    flex: 0 0 38px;
+    color: #2865b3;
+    background: #e7f0ff;
+    border-radius: 10px;
   }
 
-  .detalle-lote-page .perimetro-valor {
-    font-size: 1.1rem;
-    font-weight: 800;
+  .detalle-lote-page .client-name {
+    color: var(--dl-title);
+    font-size: .98rem;
+    font-weight: 600;
+    text-transform: capitalize;
+    overflow-wrap: anywhere;
   }
 
-  /* Linderos guardados */
-  .detalle-lote-page .linderos-grid {
+  .detalle-lote-page .client-dni {
+    margin-top: 3px;
+    color: var(--dl-muted);
+    font-size: .77rem;
+  }
+
+  .detalle-lote-page .compra-datos {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+  }
+
+  .detalle-lote-page .compra-datos > div {
+    min-width: 0;
+    padding: 8px 0;
+  }
+
+  .detalle-lote-page .compra-datos > div + div {
+    padding-left: 20px;
+    border-left: 1px solid #e5ebf3;
+  }
+
+  .detalle-lote-page .amount-value {
+    margin-top: 5px;
+    color: var(--dl-title);
+    font-size: 1.05rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .detalle-lote-page .precio-value {
+    color: var(--dl-blue);
+    font-size: 1.35rem;
+  }
+
+  .detalle-lote-page .credito-datos {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: .9rem;
+    gap: 16px;
+    margin-top: 16px;
+    padding-top: 15px;
+    border-top: 1px solid #e8edf4;
   }
 
-  .detalle-lote-page .lindero-item {
-    min-width: 0;
-    padding: 1rem 1.1rem;
-    border: 1px solid var(--bs-border-color);
-    border-radius: 14px;
-    background: var(--bs-body-bg);
+  .detalle-lote-page .credito-nota {
+    margin-top: 3px;
+    color: var(--dl-muted);
+    font-size: .78rem;
   }
 
-  .detalle-lote-page .lindero-item .data-label {
-    margin-bottom: .5rem;
+  .detalle-lote-page .operacion-actions {
+    justify-content: flex-end;
+    margin-top: 18px;
+    padding-top: 16px;
+    border-top: 1px solid #e8edf4;
   }
 
-  .detalle-lote-page .lindero-item .lindero-value {
-    line-height: 1.65;
+  .detalle-lote-page .separacion-datos {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  /* Botones de la tarjeta */
-  .detalle-lote-page .lote-acciones {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: .75rem 1rem;
-    margin-top: 1.5rem;
-    padding-top: 1.25rem;
-    border-top: 1px solid var(--bs-border-color);
+  .detalle-lote-page .separacion-datos .precio-value {
+    color: #98620b;
   }
 
-  .detalle-lote-page .hero-card .action-bar .btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: .4rem;
-    min-height: 42px;
-    padding: .6rem 1rem;
-    font-size: .9rem;
+  .detalle-lote-page .volver-bar {
+    margin-bottom: 24px;
   }
 
-  .detalle-lote-page #editor-linderos textarea {
-    min-height: 110px;
-    line-height: 1.6;
-    resize: vertical;
-  }
+  /* CELULARES */
 
   @media (max-width: 575.98px) {
-    .detalle-lote-page .hero-title {
-      font-size: 1.2rem;
+    .detalle-lote-page .hero-head {
+      padding: 18px;
     }
 
+    .detalle-lote-page .lote-body,
+    .detalle-lote-page .operacion-body {
+      padding: 17px;
+    }
+
+    .detalle-lote-page .hero-symbol {
+      width: 46px;
+      height: 46px;
+      flex-basis: 46px;
+    }
+
+    .detalle-lote-page .lote-resumen {
+      gap: 9px;
+    }
+
+    .detalle-lote-page .medida-card {
+      padding: 12px;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .detalle-lote-page .data-value {
+      font-size: 1.05rem;
+    }
+
+    .detalle-lote-page .linderos-grid,
+    .detalle-lote-page .compra-datos,
+    .detalle-lote-page .credito-datos {
+      grid-template-columns: 1fr;
+    }
+
+    .detalle-lote-page .compra-datos {
+      gap: 0;
+    }
+
+    .detalle-lote-page .compra-datos > div + div {
+      padding: 12px 0;
+      border-left: 0;
+      border-top: 1px solid #e8edf4;
+    }
+
+    .detalle-lote-page .action-bar,
     .detalle-lote-page .action-bar .btn {
       width: 100%;
     }
 
-    .detalle-lote-page .lote-resumen {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      padding: 1rem;
-    }
-
-    .detalle-lote-page .linderos-grid {
-      grid-template-columns: 1fr;
-    }
-
-    .detalle-lote-page .perimetro-box,
-    .detalle-lote-page .lote-acciones .action-bar {
-      width: 100%;
-    }
-
-    .detalle-lote-page .perimetro-box {
-      justify-content: space-between;
+    .detalle-lote-page .client-box {
+      padding: 13px;
     }
   }
 </style>
 
+{% set mostrar_formulario =
+  request.method == 'POST' and (error_linderos|default(false))
+%}
+
+{% set campos_linderos = [
+  ('lindero_frente', 'Frente', 'frente'),
+  ('lindero_derecha', 'Derecha entrando', 'derecha'),
+  ('lindero_izquierda', 'Izquierda entrando', 'izquierda'),
+  ('lindero_fondo', 'Fondo', 'fondo')
+] %}
+
 <div class="container-fluid detalle-lote-page px-0 px-md-2">
 
-  <!-- CABECERA DEL LOTE -->
-  <div class="card hero-card mb-4">
+  <!-- TARJETA DEL LOTE -->
+  <div class="hero-card">
 
-    <div class="hero-head d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
-      <div>
-        <h2 class="hero-title">🏡 Detalle del Lote</h2>
-        <div class="hero-subtitle">
-          Manzana {{ lote.manzana }} · Lote {{ lote.numero }}
+    <div class="hero-head">
+      <div class="hero-identity">
+
+        <div class="hero-symbol">
+          {{ icono_lote('lote') }}
         </div>
+
+        <div>
+          <div class="hero-kicker">Detalle del lote</div>
+          <h2 class="hero-title">
+            Manzana {{ lote.manzana }} · Lote {{ lote.numero }}
+          </h2>
+        </div>
+
       </div>
 
-      <div>
-        {% if lote.estado == "disponible" %}
-          <span class="badge bg-success fs-6 px-3 py-2">
-            Disponible
-          </span>
-        {% elif lote.estado == "vendido" %}
-          <span class="badge bg-danger fs-6 px-3 py-2">
-            Vendido
-          </span>
-        {% else %}
-          <span class="badge bg-warning text-dark fs-6 px-3 py-2">
-            Separado
-          </span>
-        {% endif %}
-      </div>
+      {% if lote.estado == 'disponible' %}
+        <span class="lote-status status-disponible">
+          Disponible
+        </span>
+      {% elif lote.estado == 'vendido' %}
+        <span class="lote-status status-vendido">
+          Vendido
+        </span>
+      {% else %}
+        <span class="lote-status status-separado">
+          Separado
+        </span>
+      {% endif %}
     </div>
 
-    <div class="card-body p-3 p-md-4">
+    <div class="lote-body">
 
-      <!-- DATOS GENERALES -->
+      <!-- MEDIDAS PRINCIPALES -->
       <div class="lote-resumen">
 
-        <div>
-          <div class="data-label">Manzana</div>
-          <div class="data-value">{{ lote.manzana }}</div>
+        <div class="medida-card">
+          <div class="medida-icon">
+            {{ icono_lote('area') }}
+          </div>
+          <div>
+            <div class="data-label">Área del lote</div>
+            <div class="data-value">{{ lote.area }} m²</div>
+          </div>
         </div>
 
-        <div>
-          <div class="data-label">Número</div>
-          <div class="data-value">{{ lote.numero }}</div>
-        </div>
-
-        <div>
-          <div class="data-label">Área</div>
-          <div class="data-value">{{ lote.area }} m²</div>
-        </div>
-
-        <div>
-          <div class="data-label">Estado</div>
-          <div class="data-value">
-            {% if lote.estado == "disponible" %}
-              <span class="text-success">Disponible</span>
-            {% elif lote.estado == "vendido" %}
-              <span class="text-danger">Vendido</span>
-            {% else %}
-              <span class="text-warning">Separado</span>
-            {% endif %}
+        <div class="medida-card">
+          <div class="medida-icon">
+            {{ icono_lote('perimetro') }}
+          </div>
+          <div>
+            <div class="data-label">Perímetro total</div>
+            <div class="data-value">
+              {% if lote.perimetro is not none %}
+                {{ lote.perimetro }} m
+              {% else %}
+                Sin registrar
+              {% endif %}
+            </div>
           </div>
         </div>
 
       </div>
 
       <!-- LINDEROS -->
-      {% set mostrar_formulario =
-          request.method == 'POST' and (error_linderos|default(false))
-      %}
+      <div id="linderos">
 
-      {% set campos_linderos = [
-          ('lindero_frente', 'Frente'),
-          ('lindero_derecha', 'Derecha entrando'),
-          ('lindero_izquierda', 'Izquierda entrando'),
-          ('lindero_fondo', 'Fondo')
-      ] %}
+        <div
+          id="lista-linderos"
+          {% if mostrar_formulario %}hidden{% endif %}>
 
-      <div class="mt-4" id="linderos">
-
-        <!-- INFORMACIÓN GUARDADA -->
-        <div id="lista-linderos"
-             {% if mostrar_formulario %}hidden{% endif %}>
-
-          <div class="linderos-cabecera">
+          <div class="linderos-heading">
             <h3 class="section-title">Linderos del lote</h3>
-
-            <div class="perimetro-box">
-              <span class="data-label">Perímetro total</span>
-
-              <span class="perimetro-valor">
-                {% if lote.perimetro is not none %}
-                  {{ lote.perimetro }} m
-                {% else %}
-                  Sin registrar
-                {% endif %}
-              </span>
-            </div>
+            <p class="section-subtitle">
+              Colindancias y medidas registradas.
+            </p>
           </div>
 
           <div class="linderos-grid">
-            {% for campo, etiqueta in campos_linderos %}
+            {% for campo, etiqueta, icono in campos_linderos %}
               <div class="lindero-item">
-                <div class="data-label">{{ etiqueta }}</div>
+                <div class="lindero-label">
+                  {{ icono_lote(icono) }}
+                  {{ etiqueta }}
+                </div>
 
-                <div class="data-value lindero-value">{{ lote|attr(campo) or 'Sin registrar' }}</div>
+                <div class="lindero-value">{{ lote|attr(campo) or 'Sin registrar' }}</div>
               </div>
             {% endfor %}
           </div>
 
         </div>
 
-        <!-- EDICIÓN INDIVIDUAL -->
-        <div id="editor-linderos"
-             {% if not mostrar_formulario %}hidden{% endif %}>
+        <!-- FORMULARIO DE EDICIÓN -->
+        <div
+          id="editor-linderos"
+          {% if not mostrar_formulario %}hidden{% endif %}>
 
           <h3 class="section-title mb-3">Editar linderos</h3>
 
@@ -368,21 +658,24 @@
             </div>
           {% endif %}
 
-          <form method="POST"
-                action="{{ url_for('detalle_lote', lote_id=lote.id) }}#linderos">
+          <form
+            method="POST"
+            action="{{ url_for('detalle_lote', lote_id=lote.id) }}#linderos">
 
             {% if csrf_token is defined %}
-              <input type="hidden"
-                     name="csrf_token"
-                     value="{{ csrf_token() }}">
+              <input
+                type="hidden"
+                name="csrf_token"
+                value="{{ csrf_token() }}">
             {% endif %}
 
             <div class="row g-3">
 
-              {% for campo, etiqueta in campos_linderos %}
+              {% for campo, etiqueta, icono in campos_linderos %}
                 <div class="col-12 col-md-6">
-                  <label for="{{ campo }}"
-                         class="data-label d-block mb-2">
+                  <label
+                    for="{{ campo }}"
+                    class="data-label d-block mb-2">
                     {{ etiqueta }}
                   </label>
 
@@ -391,14 +684,14 @@
                     name="{{ campo }}"
                     class="form-control"
                     rows="3"
-                    placeholder="Colindancia y medida en metros"
-                  >{{ request.form.get(campo, '') if request.method == 'POST' else (lote|attr(campo) or '') }}</textarea>
+                    placeholder="Colindancia y medida en metros">{{ request.form.get(campo, '') if request.method == 'POST' else (lote|attr(campo) or '') }}</textarea>
                 </div>
               {% endfor %}
 
               <div class="col-12 col-md-4">
-                <label for="perimetro"
-                       class="data-label d-block mb-2">
+                <label
+                  for="perimetro"
+                  class="data-label d-block mb-2">
                   Perímetro total (metros)
                 </label>
 
@@ -409,19 +702,20 @@
                   inputmode="decimal"
                   class="form-control"
                   placeholder="Ejemplo: 42.00"
-                  value="{{ request.form.get('perimetro', '') if request.method == 'POST' else (lote.perimetro if lote.perimetro is not none else '') }}"
-                >
+                  value="{{ request.form.get('perimetro', '') if request.method == 'POST' else (lote.perimetro if lote.perimetro is not none else '') }}">
               </div>
 
             </div>
 
             <div class="action-bar mt-3">
               <button type="submit" class="btn btn-primary">
-                💾 Guardar linderos
+                {{ icono_lote('guardar') }}
+                Guardar linderos
               </button>
 
-              <a href="{{ url_for('detalle_lote', lote_id=lote.id) }}#linderos"
-                 class="btn btn-outline-secondary">
+              <a
+                href="{{ url_for('detalle_lote', lote_id=lote.id) }}#linderos"
+                class="btn btn-outline-secondary">
                 Cancelar
               </a>
             </div>
@@ -435,30 +729,38 @@
       <div class="lote-acciones">
 
         <div class="action-bar">
-          <button type="button"
-                  id="btn-editar-linderos"
-                  class="btn btn-outline-primary"
-                  aria-controls="editor-linderos"
-                  {% if mostrar_formulario %}hidden{% endif %}>
-            ✏️ Editar linderos
+          <button
+            type="button"
+            id="btn-editar-linderos"
+            class="btn btn-outline-primary"
+            aria-controls="editor-linderos"
+            {% if mostrar_formulario %}hidden{% endif %}>
+            {{ icono_lote('editar') }}
+            Editar linderos
           </button>
 
-          <a href="{{ url_for('editar_area', lote_id=lote.id) }}"
-             class="btn btn-outline-secondary">
-            ✏️ Editar Área
+          <a
+            href="{{ url_for('editar_area', lote_id=lote.id) }}"
+            class="btn btn-outline-secondary">
+            {{ icono_lote('editar') }}
+            Editar área
           </a>
         </div>
 
-        {% if lote.estado == "disponible" %}
+        {% if lote.estado == 'disponible' %}
           <div class="action-bar">
-            <a href="{{ url_for('registrar_separacion', lote_id=lote.id) }}"
-               class="btn btn-warning">
-              🟡 Separar lote
+            <a
+              href="{{ url_for('registrar_separacion', lote_id=lote.id) }}"
+              class="btn btn-warning">
+              {{ icono_lote('documento') }}
+              Separar lote
             </a>
 
-            <a href="{{ url_for('registrar_compra', lote_id=lote.id) }}"
-               class="btn btn-success">
-              🟢 Registrar compra
+            <a
+              href="{{ url_for('registrar_compra', lote_id=lote.id) }}"
+              class="btn btn-success">
+              {{ icono_lote('mas') }}
+              Registrar compra
             </a>
           </div>
         {% endif %}
@@ -468,152 +770,164 @@
     </div>
   </div>
 
-  <!-- INFORMACIÓN DE COMPRA -->
+  <!-- INFORMACIÓN DE LA COMPRA -->
   {% if compra %}
-    <div class="card info-card mb-4">
-      <div class="card-body p-3 p-md-4">
+    <div class="info-card">
+      <div class="operacion-body">
 
-        <div class="mb-3">
-          <h3 class="section-title">
-            📝 Información de la Compra
-          </h3>
-          <div class="section-subtitle">
+        <div class="operacion-heading">
+          <h3 class="section-title">Información de la compra</h3>
+          <p class="section-subtitle">
             Datos principales de la operación registrada.
-          </div>
+          </p>
         </div>
 
-        <div class="client-box mb-3">
-          <div class="data-label">Cliente</div>
+        <div class="client-box">
 
-          <div class="fw-bold fs-5">
-            {{ compra.cliente.nombre }}
-            {{ compra.cliente.apellidos }}
-          </div>
+          <div class="client-identity">
+            <div class="client-symbol">
+              {{ icono_lote('cliente') }}
+            </div>
 
-          <div class="small text-muted mt-1">
-            DNI: {{ compra.cliente.dni }}
-          </div>
-        </div>
-
-        <div class="row g-3 mb-3">
-
-          <div class="col-12 col-md-6">
-            <div class="amount-box h-100">
-              <div class="amount-label">Precio</div>
-              <div class="amount-value text-primary">
-                S/ {{ "%.2f"|format(compra.precio) }}
+            <div>
+              <div class="data-label">Cliente</div>
+              <div class="client-name">
+                {{ compra.cliente.nombre }}
+                {{ compra.cliente.apellidos }}
+              </div>
+              <div class="client-dni">
+                DNI: {{ compra.cliente.dni }}
               </div>
             </div>
           </div>
 
-          <div class="col-12 col-md-6">
-            <div class="amount-box h-100">
-              <div class="amount-label">Forma de pago</div>
-              <div class="amount-value">
-                {{ compra.forma_pago|capitalize }}
-              </div>
-            </div>
-          </div>
-
-        </div>
-
-        <div>
-          {% if compra.forma_pago == "credito" %}
-            <div class="detail-row d-flex justify-content-between gap-3">
-              <span class="text-muted">Inicial</span>
-              <strong>
-                S/ {{ "%.2f"|format(compra.inicial) }}
-              </strong>
-            </div>
-
-            <div class="detail-row d-flex justify-content-between gap-3">
-              <span class="text-muted">Cuotas</span>
-              <strong>
-                {{ compra.cuotas_total }}
-                (S/ {{ "%.2f"|format(compra.cuota_monto) }} cada una)
-              </strong>
-            </div>
-          {% endif %}
-
-          <div class="detail-row d-flex justify-content-between gap-3">
-            <span class="text-muted">Fecha de compra</span>
-            <strong>
-              {{ compra.fecha_compra.strftime("%d/%m/%Y") }}
-            </strong>
-          </div>
-        </div>
-
-        <div class="action-bar mt-4">
-          <a href="{{ url_for('ver_cliente', cliente_id=compra.cliente.id) }}"
-            class="btn btn-info">
-            👤 Ver Cliente
+          <a
+            href="{{ url_for('ver_cliente', cliente_id=compra.cliente.id) }}"
+            class="btn btn-outline-primary">
+            {{ icono_lote('cliente') }}
+            Ver cliente
           </a>
 
-          {% if not compra.anulada and lote.estado == 'vendido' %}
-            <a href="{{ url_for('generar_acta_entrega', compra_id=compra.id) }}"
-              class="btn btn-primary">
-              📄 Generar acta de entrega
-            </a>
-          {% endif %}
         </div>
+
+        <div class="compra-datos">
+
+          <div>
+            <div class="data-label">Precio</div>
+            <div class="amount-value precio-value">
+              S/ {{ '%.2f'|format(compra.precio) }}
+            </div>
+          </div>
+
+          <div>
+            <div class="data-label">Forma de pago</div>
+            <div class="amount-value">
+              {{ compra.forma_pago|capitalize }}
+            </div>
+          </div>
+
+          <div>
+            <div class="data-label">Fecha de compra</div>
+            <div class="amount-value">
+              {{ compra.fecha_compra.strftime('%d/%m/%Y') }}
+            </div>
+          </div>
+
+        </div>
+
+        {% if compra.forma_pago == 'credito' %}
+          <div class="credito-datos">
+
+            <div>
+              <div class="data-label">Inicial</div>
+              <div class="amount-value">
+                S/ {{ '%.2f'|format(compra.inicial) }}
+              </div>
+            </div>
+
+            <div>
+              <div class="data-label">Cuotas</div>
+              <div class="amount-value">
+                {{ compra.cuotas_total }}
+              </div>
+              <div class="credito-nota">
+                S/ {{ '%.2f'|format(compra.cuota_monto) }} cada una
+              </div>
+            </div>
+
+          </div>
+        {% endif %}
+
+        {% if not compra.anulada and lote.estado == 'vendido' %}
+          <div class="action-bar operacion-actions">
+            <a
+              href="{{ url_for('generar_acta_entrega', compra_id=compra.id) }}"
+              class="btn btn-primary">
+              {{ icono_lote('documento') }}
+              Generar acta de entrega
+            </a>
+          </div>
+        {% endif %}
 
       </div>
     </div>
 
-  <!-- INFORMACIÓN DE SEPARACIÓN -->
+  <!-- INFORMACIÓN DE LA SEPARACIÓN -->
   {% elif separacion %}
-    <div class="card info-card mb-4">
-      <div class="card-body p-3 p-md-4">
+    <div class="info-card">
+      <div class="operacion-body">
 
-        <div class="mb-3">
-          <h3 class="section-title">
-            🔴 Información de la Separación
-          </h3>
-          <div class="section-subtitle">
+        <div class="operacion-heading">
+          <h3 class="section-title">Información de la separación</h3>
+          <p class="section-subtitle">
             Datos principales de la separación registrada.
-          </div>
+          </p>
         </div>
 
-        <div class="client-box mb-3">
-          <div class="data-label">Cliente</div>
+        <div class="client-box">
 
-          <div class="fw-bold fs-5">
-            {{ separacion.cliente.nombre }}
-            {{ separacion.cliente.apellidos }}
-          </div>
+          <div class="client-identity">
+            <div class="client-symbol">
+              {{ icono_lote('cliente') }}
+            </div>
 
-          <div class="small text-muted mt-1">
-            DNI: {{ separacion.cliente.dni }}
-          </div>
-        </div>
-
-        <div class="row g-3 mb-3">
-
-          <div class="col-12 col-md-6">
-            <div class="amount-box h-100">
-              <div class="amount-label">Monto de separación</div>
-              <div class="amount-value text-warning">
-                S/ {{ "%.2f"|format(separacion.monto) }}
+            <div>
+              <div class="data-label">Cliente</div>
+              <div class="client-name">
+                {{ separacion.cliente.nombre }}
+                {{ separacion.cliente.apellidos }}
+              </div>
+              <div class="client-dni">
+                DNI: {{ separacion.cliente.dni }}
               </div>
             </div>
           </div>
 
-          <div class="col-12 col-md-6">
-            <div class="amount-box h-100">
-              <div class="amount-label">Fecha</div>
-              <div class="amount-value">
-                {{ separacion.fecha.strftime("%d/%m/%Y") }}
-              </div>
-            </div>
-          </div>
-
-        </div>
-
-        <div class="action-bar">
-          <a href="{{ url_for('ver_cliente', cliente_id=separacion.cliente.id) }}"
-             class="btn btn-info">
-            👤 Ver Cliente
+          <a
+            href="{{ url_for('ver_cliente', cliente_id=separacion.cliente.id) }}"
+            class="btn btn-outline-primary">
+            {{ icono_lote('cliente') }}
+            Ver cliente
           </a>
+
+        </div>
+
+        <div class="compra-datos separacion-datos">
+
+          <div>
+            <div class="data-label">Monto de separación</div>
+            <div class="amount-value precio-value">
+              S/ {{ '%.2f'|format(separacion.monto) }}
+            </div>
+          </div>
+
+          <div>
+            <div class="data-label">Fecha</div>
+            <div class="amount-value">
+              {{ separacion.fecha.strftime('%d/%m/%Y') }}
+            </div>
+          </div>
+
         </div>
 
       </div>
@@ -621,10 +935,12 @@
   {% endif %}
 
   <!-- VOLVER -->
-  <div class="mb-4">
-    <a href="{{ url_for('lotes_disponibles') }}"
-       class="btn btn-secondary">
-      ⬅ Volver
+  <div class="volver-bar">
+    <a
+      href="{{ url_for('lotes_disponibles') }}"
+      class="btn btn-outline-secondary">
+      {{ icono_lote('volver') }}
+      Volver
     </a>
   </div>
 

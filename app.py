@@ -2398,6 +2398,321 @@ def panel_superadmin():
         usuarios=usuarios,
         lotizaciones=lotizaciones,
     )
+# ------------------- CONFIGURAR PLANO DE LOTIZACIÓN -------------------
+
+@app.route(
+    "/superadmin/configurar_plano/<int:lot_id>",
+    methods=["POST"]
+)
+@login_required
+@superadmin_required
+def configurar_plano(lot_id):
+    lotizacion = Lotizacion.query.get_or_404(lot_id)
+    archivo = request.files.get("plano_imagen")
+
+    if not archivo or not archivo.filename:
+        flash("Selecciona un plano en PDF, PNG o JPG.", "warning")
+        return redirect(url_for("panel_superadmin"))
+
+    try:
+        from PIL import Image, UnidentifiedImageError
+        import pypdfium2 as pdfium
+
+        nombre_original = secure_filename(archivo.filename)
+        extension = os.path.splitext(nombre_original)[1].lower()
+
+        contenido = archivo.stream.read(10 * 1024 * 1024 + 1)
+        if extension == ".pdf" or archivo.mimetype == "application/pdf":
+            lotizacion.plano_pdf = contenido
+        else:
+            lotizacion.plano_pdf = None
+
+        if len(contenido) > 10 * 1024 * 1024:
+            raise ValueError(
+                "El plano no puede pesar más de 10 MB."
+            )
+
+        imagen = None
+
+        # Si es PDF, convertir su única página a imagen
+        if extension == ".pdf" or archivo.mimetype == "application/pdf":
+            documento = pdfium.PdfDocument(contenido)
+
+            if len(documento) != 1:
+                raise ValueError(
+                    "El PDF del plano debe tener exactamente una página."
+                )
+
+            pagina = documento[0]
+            bitmap = pagina.render(scale=2.5)
+            imagen = bitmap.to_pil().convert("RGBA")
+
+            nombre_guardado = (
+                os.path.splitext(nombre_original)[0] + ".png"
+            )
+
+        else:
+            # Si es PNG o JPG, leer directamente la imagen
+            with Image.open(io.BytesIO(contenido)) as imagen_original:
+                if imagen_original.format not in ("PNG", "JPEG"):
+                    raise ValueError(
+                        "El plano debe estar en formato PDF, PNG o JPG."
+                    )
+
+                imagen = imagen_original.convert("RGBA")
+
+            nombre_guardado = (
+                os.path.splitext(nombre_original)[0] + ".png"
+            )
+
+        if imagen.width * imagen.height > 40000000:
+            raise ValueError(
+                "La imagen del plano tiene una resolución demasiado grande."
+            )
+
+        imagen.thumbnail(
+            (5000, 5000),
+            Image.Resampling.LANCZOS
+        )
+
+        salida = io.BytesIO()
+        imagen.save(
+            salida,
+            format="PNG",
+            optimize=True
+        )
+
+        lotizacion.plano_imagen = salida.getvalue()
+        lotizacion.plano_nombre = secure_filename(nombre_guardado)
+
+        # Al cambiar la imagen, se reinician las zonas configuradas
+        # porque las coordenadas anteriores ya no coincidirían.
+        lotizacion.plano_config = {}
+
+        db.session.commit()
+
+        flash(
+            f"Plano guardado correctamente para {lotizacion.nombre}.",
+            "success"
+        )
+
+    except ValueError as error:
+        db.session.rollback()
+        flash(str(error), "danger")
+
+    except ImportError:
+        db.session.rollback()
+        flash(
+            "Falta instalar pypdfium2 en este entorno de Python.",
+            "danger"
+        )
+
+    except (
+        UnidentifiedImageError,
+        OSError,
+        Image.DecompressionBombError,
+    ):
+        db.session.rollback()
+        flash(
+            "No se pudo leer el plano. "
+            "Verifica que el PDF, PNG o JPG sea válido.",
+            "danger"
+        )
+
+    except Exception:
+        db.session.rollback()
+
+        current_app.logger.exception(
+            "Error al guardar el plano de la lotización %s",
+            lot_id
+        )
+
+        flash(
+            "No se pudo guardar el plano.",
+            "danger"
+        )
+
+    return redirect(url_for("panel_superadmin"))
+
+@app.route("/superadmin/plano_imagen/<int:lot_id>")
+@login_required
+@superadmin_required
+def plano_imagen(lot_id):
+    lotizacion = Lotizacion.query.get_or_404(lot_id)
+
+    if not lotizacion.plano_imagen:
+        return "Esta lotización todavía no tiene un plano.", 404
+
+    respuesta = send_file(
+        io.BytesIO(lotizacion.plano_imagen),
+        mimetype="image/png",
+        download_name=(
+            lotizacion.plano_nombre
+            or f"plano_lotizacion_{lotizacion.id}.png"
+        )
+    )
+
+    respuesta.headers["Cache-Control"] = "private, no-store"
+    respuesta.headers["X-Content-Type-Options"] = "nosniff"
+
+    return respuesta
+
+
+
+@app.route("/plano_lotizacion/<int:lot_id>/imagen")
+@login_required
+def ver_plano_lotizacion(lot_id):
+    lotizacion = Lotizacion.query.get_or_404(lot_id)
+
+    if current_user.rol != "superadmin":
+        lotizacion_activa = session.get("lotizacion_id")
+
+        if str(lotizacion_activa) != str(lotizacion.id):
+            return "No tienes acceso a este plano.", 403
+
+        if not usuario_puede_acceder_lotizacion(
+            current_user,
+            lotizacion.id
+        ):
+            return "No tienes permiso para ver este plano.", 403
+
+    if not lotizacion.plano_imagen:
+        return "Esta lotización todavía no tiene un plano.", 404
+
+    respuesta = send_file(
+        io.BytesIO(lotizacion.plano_imagen),
+        mimetype="image/png",
+        download_name=(
+            lotizacion.plano_nombre
+            or f"plano_lotizacion_{lotizacion.id}.png"
+        )
+    )
+
+    respuesta.headers["Cache-Control"] = "private, no-store"
+    respuesta.headers["X-Content-Type-Options"] = "nosniff"
+
+    return respuesta
+
+@app.route(
+    "/superadmin/guardar_plano_config/<int:lot_id>",
+    methods=["POST"]
+)
+@login_required
+@superadmin_required
+def guardar_plano_config(lot_id):
+    lotizacion = Lotizacion.query.get_or_404(lot_id)
+
+    if not lotizacion.plano_imagen:
+        return jsonify(
+            error="Primero debes cargar una imagen del plano."
+        ), 400
+
+    datos = request.get_json(silent=True)
+
+    if not isinstance(datos, dict):
+        return jsonify(
+            error="La configuración recibida no es válida."
+        ), 400
+
+    zonas = datos.get("lotes")
+
+    if not isinstance(zonas, dict):
+        return jsonify(
+            error="No se recibieron las zonas de los lotes."
+        ), 400
+
+    lotes_validos = {
+        str(lote.id)
+        for lote in Lote.query.filter_by(
+            lotizacion_id=lotizacion.id
+        ).all()
+    }
+
+    configuracion = {}
+
+    try:
+        for lote_id, puntos in zonas.items():
+            lote_id = str(lote_id)
+
+            if lote_id not in lotes_validos:
+                return jsonify(
+                    error=f"El lote {lote_id} no pertenece a esta lotización."
+                ), 400
+
+            # Una lista vacía permite quitar la zona del lote
+            if puntos == []:
+                continue
+
+            if not isinstance(puntos, list):
+                return jsonify(
+                    error=f"La zona del lote {lote_id} no es válida."
+                ), 400
+
+            if len(puntos) < 3:
+                return jsonify(
+                    error=f"La zona del lote {lote_id} debe tener al menos 3 puntos."
+                ), 400
+
+            if len(puntos) > 80:
+                return jsonify(
+                    error=f"La zona del lote {lote_id} tiene demasiados puntos."
+                ), 400
+
+            puntos_validos = []
+
+            for punto in puntos:
+                if not isinstance(punto, dict):
+                    return jsonify(
+                        error=f"Hay un punto inválido en el lote {lote_id}."
+                    ), 400
+
+                x = float(punto.get("x"))
+                y = float(punto.get("y"))
+
+                if not (0 <= x <= 1 and 0 <= y <= 1):
+                    return jsonify(
+                        error=(
+                            f"Las coordenadas del lote {lote_id} "
+                            "deben estar entre 0 y 1."
+                        )
+                    ), 400
+
+                puntos_validos.append({
+                    "x": round(x, 6),
+                    "y": round(y, 6)
+                })
+
+            configuracion[lote_id] = puntos_validos
+
+    except (TypeError, ValueError):
+        return jsonify(
+            error="Una de las coordenadas no es válida."
+        ), 400
+
+    try:
+        lotizacion.plano_config = {
+            "version": 1,
+            "lotes": configuracion
+        }
+
+        db.session.commit()
+
+        return jsonify(
+            ok=True,
+            mensaje="Configuración del plano guardada correctamente."
+        )
+
+    except Exception:
+        db.session.rollback()
+
+        current_app.logger.exception(
+            "Error al guardar la configuración del plano %s",
+            lot_id
+        )
+
+        return jsonify(
+            error="No se pudo guardar la configuración del plano."
+        ), 500
  
  
 # ------------------- CREAR USUARIO (solo superadmin) -------------------
@@ -4307,6 +4622,466 @@ def generar_acta_entrega(compra_id):
         url_for("detalle_lote", lote_id=lote.id)
     )
 
+def _detectar_lotes_pdf(contenido):
+    """Detector vectorial probado con el plano de Morerilla; no crea lotes."""
+    import math
+    from collections import defaultdict
+    import fitz
+
+    def resta(a, b):
+        return a[0] - b[0], a[1] - b[1]
+
+    def cruz(a, b):
+        return a[0] * b[1] - a[1] * b[0]
+
+    def dentro(p, poligono):
+        resultado = False
+        for a, b in zip(poligono, poligono[1:] + poligono[:1]):
+            if (a[1] > p[1]) != (b[1] > p[1]):
+                limite = (b[0]-a[0])*(p[1]-a[1])/(b[1]-a[1])+a[0]
+                if p[0] < limite:
+                    resultado = not resultado
+        return resultado
+
+    if not contenido or len(contenido) > 10 * 1024 * 1024:
+        raise ValueError("Carga un PDF de hasta 10 MB.")
+
+    with fitz.open(stream=contenido, filetype="pdf") as documento:
+        if documento.needs_pass or len(documento) != 1:
+            raise ValueError(
+                "El PDF debe tener una página y no tener contraseña."
+            )
+
+        pagina = documento[0]
+
+        if pagina.rotation or pagina.cropbox != pagina.mediabox:
+            raise ValueError(
+                "Exporta el plano sin rotación ni recorte de página."
+            )
+
+        ancho, alto = pagina.rect.width, pagina.rect.height
+        palabras = pagina.get_text("words")
+
+        if not palabras or len(palabras) > 20000:
+            raise ValueError(
+                "No se puede identificar la numeración de este PDF."
+            )
+
+        segmentos = []
+
+        for dibujo in pagina.get_drawings():
+            if dibujo.get("color") != (0, 0, 0):
+                continue
+
+            cadena = []
+
+            for elemento in dibujo["items"]:
+                tipo = elemento[0]
+
+                if tipo == "l":
+                    cadena.append((
+                        tuple(elemento[1]),
+                        tuple(elemento[2])
+                    ))
+
+                elif tipo in ("qu", "re"):
+                    figura = elemento[1]
+
+                    vertices = (
+                        [figura.ul, figura.ur, figura.lr, figura.ll]
+                        if tipo == "qu"
+                        else [figura.tl, figura.tr, figura.br, figura.bl]
+                    )
+
+                    vertices = [tuple(p) for p in vertices]
+                    cadena.extend(
+                        zip(vertices, vertices[1:] + vertices[:1])
+                    )
+
+            if dibujo.get("closePath") and cadena:
+                cadena.append((cadena[-1][1], cadena[0][0]))
+
+            segmentos.extend(
+                (a, b) for a, b in cadena if math.dist(a, b) > 2
+            )
+
+        if not segmentos or len(segmentos) > 1000:
+            raise ValueError(
+                "Este PDF necesita otro método de detección; "
+                "no se cambió nada."
+            )
+
+    # Unir intersecciones y extremos casi coincidentes del dibujo CAD.
+    tolerancia = 0.4
+    cortes = [[(0, a), (1, b)] for a, b in segmentos]
+
+    for i, (a, b) in enumerate(segmentos):
+        r = resta(b, a)
+        largo_r = math.dist(a, b)
+
+        for j in range(i + 1, len(segmentos)):
+            c, d = segmentos[j]
+            s = resta(d, c)
+            largo_s = math.dist(c, d)
+
+            for punto in (a, b):
+                u = (
+                    (punto[0]-c[0])*s[0] +
+                    (punto[1]-c[1])*s[1]
+                ) / largo_s**2
+
+                proyeccion = (c[0]+u*s[0], c[1]+u*s[1])
+
+                if (
+                    0 <= u <= 1
+                    and math.dist(proyeccion, punto) <= tolerancia
+                ):
+                    cortes[j].append((u, punto))
+
+            for punto in (c, d):
+                t = (
+                    (punto[0]-a[0])*r[0] +
+                    (punto[1]-a[1])*r[1]
+                ) / largo_r**2
+
+                proyeccion = (a[0]+t*r[0], a[1]+t*r[1])
+
+                if (
+                    0 <= t <= 1
+                    and math.dist(proyeccion, punto) <= tolerancia
+                ):
+                    cortes[i].append((t, punto))
+
+            denominador = cruz(r, s)
+
+            if abs(denominador) < 0.0000001:
+                continue
+
+            t = cruz(resta(c, a), s) / denominador
+            u = cruz(resta(c, a), r) / denominador
+
+            if (
+                -tolerancia/largo_r <= t <= 1+tolerancia/largo_r
+                and -tolerancia/largo_s <= u <= 1+tolerancia/largo_s
+            ):
+                punto = (a[0]+t*r[0], a[1]+t*r[1])
+                cortes[i].append((t, punto))
+                cortes[j].append((u, punto))
+
+    puntos = []
+    celdas = defaultdict(list)
+    grafo = defaultdict(set)
+
+    def nodo(punto):
+        clave = tuple(math.floor(v / tolerancia) for v in punto)
+
+        for x in range(clave[0]-1, clave[0]+2):
+            for y in range(clave[1]-1, clave[1]+2):
+                for n in celdas[(x, y)]:
+                    if math.dist(puntos[n], punto) <= tolerancia:
+                        return n
+
+        n = len(puntos)
+        puntos.append(punto)
+        celdas[clave].append(n)
+        return n
+
+    for linea in cortes:
+        nodos = [nodo(p) for _, p in sorted(linea)]
+
+        for a, b in zip(nodos, nodos[1:]):
+            if a != b:
+                grafo[a].add(b)
+                grafo[b].add(a)
+
+    grupos = {}
+
+    for n in grafo:
+        if n in grupos:
+            continue
+
+        pendientes = [n]
+        grupos[n] = n
+
+        while pendientes:
+            actual = pendientes.pop()
+
+            for vecino in grafo[actual]:
+                if vecino not in grupos:
+                    grupos[vecino] = n
+                    pendientes.append(vecino)
+
+    orden = {
+        n: sorted(
+            vecinos,
+            key=lambda v: math.atan2(
+                puntos[v][1]-puntos[n][1],
+                puntos[v][0]-puntos[n][0]
+            )
+        )
+        for n, vecinos in grafo.items()
+    }
+
+    visitados = set()
+    figuras = defaultdict(list)
+
+    for a in grafo:
+        for b in grafo[a]:
+            inicio = (a, b)
+
+            if inicio in visitados:
+                continue
+
+            arista = inicio
+            recorrido = []
+
+            while arista not in visitados:
+                visitados.add(arista)
+                u, v = arista
+                recorrido.append(u)
+
+                vecinos = orden[v]
+                siguiente = vecinos[
+                    (vecinos.index(u)-1) % len(vecinos)
+                ]
+
+                arista = (v, siguiente)
+
+            if (
+                arista != inicio
+                or len(recorrido) != len(set(recorrido))
+            ):
+                continue
+
+            poligono = [puntos[n] for n in recorrido]
+
+            area = sum(
+                cruz(x, y)
+                for x, y in zip(
+                    poligono,
+                    poligono[1:] + poligono[:1]
+                )
+            ) / 2
+
+            if not 1000 < area < 100000:
+                continue
+
+            texto = [
+                w[4] for w in palabras
+                if dentro(
+                    ((w[0]+w[2])/2, (w[1]+w[3])/2),
+                    poligono
+                )
+            ]
+
+            figuras[grupos[a]].append((poligono, texto))
+
+    resultado = {}
+
+    for grupo in figuras.values():
+        texto_grupo = [
+            w for _, texto in grupo for w in texto
+        ]
+
+        letras = {
+            w for w in texto_grupo
+            if len(w) == 1 and w in "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        }
+
+        if len(letras) != 1 or "MANZANA" in texto_grupo:
+            continue
+
+        manzana = next(iter(letras))
+
+        for poligono, texto in grupo:
+            usos_especiales = {
+                "PARQUE", "EDUCACION", "EDUCACIÓN",
+                "OTROS", "RECREACIÓN"
+            }
+
+            if usos_especiales.intersection(texto):
+                continue
+
+            numeros = [
+                w for w in texto
+                if w.isascii() and w.isdigit()
+            ]
+
+            if len(numeros) != 1:
+                continue
+
+            clave = (manzana, str(int(numeros[0])))
+
+            if clave in resultado:
+                raise ValueError(
+                    "Se detectó una numeración repetida. "
+                    "No se guardó nada."
+                )
+
+            if not all(
+                0 <= x <= ancho and 0 <= y <= alto
+                for x, y in poligono
+            ):
+                raise ValueError(
+                    "Se detectaron coordenadas fuera de la página."
+                )
+
+            resultado[clave] = [
+                {
+                    "x": round(x/ancho, 6),
+                    "y": round(y/alto, 6)
+                }
+                for x, y in poligono
+            ]
+
+    if not resultado:
+        raise ValueError(
+            "No se identificaron lotes con seguridad. "
+            "No se cambió nada."
+        )
+
+    return resultado
+
+
+@app.template_global()
+def token_plano_auto():
+    if not session.get("plano_auto_csrf"):
+        session["plano_auto_csrf"] = secrets.token_urlsafe(32)
+
+    return session["plano_auto_csrf"]
+
+
+@app.route(
+    "/superadmin/procesar_plano/<int:lot_id>",
+    methods=["POST"]
+)
+@login_required
+@superadmin_required
+def procesar_plano_automatico(lot_id):
+    esperado = session.get("plano_auto_csrf", "")
+    recibido = request.form.get("plano_auto_csrf", "")
+
+    if not esperado or not secrets.compare_digest(
+        esperado.encode(),
+        recibido.encode()
+    ):
+        return "Recarga el panel antes de procesar el plano.", 403
+
+    lot = Lotizacion.query.get_or_404(lot_id)
+
+    try:
+        if not lot.plano_pdf or not lot.plano_imagen:
+            raise ValueError(
+                "Primero vuelve a cargar el PDF original del plano."
+            )
+
+        original = bytes(lot.plano_pdf)
+        detectados = _detectar_lotes_pdf(original)
+
+        # Releer al guardar para no sobrescribir un PDF recién cambiado.
+        lot = (
+            Lotizacion.query
+            .filter_by(id=lot_id)
+            .populate_existing()
+            .with_for_update()
+            .first()
+        )
+
+        if lot is None or bytes(lot.plano_pdf or b"") != original:
+            raise ValueError(
+                "El plano cambió durante el proceso. "
+                "Inténtalo nuevamente."
+            )
+
+        zonas = {}
+        faltantes = []
+        claves = set()
+
+        for lote in Lote.query.filter_by(
+            lotizacion_id=lot_id
+        ).all():
+            numero = str(lote.numero).strip()
+
+            if numero.isascii() and numero.isdigit():
+                numero = str(int(numero))
+
+            clave = (
+                str(lote.manzana).strip().upper(),
+                numero
+            )
+
+            if clave in claves:
+                raise ValueError(
+                    "Hay lotes con numeración equivalente, como 1 y 01."
+                )
+
+            claves.add(clave)
+
+            if clave in detectados:
+                zonas[str(lote.id)] = detectados[clave]
+            else:
+                faltantes.append(f"{clave[0]}-{numero}")
+
+        if not zonas:
+            raise ValueError(
+                "Ningún lote registrado coincide con el PDF. "
+                "No se cambió nada."
+            )
+
+        lot.plano_config = {
+            "version": 1,
+            "lotes": zonas,
+            "origen": "pdf_automatico",
+            "pdf_sha256": hashlib.sha256(original).hexdigest()
+        }
+
+        db.session.commit()
+
+        flash(
+            f"Plano procesado: {len(zonas)} lotes asociados "
+            "automáticamente. Se reemplazaron las zonas anteriores; "
+            "no se modificaron ventas ni lotes.",
+            "success"
+        )
+
+        if faltantes:
+            detalle = ", ".join(faltantes[:20])
+
+            if len(faltantes) > 20:
+                detalle += ", …"
+
+            flash(
+                f"Sin coincidencia en el PDF "
+                f"({len(faltantes)}): {detalle}.",
+                "warning"
+            )
+
+    except ValueError as error:
+        db.session.rollback()
+        flash(str(error), "warning")
+
+    except ImportError:
+        db.session.rollback()
+        flash(
+            "Falta instalar PyMuPDF en el entorno activo.",
+            "danger"
+        )
+
+    except Exception:
+        db.session.rollback()
+
+        current_app.logger.exception(
+            "Error al procesar el plano %s",
+            lot_id
+        )
+
+        flash(
+            "No se pudo procesar el PDF. "
+            "Las zonas anteriores se conservaron.",
+            "danger"
+        )
+
+    return redirect(url_for("panel_superadmin"))
 
 # ------------------- MAIN -------------------
 if __name__ == "__main__":

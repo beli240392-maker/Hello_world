@@ -401,6 +401,48 @@
                             data-bs-target="#modalActa{{ lot.id }}">
                       📄 Configurar acta
                     </button>
+                    <button type="button"
+                            class="btn btn-outline-success btn-sm mt-1"
+                            data-bs-toggle="modal"
+                            data-bs-target="#modalPlano{{ lot.id }}">
+                      🗺️ Configurar plano
+                    </button>
+                    {% if lot.plano_pdf %}
+                      <form method="POST"
+                            class="d-inline"
+                            action="{{ url_for('procesar_plano_automatico', lot_id=lot.id) }}"
+                            onsubmit="
+                              if (!confirm('Se reemplazarán las zonas actuales por las detectadas en el PDF. No se modificarán ventas ni registros de lotes. ¿Continuar?')) return false;
+                              const boton = this.querySelector('button');
+                              boton.disabled = true;
+                              boton.textContent = 'Procesando…';
+                            ">
+
+                        <input type="hidden"
+                              name="plano_auto_csrf"
+                              value="{{ token_plano_auto() }}">
+
+                        {% if csrf_token is defined %}
+                          <input type="hidden"
+                                name="csrf_token"
+                                value="{{ csrf_token() }}">
+                        {% endif %}
+
+                        <button type="submit"
+                                class="btn btn-primary btn-sm mt-1">
+                          ⚡ Detectar lotes del PDF
+                        </button>
+                      </form>
+                    {% endif %}
+
+                    {% if lot.plano_imagen %}
+                      <button type="button"
+                              class="btn btn-outline-dark btn-sm mt-1"
+                              data-bs-toggle="modal"
+                              data-bs-target="#modalEditorPlano{{ lot.id }}">
+                        ✏️ Editar zonas
+                      </button>
+                    {% endif %}
 
                   </td>
 
@@ -521,6 +563,89 @@
         </div>
       </div>
     {% endfor %}
+    <!-- CONFIGURACIÓN DEL PLANO POR PROYECTO -->
+{% for lot in lotizaciones %}
+  <div class="modal fade"
+       id="modalPlano{{ lot.id }}"
+       tabindex="-1"
+       aria-labelledby="tituloPlano{{ lot.id }}"
+       aria-hidden="true">
+
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+      <div class="modal-content">
+
+        <form method="POST"
+              enctype="multipart/form-data"
+              action="{{ url_for('configurar_plano', lot_id=lot.id) }}">
+
+          {% if csrf_token is defined %}
+            <input type="hidden"
+                   name="csrf_token"
+                   value="{{ csrf_token() }}">
+          {% endif %}
+
+          <div class="modal-header bg-success text-white">
+            <h5 class="modal-title"
+                id="tituloPlano{{ lot.id }}">
+              🗺️ Plano de {{ lot.nombre }}
+            </h5>
+
+            <button type="button"
+                    class="btn-close btn-close-white"
+                    data-bs-dismiss="modal"
+                    aria-label="Cerrar"></button>
+          </div>
+
+          <div class="modal-body">
+
+            <label for="plano_imagen_{{ lot.id }}"
+                   class="form-label fw-semibold">
+              Imagen del plano
+            </label>
+
+            <input type="file"
+                   id="plano_imagen_{{ lot.id }}"
+                   name="plano_imagen"
+                   class="form-control"
+                   accept="application/pdf,image/png,image/jpeg,.pdf,.png,.jpg,.jpeg"
+                   {% if not lot.plano_imagen %}required{% endif %}>
+
+            <div class="form-text">
+              Formatos permitidos: PDF, PNG o JPG. Tamaño máximo: 10 MB.
+            </div>
+
+            {% if lot.plano_imagen %}
+              <div class="alert alert-success mt-3 mb-3">
+                Este proyecto ya tiene un plano guardado.
+              </div>
+
+              <img src="{{ url_for('plano_imagen', lot_id=lot.id) }}"
+                   alt="Plano de {{ lot.nombre }}"
+                   class="img-fluid border rounded p-2"
+                   style="max-height: 320px; width: 100%; object-fit: contain; background: #f8fafc;">
+            {% endif %}
+
+          </div>
+
+          <div class="modal-footer">
+            <button type="button"
+                    class="btn btn-secondary"
+                    data-bs-dismiss="modal">
+              Cancelar
+            </button>
+
+            <button type="submit"
+                    class="btn btn-success">
+              💾 Guardar plano
+            </button>
+          </div>
+
+        </form>
+
+      </div>
+    </div>
+  </div>
+{% endfor %}
 
   </div>
 </div>
@@ -1107,6 +1232,404 @@
       </div>
     </div>
   </div>
+{% endfor %}
+
+<!-- EDITOR DE ZONAS DEL PLANO -->
+{% for lot in lotizaciones %}
+  {% if lot.plano_imagen %}
+
+    <div class="modal fade"
+         id="modalEditorPlano{{ lot.id }}"
+         tabindex="-1"
+         aria-labelledby="tituloEditorPlano{{ lot.id }}"
+         aria-hidden="true">
+
+      <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+
+          <div class="modal-header bg-dark text-white">
+            <h5 class="modal-title"
+                id="tituloEditorPlano{{ lot.id }}">
+              ✏️ Editar zonas del plano — {{ lot.nombre }}
+            </h5>
+
+            <button type="button"
+                    class="btn-close btn-close-white"
+                    data-bs-dismiss="modal"
+                    aria-label="Cerrar"></button>
+          </div>
+
+          <div class="modal-body">
+
+            <div class="row g-3 mb-3">
+
+              <div class="col-12 col-md-5">
+                <label for="editorLote{{ lot.id }}"
+                       class="form-label fw-semibold">
+                  Lote que vas a marcar
+                </label>
+
+                <select id="editorLote{{ lot.id }}"
+                        class="form-select">
+                  <option value="">
+                    Selecciona un lote
+                  </option>
+
+                  {% for lote in lot.lotes %}
+                    <option value="{{ lote.id }}">
+                      Mz {{ lote.manzana }} — Lote {{ lote.numero }}
+                    </option>
+                  {% endfor %}
+                </select>
+              </div>
+
+              <div class="col-12 col-md-7 d-flex align-items-end gap-2 flex-wrap">
+                <button type="button"
+                        class="btn btn-primary"
+                        id="btnIniciarDibujo{{ lot.id }}">
+                  🖊️ Iniciar dibujo
+                </button>
+
+                <button type="button"
+                        class="btn btn-outline-secondary"
+                        id="btnTerminarDibujo{{ lot.id }}">
+                  Finalizar dibujo
+                </button>
+
+                <button type="button"
+                        class="btn btn-outline-danger"
+                        id="btnLimpiarZona{{ lot.id }}">
+                  Limpiar zona
+                </button>
+              </div>
+
+            </div>
+
+            <div id="estadoEditor{{ lot.id }}"
+                 class="alert alert-info py-2">
+              Selecciona un lote y presiona “Iniciar dibujo”.
+            </div>
+
+            <div class="border rounded p-2"
+                 style="background:#f1f5f9; overflow:auto;">
+
+              <div id="contenedorPlano{{ lot.id }}"
+                   style="position:relative; width:100%;">
+
+                <img id="imagenPlanoEditor{{ lot.id }}"
+                     src="{{ url_for('plano_imagen', lot_id=lot.id) }}"
+                     alt="Plano de {{ lot.nombre }}"
+                     style="display:block; width:100%; height:auto;">
+
+                <canvas id="canvasPlanoEditor{{ lot.id }}"
+                        style="position:absolute; top:0; left:0; cursor:crosshair;">
+                </canvas>
+
+              </div>
+
+            </div>
+
+            <div class="form-text mt-2">
+              Haz clic sobre el plano para marcar los vértices del lote.
+              Cada zona debe tener por lo menos tres puntos.
+            </div>
+
+          </div>
+
+          <div class="modal-footer">
+            <button type="button"
+                    class="btn btn-secondary"
+                    data-bs-dismiss="modal">
+              Cancelar
+            </button>
+
+            <button type="button"
+                    class="btn btn-success"
+                    id="btnGuardarZonas{{ lot.id }}">
+              💾 Guardar zonas
+            </button>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <script>
+      (() => {
+        const modal = document.getElementById(
+          "modalEditorPlano{{ lot.id }}"
+        );
+
+        const imagen = document.getElementById(
+          "imagenPlanoEditor{{ lot.id }}"
+        );
+
+        const canvas = document.getElementById(
+          "canvasPlanoEditor{{ lot.id }}"
+        );
+
+        const contexto = canvas.getContext("2d");
+
+        const selector = document.getElementById(
+          "editorLote{{ lot.id }}"
+        );
+
+        const estado = document.getElementById(
+          "estadoEditor{{ lot.id }}"
+        );
+
+        const btnIniciar = document.getElementById(
+          "btnIniciarDibujo{{ lot.id }}"
+        );
+
+        const btnTerminar = document.getElementById(
+          "btnTerminarDibujo{{ lot.id }}"
+        );
+
+        const btnLimpiar = document.getElementById(
+          "btnLimpiarZona{{ lot.id }}"
+        );
+
+        const btnGuardar = document.getElementById(
+          "btnGuardarZonas{{ lot.id }}"
+        );
+
+        const zonas = {};
+
+        const configuracionInicial =
+          {{ ((lot.plano_config or {}).get('lotes', {})) | tojson }};
+
+        Object.entries(configuracionInicial).forEach(
+          ([loteId, puntos]) => {
+            zonas[loteId] = puntos.map((punto) => ({
+              x: Number(punto.x),
+              y: Number(punto.y)
+            }));
+          }
+        );
+
+        let dibujando = false;
+
+        function ajustarCanvas() {
+          const rect = imagen.getBoundingClientRect();
+
+          if (!rect.width || !rect.height) {
+            return;
+          }
+
+          canvas.width = Math.round(rect.width);
+          canvas.height = Math.round(rect.height);
+          canvas.style.width = rect.width + "px";
+          canvas.style.height = rect.height + "px";
+
+          dibujarZonas();
+        }
+
+        function dibujarPoligono(puntos, seleccionado) {
+          if (!puntos || puntos.length < 2) {
+            return;
+          }
+
+          contexto.beginPath();
+
+          puntos.forEach((punto, indice) => {
+            const x = punto.x * canvas.width;
+            const y = punto.y * canvas.height;
+
+            if (indice === 0) {
+              contexto.moveTo(x, y);
+            } else {
+              contexto.lineTo(x, y);
+            }
+          });
+
+          if (puntos.length >= 3) {
+            contexto.closePath();
+          }
+
+          contexto.fillStyle = seleccionado
+            ? "rgba(13, 110, 253, 0.28)"
+            : "rgba(25, 135, 84, 0.20)";
+
+          contexto.strokeStyle = seleccionado
+            ? "#0d6efd"
+            : "#198754";
+
+          contexto.lineWidth = seleccionado ? 3 : 2;
+
+          contexto.fill();
+          contexto.stroke();
+
+          puntos.forEach((punto) => {
+            contexto.beginPath();
+            contexto.arc(
+              punto.x * canvas.width,
+              punto.y * canvas.height,
+              4,
+              0,
+              Math.PI * 2
+            );
+            contexto.fillStyle = seleccionado
+              ? "#0d6efd"
+              : "#198754";
+            contexto.fill();
+          });
+        }
+
+        function dibujarZonas() {
+          contexto.clearRect(
+            0,
+            0,
+            canvas.width,
+            canvas.height
+          );
+
+          const loteSeleccionado = selector.value;
+
+          Object.entries(zonas).forEach(
+            ([loteId, puntos]) => {
+              dibujarPoligono(
+                puntos,
+                loteId === loteSeleccionado
+              );
+            }
+          );
+        }
+
+        function obtenerPunto(evento) {
+          const rect = canvas.getBoundingClientRect();
+
+          return {
+            x: Math.max(
+              0,
+              Math.min(
+                1,
+                (evento.clientX - rect.left) / rect.width
+              )
+            ),
+            y: Math.max(
+              0,
+              Math.min(
+                1,
+                (evento.clientY - rect.top) / rect.height
+              )
+            )
+          };
+        }
+
+        selector.addEventListener("change", () => {
+          dibujando = false;
+          estado.textContent = selector.value
+            ? "Lote seleccionado. Presiona “Iniciar dibujo”."
+            : "Selecciona un lote.";
+          dibujarZonas();
+        });
+
+        btnIniciar.addEventListener("click", () => {
+          if (!selector.value) {
+            alert("Primero selecciona un lote.");
+            return;
+          }
+
+          zonas[selector.value] = [];
+          dibujando = true;
+
+          estado.textContent =
+            "Haz clic sobre el plano para marcar los vértices.";
+
+          dibujarZonas();
+        });
+
+        btnTerminar.addEventListener("click", () => {
+          dibujando = false;
+
+          const puntos = zonas[selector.value] || [];
+
+          if (puntos.length < 3) {
+            estado.textContent =
+              "La zona necesita por lo menos tres puntos.";
+          } else {
+            estado.textContent =
+              "Zona terminada. Puedes seleccionar otro lote.";
+          }
+        });
+
+        btnLimpiar.addEventListener("click", () => {
+          if (!selector.value) {
+            alert("Primero selecciona un lote.");
+            return;
+          }
+
+          delete zonas[selector.value];
+          dibujando = false;
+
+          estado.textContent =
+            "Zona limpiada. Puedes volver a dibujarla.";
+
+          dibujarZonas();
+        });
+
+        canvas.addEventListener("click", (evento) => {
+          if (!dibujando || !selector.value) {
+            return;
+          }
+
+          const punto = obtenerPunto(evento);
+
+          if (!zonas[selector.value]) {
+            zonas[selector.value] = [];
+          }
+
+          zonas[selector.value].push(punto);
+
+          dibujarZonas();
+        });
+
+        btnGuardar.addEventListener("click", async () => {
+          dibujando = false;
+
+          const respuesta = await fetch(
+            "{{ url_for('guardar_plano_config', lot_id=lot.id) }}",
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify({
+                lotes: zonas
+              })
+            }
+          );
+
+          const resultado = await respuesta.json();
+
+          if (!respuesta.ok) {
+            alert(
+              resultado.error ||
+              "No se pudo guardar la configuración."
+            );
+            return;
+          }
+
+          alert("Zonas guardadas correctamente.");
+          window.location.reload();
+        });
+
+        imagen.addEventListener("load", ajustarCanvas);
+
+        modal.addEventListener(
+          "shown.bs.modal",
+          ajustarCanvas
+        );
+
+        window.addEventListener(
+          "resize",
+          ajustarCanvas
+        );
+      })();
+    </script>
+
+  {% endif %}
 {% endfor %}
 
 {% endblock %}

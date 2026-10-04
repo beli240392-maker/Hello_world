@@ -2,6 +2,89 @@
 {% block content %}
 
 <style>
+  .lotes-page .vista-tabs{
+    display: flex;
+    gap: 8px;
+    margin-bottom: 18px;
+    border-bottom: 1px solid #dee2e6;
+  }
+
+  .lotes-page .vista-tab{
+    border: 0;
+    background: transparent;
+    color: #64748b;
+    font-weight: 700;
+    padding: 10px 18px;
+    border-bottom: 3px solid transparent;
+  }
+
+  .lotes-page .vista-tab.active{
+    color: #0d6efd;
+    border-bottom-color: #0d6efd;
+  }
+
+  .lotes-page .plano-toolbar{
+    background: #fff;
+    border: 1px solid #e9ecef;
+    border-radius: 16px;
+    padding: 14px;
+    margin-bottom: 16px;
+    box-shadow: 0 8px 22px rgba(15, 23, 42, .05);
+  }
+
+  .lotes-page .plano-lienzo{
+    position: relative;
+    width: 100%;
+    overflow: hidden;
+    border: 1px solid #dbe3ec;
+    border-radius: 16px;
+    background: #f8fafc;
+  }
+
+  .lotes-page .plano-lienzo img{
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+  .lotes-page .plano-lienzo svg{
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .lotes-page .plano-zona{
+    cursor: pointer;
+    stroke-width: .35;
+    transition: opacity .15s ease, stroke-width .15s ease;
+  }
+
+  .lotes-page .plano-zona.estado-disponible{
+    fill: rgba(25, 135, 84, .58);
+    stroke: #198754;
+  }
+
+  .lotes-page .plano-zona.estado-separado{
+    fill: rgba(255, 193, 7, .68);
+    stroke: #d39e00;
+  }
+
+  .lotes-page .plano-zona.estado-vendido{
+    fill: rgba(220, 53, 69, .62);
+    stroke: #dc3545;
+  }
+
+  .lotes-page .plano-zona:hover{
+    opacity: .78;
+    stroke-width: .7;
+  }
+
+  .lotes-page .plano-zona.oculta{
+    display: none;
+  }
+</style>  
+<style>
   .lotes-page{
     max-width: 1180px;
     margin: 0 auto;
@@ -339,6 +422,115 @@
     </div>
   </div>
 
+    {% if lotizacion and lotizacion.plano_imagen %}
+
+    <div class="vista-tabs"
+         role="tablist"
+         aria-label="Vista de lotes">
+
+      <button type="button"
+              id="tab-lista"
+              class="vista-tab active"
+              role="tab"
+              aria-selected="true">
+        📋 Lista
+      </button>
+
+      <button type="button"
+              id="tab-plano"
+              class="vista-tab"
+              role="tab"
+              aria-selected="false">
+        🗺️ Plano
+      </button>
+
+    </div>
+
+    {% set plano_lotes = {} %}
+
+    {% if lotizacion.plano_config %}
+      {% set plano_lotes = lotizacion.plano_config.get('lotes', {}) %}
+    {% endif %}
+
+    <section id="vista-plano"
+             hidden>
+
+      <div class="plano-toolbar">
+        <div class="row g-3 align-items-end">
+
+          <div class="col-12 col-md-5">
+            <label for="filtro-manzana"
+                   class="form-label fw-semibold">
+              Ver manzana
+            </label>
+
+            <select id="filtro-manzana"
+                    class="form-select">
+              <option value="">
+                Ver todo el plano
+              </option>
+
+              {% for manzana in manzanas.keys() | sort %}
+                <option value="{{ manzana }}">
+                  Manzana {{ manzana }}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="col-12 col-md-7">
+            <div class="small text-muted">
+              Haz clic sobre un lote coloreado para abrir su detalle.
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="plano-lienzo">
+        <img src="{{ url_for('ver_plano_lotizacion', lot_id=lotizacion.id) }}"
+             alt="Plano de {{ lotizacion.nombre }}">
+
+        <svg id="plano-svg"
+             viewBox="0 0 100 100"
+             preserveAspectRatio="none"
+             aria-label="Plano interactivo">
+
+          {% for lote in lotizacion.lotes %}
+            {% set puntos = plano_lotes.get(lote.id|string, []) %}
+
+            {% if puntos|length >= 3 %}
+              <a href="{{ url_for('detalle_lote', lote_id=lote.id) }}"
+                 aria-label="Ver lote {{ lote.manzana }} {{ lote.numero }}">
+
+                <polygon
+                  class="plano-zona estado-{{ lote.estado }}"
+                  data-manzana="{{ lote.manzana }}"
+                  points="{% for punto in puntos %}{{ (punto.x * 100)|round(4) }},{{ (punto.y * 100)|round(4) }}{% if not loop.last %} {% endif %}{% endfor %}">
+
+                  <title>
+                    Mz {{ lote.manzana }} - Lote {{ lote.numero }} -
+                    {{ lote.estado|capitalize }}
+                  </title>
+
+                </polygon>
+              </a>
+            {% endif %}
+          {% endfor %}
+
+        </svg>
+      </div>
+
+      <div class="alert alert-info mt-3 mb-0">
+        Los lotes sin una zona dibujada todavía no aparecen sobre el plano.
+      </div>
+
+    </section>
+
+  {% endif %}
+
+  <section id="vista-lista">
+
   <!-- MANZANAS -->
   <div class="row g-4">
     {% for manzana, lotes in manzanas.items() %}
@@ -384,7 +576,186 @@
     </div>
     {% endfor %}
   </div>
-
+  </section>
 </div>
+
+<script>
+(() => {
+  const tabLista = document.getElementById("tab-lista");
+  const tabPlano = document.getElementById("tab-plano");
+  const vistaLista = document.getElementById("vista-lista");
+  const vistaPlano = document.getElementById("vista-plano");
+  const filtro = document.getElementById("filtro-manzana");
+  const svg = document.getElementById("plano-svg");
+
+  if (
+    !tabLista || !tabPlano || !vistaPlano ||
+    !vistaLista || !filtro || !svg
+  ) {
+    return;
+  }
+
+  const lienzo = svg.closest(".plano-lienzo");
+  const imagen = lienzo.querySelector("img");
+
+  if (!imagen) return;
+
+  // La imagen y las zonas se acercan juntas, sin desalinearse.
+  const escena = document.createElement("div");
+  escena.style.position = "relative";
+  escena.style.width = "100%";
+  escena.style.transformOrigin = "0 0";
+
+  escena.append(imagen, svg);
+  lienzo.append(escena);
+
+  svg.setAttribute("viewBox", "0 0 100 100");
+
+  const zonas = Array.from(
+    svg.querySelectorAll(".plano-zona")
+  );
+
+  zonas.forEach(zona => {
+    zona.style.strokeWidth = "0.15";
+  });
+
+  const aviso = document.createElement("div");
+  aviso.className = "small text-muted mt-2";
+  aviso.setAttribute("role", "status");
+
+  const toolbar = vistaPlano.querySelector(".plano-toolbar");
+
+  const botonTodo = document.createElement("button");
+  botonTodo.type = "button";
+  botonTodo.className = "btn btn-outline-primary btn-sm mt-2";
+  botonTodo.textContent = "Ver todo el plano";
+
+  toolbar.append(botonTodo, aviso);
+
+  function mostrar(plano) {
+    vistaLista.hidden = plano;
+    vistaPlano.hidden = !plano;
+
+    tabLista.classList.toggle("active", !plano);
+    tabPlano.classList.toggle("active", plano);
+
+    tabLista.setAttribute("aria-selected", String(!plano));
+    tabPlano.setAttribute("aria-selected", String(plano));
+
+    tabLista.tabIndex = plano ? -1 : 0;
+    tabPlano.tabIndex = plano ? 0 : -1;
+  }
+
+  function aplicarFiltro() {
+    const manzana = filtro.value;
+
+    escena.style.transform = "none";
+
+    zonas.forEach(zona => {
+      zona.classList.toggle(
+        "oculta",
+        Boolean(manzana) && zona.dataset.manzana !== manzana
+      );
+    });
+
+    if (!manzana) {
+      aviso.textContent =
+        `${zonas.length} lotes vinculados al plano.`;
+      return;
+    }
+
+    const visibles = zonas.filter(
+      zona => zona.dataset.manzana === manzana
+    );
+
+    const puntos = visibles.flatMap(zona =>
+      zona.getAttribute("points")
+        .trim()
+        .split(/\s+/)
+        .map(par => par.split(",").map(Number))
+    ).filter(
+      punto => punto.length === 2 && punto.every(Number.isFinite)
+    );
+
+    if (!puntos.length) {
+      aviso.textContent =
+        `La manzana ${manzana} todavía no tiene zonas vinculadas.`;
+      return;
+    }
+
+    const xs = puntos.map(punto => punto[0]);
+    const ys = puntos.map(punto => punto[1]);
+
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs);
+    const minY = Math.min(...ys);
+    const maxY = Math.max(...ys);
+
+    // Mantiene las proporciones y limita el acercamiento a 6 veces.
+    const lado = Math.min(
+      100,
+      Math.max(maxX-minX+6, maxY-minY+6, 100/6)
+    );
+
+    const x = Math.max(
+      0,
+      Math.min(100-lado, (minX+maxX-lado)/2)
+    );
+
+    const y = Math.max(
+      0,
+      Math.min(100-lado, (minY+maxY-lado)/2)
+    );
+
+    escena.style.transform =
+      `scale(${100/lado}) translate(${-x}%, ${-y}%)`;
+
+    aviso.textContent =
+      `Manzana ${manzana}: ${visibles.length} lotes vinculados.`;
+  }
+
+  tabLista.setAttribute("aria-controls", "vista-lista");
+  tabPlano.setAttribute("aria-controls", "vista-plano");
+
+  vistaLista.setAttribute("role", "tabpanel");
+  vistaPlano.setAttribute("role", "tabpanel");
+
+  vistaLista.setAttribute("aria-labelledby", "tab-lista");
+  vistaPlano.setAttribute("aria-labelledby", "tab-plano");
+
+  tabLista.addEventListener("click", () => mostrar(false));
+  tabPlano.addEventListener("click", () => mostrar(true));
+
+  [tabLista, tabPlano].forEach(tab => {
+    tab.addEventListener("keydown", evento => {
+      if (
+        !["ArrowLeft", "ArrowRight", "Home", "End"]
+          .includes(evento.key)
+      ) {
+        return;
+      }
+
+      evento.preventDefault();
+
+      const plano =
+        evento.key === "End" ||
+        (evento.key !== "Home" && tab === tabLista);
+
+      mostrar(plano);
+      (plano ? tabPlano : tabLista).focus();
+    });
+  });
+
+  filtro.addEventListener("change", aplicarFiltro);
+
+  botonTodo.addEventListener("click", () => {
+    filtro.value = "";
+    aplicarFiltro();
+  });
+
+  aplicarFiltro();
+  mostrar(false);
+})();
+</script>
 
 {% endblock %}
