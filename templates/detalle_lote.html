@@ -866,6 +866,14 @@
               {{ icono_lote('documento') }}
               Generar acta de entrega
             </a>
+            {% if current_user.rol == 'superadmin' %}
+              <a
+                href="{{ url_for('cambiar_titular', compra_id=compra.id) }}#cambio-titular"
+                class="btn btn-outline-primary">
+                {{ icono_lote('cliente') }}
+                Cambiar titular
+              </a>
+            {% endif %}
           </div>
         {% endif %}
 
@@ -928,6 +936,392 @@
             </div>
           </div>
 
+        </div>
+
+      </div>
+    </div>
+  {% endif %}
+
+    <!-- CAMBIO DE TITULAR -->
+  {% if compra and formulario_titular and current_user.rol == 'superadmin' %}
+    <div class="info-card" id="cambio-titular">
+      <div class="operacion-body">
+
+        <div class="operacion-heading">
+          <h3 class="section-title">Cambio de titular</h3>
+          <p class="section-subtitle">
+            Consulta al nuevo cliente y revisa los datos antes de confirmar.
+          </p>
+        </div>
+
+        {% if formulario_titular.error %}
+          <div class="alert alert-danger" role="alert">
+            {{ formulario_titular.error }}
+          </div>
+        {% endif %}
+
+        <form
+          method="POST"
+          enctype="multipart/form-data"
+          action="{{ url_for('cambiar_titular', compra_id=compra.id) }}#cambio-titular">
+
+          <input
+            type="hidden"
+            name="token_titular"
+            value="{{ formulario_titular.token }}">
+
+          {% if csrf_token is defined %}
+            <input type="hidden"
+                   name="csrf_token"
+                   value="{{ csrf_token() }}">
+          {% endif %}
+
+          {% if formulario_titular.nuevo %}
+
+            <!-- CONFIRMACIÓN -->
+            <input type="hidden" name="accion" value="confirmar">
+            <input type="hidden" name="dni"
+                   value="{{ formulario_titular.dni }}">
+            <input type="hidden" name="motivo"
+                   value="{{ formulario_titular.motivo }}">
+
+            <div class="row g-3 mb-3">
+              <div class="col-12 col-md-6">
+                <div class="client-box h-100">
+                  <div>
+                    <div class="data-label">Titular actual</div>
+                    <div class="client-name">
+                      {{ compra.cliente.nombre }}
+                      {{ compra.cliente.apellidos }}
+                    </div>
+                    <div class="client-dni">
+                      DNI: {{ compra.cliente.dni }}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="col-12 col-md-6">
+                <div class="client-box h-100">
+                  <div>
+                    <div class="data-label">Nuevo titular</div>
+                    <div class="client-name">
+                      {{ formulario_titular.nuevo.nombre }}
+                      {{ formulario_titular.nuevo.apellidos }}
+                    </div>
+                    <div class="client-dni">
+                      DNI: {{ formulario_titular.nuevo.dni }}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {% if formulario_titular.es_nuevo %}
+              <div class="data-label mb-2">
+                Datos del cliente que se registrará
+              </div>
+
+              <dl class="row mb-3">
+                {% for campo, etiqueta in [
+                  ('telefono', 'Teléfono'),
+                  ('correo', 'Correo'),
+                  ('estado_civil', 'Estado civil'),
+                  ('ocupacion', 'Ocupación'),
+                  ('ciudad', 'Distrito / ciudad'),
+                  ('provincia', 'Provincia'),
+                  ('departamento', 'Departamento'),
+                  ('direccion', 'Dirección')
+                ] %}
+                  <dt class="col-12 col-sm-4">{{ etiqueta }}</dt>
+                  <dd class="col-12 col-sm-8">
+                    {{ formulario_titular.nuevo.get(campo) or 'Sin registrar' }}
+                  </dd>
+                {% endfor %}
+              </dl>
+
+              <div class="row g-3 mb-3">
+                <div class="col-12 col-md-6">
+                  <label for="titular-dni-frontal"
+                         class="form-label fw-semibold">
+                    DNI frontal
+                  </label>
+                  <input type="file"
+                         id="titular-dni-frontal"
+                         name="dni_frontal"
+                         class="form-control"
+                         accept="image/jpeg,image/png,image/webp">
+                </div>
+
+                <div class="col-12 col-md-6">
+                  <label for="titular-dni-reverso"
+                         class="form-label fw-semibold">
+                    DNI reverso
+                  </label>
+                  <input type="file"
+                         id="titular-dni-reverso"
+                         name="dni_reverso"
+                         class="form-control"
+                         accept="image/jpeg,image/png,image/webp">
+                </div>
+              </div>
+
+              <p class="small text-muted">
+                Las fotos se guardan al confirmar. Máximo 8 MB por imagen.
+                Si aparece un error, vuelve a seleccionar las fotos.
+              </p>
+            {% endif %}
+
+            <div class="data-label">Motivo del cambio</div>
+            <p style="white-space: pre-line; overflow-wrap: anywhere;">{{ formulario_titular.motivo }}</p>
+
+            <div class="alert alert-info">
+              Se conserva la misma compra, con su precio, pagos,
+              cuotas y documentos. El titular anterior quedará
+              registrado en el historial.
+            </div>
+
+            <div class="form-check mb-3">
+              <input class="form-check-input"
+                     type="checkbox"
+                     id="confirmacion-titular"
+                     name="confirmacion"
+                     value="si"
+                     required>
+              <label class="form-check-label"
+                     for="confirmacion-titular">
+                Confirmo el cambio al nuevo titular indicado.
+              </label>
+            </div>
+
+            <div class="action-bar">
+              <button type="submit" class="btn btn-primary">
+                Confirmar cambio
+              </button>
+              <a
+                href="{{ url_for('cambiar_titular', compra_id=compra.id, reiniciar=1) }}#cambio-titular"
+                class="btn btn-outline-primary">
+                Consultar otro cliente
+              </a>
+              <a href="{{ url_for('detalle_lote', lote_id=lote.id) }}"
+                 class="btn btn-outline-secondary">
+                Cancelar
+              </a>
+            </div>
+
+          {% elif formulario_titular.crear %}
+
+            <!-- REGISTRO DEL CLIENTE NUEVO -->
+            <input type="hidden" name="accion" value="revisar_nuevo">
+
+            <div class="alert alert-info">
+              Este DNI no está registrado.
+              Completa los datos del nuevo titular.
+            </div>
+
+            <div class="row g-3">
+              <div class="col-12 col-md-4">
+                <label for="titular-dni-nuevo"
+                       class="form-label fw-semibold">
+                  DNI
+                </label>
+                <input type="text"
+                       id="titular-dni-nuevo"
+                       name="dni"
+                       class="form-control"
+                       value="{{ formulario_titular.dni }}"
+                       readonly>
+              </div>
+
+              <div class="col-12 col-md-8">
+                <label for="titular-motivo-nuevo"
+                       class="form-label fw-semibold">
+                  Motivo del cambio
+                </label>
+                <input type="text"
+                       id="titular-motivo-nuevo"
+                       name="motivo"
+                       class="form-control"
+                       value="{{ formulario_titular.motivo }}"
+                       readonly>
+              </div>
+
+              {% for campo, etiqueta, limite, obligatorio in [
+                ('nombre', 'Nombres', 100, true),
+                ('apellidos', 'Apellidos', 100, true),
+                ('telefono', 'Teléfono', 20, false),
+                ('correo', 'Correo', 150, false),
+                ('estado_civil', 'Estado civil', 50, false),
+                ('ocupacion', 'Ocupación', 100, false),
+                ('ciudad', 'Distrito / ciudad', 50, false),
+                ('provincia', 'Provincia', 100, false),
+                ('departamento', 'Departamento', 100, false),
+                ('direccion', 'Dirección', 200, false)
+              ] %}
+                <div class="col-12 col-md-6">
+                  <label for="titular-{{ campo }}"
+                         class="form-label fw-semibold">
+                    {{ etiqueta }}
+                  </label>
+
+                  <input
+                    type="{{ 'email' if campo == 'correo' else 'text' }}"
+                    id="titular-{{ campo }}"
+                    name="{{ campo }}"
+                    class="form-control"
+                    maxlength="{{ limite }}"
+                    value="{{ formulario_titular.datos_cliente.get(campo, '') }}"
+                    {% if obligatorio %}required{% endif %}>
+                </div>
+              {% endfor %}
+            </div>
+
+            <div class="action-bar mt-3">
+              <button type="submit" class="btn btn-primary">
+                Revisar datos
+              </button>
+              <a
+                href="{{ url_for('cambiar_titular', compra_id=compra.id, reiniciar=1) }}#cambio-titular"
+                class="btn btn-outline-primary">
+                Consultar otro DNI
+              </a>
+              <a href="{{ url_for('detalle_lote', lote_id=lote.id) }}"
+                 class="btn btn-outline-secondary">
+                Cancelar
+              </a>
+            </div>
+
+          {% else %}
+
+            <!-- CONSULTA INICIAL -->
+            <input type="hidden" name="accion" value="consultar">
+
+            <div class="row g-3">
+              <div class="col-12 col-md-4">
+                <label for="dni-nuevo-titular"
+                       class="form-label fw-semibold">
+                  DNI del nuevo titular
+                </label>
+                <input type="text"
+                       id="dni-nuevo-titular"
+                       name="dni"
+                       class="form-control"
+                       maxlength="20"
+                       value="{{ formulario_titular.dni }}"
+                       required>
+                <div class="form-text">
+                  Si no existe, podrás registrar sus datos aquí.
+                </div>
+              </div>
+
+              <div class="col-12 col-md-8">
+                <label for="motivo-titular"
+                       class="form-label fw-semibold">
+                  Motivo del cambio
+                </label>
+                <textarea
+                  id="motivo-titular"
+                  name="motivo"
+                  class="form-control"
+                  rows="3"
+                  maxlength="2000"
+                  required>{{ formulario_titular.motivo }}</textarea>
+              </div>
+            </div>
+
+            <div class="action-bar mt-3">
+              <button type="submit" class="btn btn-primary">
+                Consultar nuevo titular
+              </button>
+              <a href="{{ url_for('detalle_lote', lote_id=lote.id) }}"
+                 class="btn btn-outline-secondary">
+                Cancelar
+              </a>
+            </div>
+
+          {% endif %}
+        </form>
+
+      </div>
+    </div>
+  {% endif %}
+
+  <!-- HISTORIAL DE TITULARES -->
+  {% if transferencias_titular %}
+    <div class="info-card" id="historial-titulares">
+      <div class="operacion-body">
+
+        <div class="operacion-heading">
+          <h3 class="section-title">Historial de titulares</h3>
+          <p class="section-subtitle">
+            Cambios registrados, del más reciente al más antiguo.
+          </p>
+        </div>
+
+        <div class="table-responsive">
+          <table class="table align-middle mb-0">
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Titular anterior</th>
+                <th>Nuevo titular</th>
+                <th>Registro del cambio</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {% for cambio in transferencias_titular %}
+                {% set anterior = cambio.datos_cliente_anterior or {} %}
+                {% set nuevo = cambio.datos_cliente_nuevo or {} %}
+                {% set operacion = cambio.datos_compra or {} %}
+
+                <tr>
+                  <td class="text-nowrap">
+                    {{ cambio.fecha.strftime('%d/%m/%Y') }}
+                    <div class="small text-muted">
+                      {{ cambio.fecha.strftime('%H:%M') }}
+                    </div>
+                  </td>
+
+                  <td>
+                    <a
+                      href="{{ url_for('ver_cliente', cliente_id=cambio.cliente_anterior_id) }}"
+                      class="fw-semibold text-decoration-none">
+                      {{ anterior.get('nombre', '') }}
+                      {{ anterior.get('apellidos', '') }}
+                    </a>
+
+                    <div class="small text-muted">
+                      DNI: {{ anterior.get('dni', '') }}
+                    </div>
+                  </td>
+
+                  <td>
+                    <a
+                      href="{{ url_for('ver_cliente', cliente_id=cambio.cliente_nuevo_id) }}"
+                      class="fw-semibold text-decoration-none">
+                      {{ nuevo.get('nombre', '') }}
+                      {{ nuevo.get('apellidos', '') }}
+                    </a>
+
+                    <div class="small text-muted">
+                      DNI: {{ nuevo.get('dni', '') }}
+                    </div>
+                  </td>
+
+                  <td>
+                    <div style="white-space: pre-line; overflow-wrap: anywhere;">{{ cambio.motivo }}</div>
+
+                    <div class="small text-muted mt-1">
+                      Registrado por:
+                      {{ operacion.get('usuario_transferencia') or 'Sin registrar' }}
+                    </div>
+                  </td>
+                </tr>
+
+              {% endfor %}
+            </tbody>
+          </table>
         </div>
 
       </div>

@@ -2,14 +2,19 @@
 {% block content %}
 
 <style>
-  .lotes-page .vista-tabs{
+  .lotes-page {
+    max-width: 1180px;
+    margin: 0 auto;
+  }
+
+  .lotes-page .vista-tabs {
     display: flex;
     gap: 8px;
     margin-bottom: 18px;
     border-bottom: 1px solid #dee2e6;
   }
 
-  .lotes-page .vista-tab{
+  .lotes-page .vista-tab {
     border: 0;
     background: transparent;
     color: #64748b;
@@ -18,12 +23,12 @@
     border-bottom: 3px solid transparent;
   }
 
-  .lotes-page .vista-tab.active{
+  .lotes-page .vista-tab.active {
     color: #0d6efd;
     border-bottom-color: #0d6efd;
   }
 
-  .lotes-page .plano-toolbar{
+  .lotes-page .plano-toolbar {
     background: #fff;
     border: 1px solid #e9ecef;
     border-radius: 16px;
@@ -32,65 +37,97 @@
     box-shadow: 0 8px 22px rgba(15, 23, 42, .05);
   }
 
-  .lotes-page .plano-lienzo{
+  .lotes-page .plano-lienzo {
     position: relative;
     width: 100%;
     overflow: hidden;
     border: 1px solid #dbe3ec;
     border-radius: 16px;
     background: #f8fafc;
+    touch-action: pan-y;
   }
 
-  .lotes-page .plano-lienzo img{
+  .lotes-page .plano-escena {
+    position: relative;
+    width: 100%;
+    transform-origin: 0 0;
+  }
+
+  .lotes-page .plano-lienzo img {
     display: block;
     width: 100%;
     height: auto;
+    user-select: none;
+    -webkit-user-drag: none;
   }
 
-  .lotes-page .plano-lienzo svg{
+  .lotes-page .plano-lienzo svg {
     position: absolute;
     inset: 0;
     width: 100%;
     height: 100%;
   }
 
-  .lotes-page .plano-zona{
+  .lotes-page .plano-lienzo.acercado {
+    cursor: grab;
+    touch-action: none;
+  }
+
+  .lotes-page .plano-lienzo.arrastrando,
+  .lotes-page .plano-lienzo.arrastrando .plano-zona {
+    cursor: grabbing;
+  }
+
+  .lotes-page .plano-zona {
     cursor: pointer;
-    stroke-width: .35;
+    stroke-width: .15;
     transition: opacity .15s ease, stroke-width .15s ease;
   }
 
-  .lotes-page .plano-zona.estado-disponible{
+  .lotes-page .plano-zona.estado-disponible {
     fill: rgba(25, 135, 84, .58);
     stroke: #198754;
   }
 
-  .lotes-page .plano-zona.estado-separado{
+  .lotes-page .plano-zona.estado-separado {
     fill: rgba(255, 193, 7, .68);
     stroke: #d39e00;
   }
 
-  .lotes-page .plano-zona.estado-vendido{
+  .lotes-page .plano-zona.estado-vendido {
     fill: rgba(220, 53, 69, .62);
     stroke: #dc3545;
   }
 
-  .lotes-page .plano-zona:hover{
+  .lotes-page .plano-zona:hover {
     opacity: .78;
     stroke-width: .7;
   }
 
-  .lotes-page .plano-zona.oculta{
+  .lotes-page .plano-zona.oculta {
     display: none;
   }
-</style>  
-<style>
-  .lotes-page{
-    max-width: 1180px;
-    margin: 0 auto;
+
+  .lotes-page .plano-controles {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-top: 14px;
   }
 
-  .lotes-page .page-head{
+  .lotes-page .plano-controles .btn {
+    min-height: 40px;
+  }
+
+  .lotes-page .plano-nivel {
+    min-width: 56px;
+    text-align: center;
+    font-weight: 700;
+    color: #334155;
+  }
+
+  .lotes-page .page-head {
     background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
     border: 1px solid #e9ecef;
     border-radius: 20px;
@@ -99,13 +136,13 @@
     margin-bottom: 22px;
   }
 
-  .lotes-page .page-head-inner{
+  .lotes-page .page-head-inner {
     display: flex;
     align-items: center;
     gap: 16px;
   }
 
-  .lotes-page .page-icon{
+  .lotes-page .page-icon {
     width: 54px;
     height: 54px;
     border-radius: 16px;
@@ -117,7 +154,7 @@
     flex: 0 0 auto;
   }
 
-  .lotes-page .page-kicker{
+  .lotes-page .page-kicker {
     text-transform: uppercase;
     color: #0d6efd;
     font-weight: 700;
@@ -125,7 +162,7 @@
     margin-bottom: 2px;
   }
 
-  .lotes-page .page-title{
+  .lotes-page .page-title {
     font-size: 1.9rem;
     font-weight: 800;
     letter-spacing: -.025em;
@@ -133,13 +170,13 @@
     color: #172033;
   }
 
-  .lotes-page .page-subtitle{
+  .lotes-page .page-subtitle {
     color: #64748b;
     margin: .25rem 0 0;
     font-size: .95rem;
   }
 
-  .lotes-page .summary-card{
+  .lotes-page .summary-card {
     border: 1px solid #e9ecef;
     border-radius: 18px;
     box-shadow: 0 10px 28px rgba(15, 23, 42, .06);
@@ -148,14 +185,14 @@
     height: 100%;
   }
 
-  .lotes-page .summary-top{
+  .lotes-page .summary-top {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
   }
 
-  .lotes-page .summary-label{
+  .lotes-page .summary-label {
     color: #64748b;
     font-size: .82rem;
     text-transform: uppercase;
@@ -163,14 +200,14 @@
     font-weight: 700;
   }
 
-  .lotes-page .summary-number{
+  .lotes-page .summary-number {
     font-size: 2rem;
     font-weight: 800;
     line-height: 1;
     margin-top: 6px;
   }
 
-  .lotes-page .summary-icon{
+  .lotes-page .summary-icon {
     width: 42px;
     height: 42px;
     border-radius: 12px;
@@ -179,19 +216,11 @@
     font-size: 18px;
   }
 
-  .lotes-page .summary-icon.disponible{
-    background: #eaf7ef;
-  }
+  .lotes-page .summary-icon.disponible { background: #eaf7ef; }
+  .lotes-page .summary-icon.separado { background: #fff6db; }
+  .lotes-page .summary-icon.vendido { background: #fdebec; }
 
-  .lotes-page .summary-icon.separado{
-    background: #fff6db;
-  }
-
-  .lotes-page .summary-icon.vendido{
-    background: #fdebec;
-  }
-
-  .lotes-page .legend-box{
+  .lotes-page .legend-box {
     border: 1px solid #e9ecef;
     border-radius: 16px;
     padding: 13px 16px;
@@ -199,13 +228,13 @@
     box-shadow: 0 8px 22px rgba(15, 23, 42, .04);
   }
 
-  .lotes-page .legend-title{
+  .lotes-page .legend-title {
     font-weight: 700;
     color: #334155;
     margin-right: 8px;
   }
 
-  .lotes-page .legend-item{
+  .lotes-page .legend-item {
     display: inline-flex;
     align-items: center;
     font-size: .88rem;
@@ -213,7 +242,7 @@
     color: #475569;
   }
 
-  .lotes-page .summary-dot{
+  .lotes-page .summary-dot {
     width: 10px;
     height: 10px;
     border-radius: 50%;
@@ -221,19 +250,11 @@
     margin-right: .45rem;
   }
 
-  .lotes-page .dot-disponible{
-    background: #198754;
-  }
+  .lotes-page .dot-disponible { background: #198754; }
+  .lotes-page .dot-separado { background: #ffc107; }
+  .lotes-page .dot-vendido { background: #dc3545; }
 
-  .lotes-page .dot-separado{
-    background: #ffc107;
-  }
-
-  .lotes-page .dot-vendido{
-    background: #dc3545;
-  }
-
-  .lotes-page .manzana-card{
+  .lotes-page .manzana-card {
     border: 1px solid #e9ecef;
     border-radius: 20px;
     box-shadow: 0 12px 32px rgba(15, 23, 42, .07);
@@ -243,37 +264,37 @@
     transition: transform .18s ease, box-shadow .18s ease;
   }
 
-  .lotes-page .manzana-card:hover{
+  .lotes-page .manzana-card:hover {
     transform: translateY(-2px);
     box-shadow: 0 16px 36px rgba(15, 23, 42, .10);
   }
 
-  .lotes-page .manzana-head{
+  .lotes-page .manzana-head {
     padding: 16px 18px;
     background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
     border-bottom: 1px solid #e9ecef;
   }
 
-  .lotes-page .manzana-title{
+  .lotes-page .manzana-title {
     margin: 0;
     font-size: 1.05rem;
     font-weight: 800;
     color: #1e293b;
   }
 
-  .lotes-page .manzana-subtitle{
+  .lotes-page .manzana-subtitle {
     margin-top: 2px;
     color: #64748b;
     font-size: .82rem;
   }
 
-  .lotes-page .lotes-grid{
+  .lotes-page .lotes-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(78px, 1fr));
     gap: .7rem;
   }
 
-  .lotes-page .lote-btn{
+  .lotes-page .lote-btn {
     min-height: 48px;
     display: flex;
     align-items: center;
@@ -285,22 +306,22 @@
     transition: transform .15s ease, box-shadow .15s ease;
   }
 
-  .lotes-page .lote-btn:hover{
+  .lotes-page .lote-btn:hover {
     transform: translateY(-1px);
     box-shadow: 0 6px 14px rgba(15, 23, 42, .10);
   }
 
-  .lotes-page .lote-item{
+  .lotes-page .lote-item {
     min-width: 0;
     position: relative;
   }
 
-  .lotes-page .lote-item .lote-btn{
+  .lotes-page .lote-item .lote-btn {
     width: 100%;
     padding-right: 2rem;
   }
 
-  .lotes-page .delete-lote-form{
+  .lotes-page .delete-lote-form {
     position: absolute;
     top: 5px;
     right: 5px;
@@ -308,7 +329,7 @@
     z-index: 2;
   }
 
-  .lotes-page .delete-lote-btn{
+  .lotes-page .delete-lote-btn {
     width: 24px;
     height: 24px;
     padding: 0;
@@ -316,37 +337,29 @@
     display: grid;
     place-items: center;
     border: 1px solid rgba(220, 53, 69, .35);
-    background: rgba(255,255,255,.96);
+    background: rgba(255, 255, 255, .96);
     color: #dc3545;
     font-size: .72rem;
     line-height: 1;
     box-shadow: 0 2px 6px rgba(15, 23, 42, .12);
   }
 
-  .lotes-page .delete-lote-btn:hover{
+  .lotes-page .delete-lote-btn:hover {
     background: #dc3545;
     color: #fff;
     border-color: #dc3545;
   }
 
-  @media (max-width: 575.98px){
-    .lotes-page .page-head{
-      padding: 20px;
-    }
+  @media (max-width: 575.98px) {
+    .lotes-page .page-head { padding: 20px; }
+    .lotes-page .page-title { font-size: 1.55rem; }
+    .lotes-page .summary-number { font-size: 1.7rem; }
 
-    .lotes-page .page-title{
-      font-size: 1.55rem;
-    }
-
-    .lotes-page .summary-number{
-      font-size: 1.7rem;
-    }
-
-    .lotes-page .lotes-grid{
+    .lotes-page .lotes-grid {
       grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
     }
 
-    .lotes-page .legend-box .d-flex{
+    .lotes-page .legend-box .d-flex {
       gap: 10px !important;
     }
   }
@@ -354,13 +367,16 @@
 
 <div class="container-fluid lotes-page px-0 px-md-2">
 
+  <!-- CABECERA -->
   <div class="page-head">
     <div class="page-head-inner">
       <div class="page-icon">📋</div>
       <div>
         <div class="page-kicker">Gestión de lotes</div>
         <h2 class="page-title">Lotes por manzana</h2>
-        <p class="page-subtitle">Vista general del estado actual de los lotes.</p>
+        <p class="page-subtitle">
+          Vista general del estado actual de los lotes.
+        </p>
       </div>
     </div>
   </div>
@@ -373,7 +389,9 @@
         <div class="summary-top">
           <div>
             <div class="summary-label">Disponibles</div>
-            <div class="summary-number text-success">{{ total_disponibles }}</div>
+            <div class="summary-number text-success">
+              {{ total_disponibles }}
+            </div>
           </div>
           <div class="summary-icon disponible">✅</div>
         </div>
@@ -385,7 +403,9 @@
         <div class="summary-top">
           <div>
             <div class="summary-label">Separados</div>
-            <div class="summary-number text-warning">{{ total_separados }}</div>
+            <div class="summary-number text-warning">
+              {{ total_separados }}
+            </div>
           </div>
           <div class="summary-icon separado">🟡</div>
         </div>
@@ -397,7 +417,9 @@
         <div class="summary-top">
           <div>
             <div class="summary-label">Vendidos</div>
-            <div class="summary-number text-danger">{{ total_vendidos }}</div>
+            <div class="summary-number text-danger">
+              {{ total_vendidos }}
+            </div>
           </div>
           <div class="summary-icon vendido">🔴</div>
         </div>
@@ -410,20 +432,24 @@
   <div class="legend-box mb-4">
     <div class="d-flex flex-wrap align-items-center gap-3">
       <span class="legend-title">Estado:</span>
+
       <span class="legend-item">
         <span class="summary-dot dot-disponible"></span>Disponible
       </span>
+
       <span class="legend-item">
         <span class="summary-dot dot-separado"></span>Separado
       </span>
+
       <span class="legend-item">
         <span class="summary-dot dot-vendido"></span>Vendido
       </span>
     </div>
   </div>
 
-    {% if lotizacion and lotizacion.plano_imagen %}
+  {% if lotizacion and lotizacion.plano_imagen %}
 
+    <!-- SELECTOR DE VISTA -->
     <div class="vista-tabs"
          role="tablist"
          aria-label="Vista de lotes">
@@ -432,7 +458,8 @@
               id="tab-lista"
               class="vista-tab active"
               role="tab"
-              aria-selected="true">
+              aria-selected="true"
+              aria-controls="vista-lista">
         📋 Lista
       </button>
 
@@ -440,19 +467,25 @@
               id="tab-plano"
               class="vista-tab"
               role="tab"
-              aria-selected="false">
+              aria-selected="false"
+              aria-controls="vista-plano"
+              tabindex="-1">
         🗺️ Plano
       </button>
-
     </div>
 
     {% set plano_lotes = {} %}
-
     {% if lotizacion.plano_config %}
       {% set plano_lotes = lotizacion.plano_config.get('lotes', {}) %}
     {% endif %}
 
+    <!-- PLANO -->
     <section id="vista-plano"
+             role="tabpanel"
+             aria-labelledby="tab-plano"
+             data-proyecto="{{ lotizacion.id }}"
+             data-usuario="{{ current_user.id }}"
+             data-plano="{{ lotizacion.plano_nombre or '' }}"
              hidden>
 
       <div class="plano-toolbar">
@@ -464,11 +497,8 @@
               Ver manzana
             </label>
 
-            <select id="filtro-manzana"
-                    class="form-select">
-              <option value="">
-                Ver todo el plano
-              </option>
+            <select id="filtro-manzana" class="form-select">
+              <option value="">Ver todo el plano</option>
 
               {% for manzana in manzanas.keys() | sort %}
                 <option value="{{ manzana }}">
@@ -483,278 +513,535 @@
               Haz clic sobre un lote coloreado para abrir su detalle.
             </div>
           </div>
+        </div>
 
+        <div class="plano-controles" aria-label="Controles del plano">
+          <button type="button"
+                  id="plano-zoom-menos"
+                  class="btn btn-outline-secondary"
+                  aria-label="Alejar plano"
+                  title="Alejar">
+            −
+          </button>
+
+          <span id="plano-zoom-nivel" class="plano-nivel">100%</span>
+
+          <button type="button"
+                  id="plano-zoom-mas"
+                  class="btn btn-outline-secondary"
+                  aria-label="Acercar plano"
+                  title="Acercar">
+            +
+          </button>
+
+          <button type="button"
+                  id="plano-ver-todo"
+                  class="btn btn-outline-primary">
+            Ver todo el plano
+          </button>
+        </div>
+
+        <div id="plano-aviso"
+             class="small text-muted mt-2"
+             role="status"></div>
+
+        <div class="small text-muted mt-1">
+          Usa la rueda del mouse para acercar.
+          Al ampliar, arrastra para mover el plano.
         </div>
       </div>
 
       <div class="plano-lienzo">
-        <img src="{{ url_for('ver_plano_lotizacion', lot_id=lotizacion.id) }}"
-             alt="Plano de {{ lotizacion.nombre }}">
+        <div class="plano-escena">
 
-        <svg id="plano-svg"
-             viewBox="0 0 100 100"
-             preserveAspectRatio="none"
-             aria-label="Plano interactivo">
+          <img
+            src="{{ url_for('ver_plano_lotizacion', lot_id=lotizacion.id) }}"
+            alt="Plano de {{ lotizacion.nombre }}"
+            draggable="false">
 
-          {% for lote in lotizacion.lotes %}
-            {% set puntos = plano_lotes.get(lote.id|string, []) %}
+          <svg id="plano-svg"
+               viewBox="0 0 100 100"
+               preserveAspectRatio="none"
+               aria-label="Plano interactivo">
 
-            {% if puntos|length >= 3 %}
-              <a href="{{ url_for('detalle_lote', lote_id=lote.id) }}"
-                 aria-label="Ver lote {{ lote.manzana }} {{ lote.numero }}">
+            {% for lote in lotizacion.lotes %}
+              {% set puntos = plano_lotes.get(lote.id|string, []) %}
 
-                <polygon
-                  class="plano-zona estado-{{ lote.estado }}"
-                  data-manzana="{{ lote.manzana }}"
-                  points="{% for punto in puntos %}{{ (punto.x * 100)|round(4) }},{{ (punto.y * 100)|round(4) }}{% if not loop.last %} {% endif %}{% endfor %}">
+              {% if puntos|length >= 3 %}
+                <a href="{{ url_for('detalle_lote', lote_id=lote.id) }}"
+                   aria-label="Ver lote {{ lote.manzana }} {{ lote.numero }}">
 
-                  <title>
-                    Mz {{ lote.manzana }} - Lote {{ lote.numero }} -
-                    {{ lote.estado|capitalize }}
-                  </title>
+                  <polygon
+                    class="plano-zona estado-{{ lote.estado }}"
+                    data-manzana="{{ lote.manzana }}"
+                    points="{% for punto in puntos %}{{ (punto.x * 100)|round(4) }},{{ (punto.y * 100)|round(4) }}{% if not loop.last %} {% endif %}{% endfor %}">
 
-                </polygon>
-              </a>
-            {% endif %}
-          {% endfor %}
+                    <title>
+                      Mz {{ lote.manzana }} - Lote {{ lote.numero }} -
+                      {{ lote.estado|capitalize }}
+                    </title>
+                  </polygon>
+                </a>
+              {% endif %}
+            {% endfor %}
 
-        </svg>
+          </svg>
+        </div>
       </div>
 
       <div class="alert alert-info mt-3 mb-0">
         Los lotes sin una zona dibujada todavía no aparecen sobre el plano.
       </div>
-
     </section>
 
   {% endif %}
 
-  <section id="vista-lista">
+  <!-- LISTA -->
+  <section id="vista-lista"
+           role="tabpanel"
+           aria-labelledby="tab-lista">
 
-  <!-- MANZANAS -->
-  <div class="row g-4">
-    {% for manzana, lotes in manzanas.items() %}
-    <div class="col-12 col-md-6 col-xl-4">
-      <div class="card manzana-card">
+    <div class="row g-4">
+      {% for manzana, lotes in manzanas.items() %}
+        <div class="col-12 col-md-6 col-xl-4">
+          <div class="card manzana-card">
 
-        <div class="manzana-head">
-          <h5 class="manzana-title">Manzana {{ manzana }}</h5>
-          <div class="manzana-subtitle">{{ lotes|length }} lote{% if lotes|length != 1 %}s{% endif %}</div>
-        </div>
-
-        <div class="card-body p-3">
-          <div class="lotes-grid">
-            {% for lote in lotes %}
-              <div class="lote-item">
-                <a href="{{ url_for('detalle_lote', lote_id=lote.id) }}"
-                   class="btn lote-btn
-                          {% if lote.estado == 'disponible' %}btn-success
-                          {% elif lote.estado == 'vendido' %}btn-danger
-                          {% else %}btn-warning{% endif %}">
-                  Lt {{ lote.numero }}
-                </a>
-
-                {% if lote.estado == 'disponible' and current_user.rol == 'superadmin' %}
-                  <form method="POST"
-                        class="delete-lote-form"
-                        action="{{ url_for('eliminar_lote', lote_id=lote.id) }}"
-                        onsubmit="return confirm('¿Seguro que deseas eliminar el lote {{ manzana }}-{{ lote.numero }}? Esta acción no se puede deshacer.');">
-                    <button type="submit"
-                            class="delete-lote-btn"
-                            title="Eliminar lote"
-                            aria-label="Eliminar lote {{ manzana }}-{{ lote.numero }}">
-                      🗑️
-                    </button>
-                  </form>
-                {% endif %}
+            <div class="manzana-head">
+              <h5 class="manzana-title">Manzana {{ manzana }}</h5>
+              <div class="manzana-subtitle">
+                {{ lotes|length }} lote{% if lotes|length != 1 %}s{% endif %}
               </div>
-            {% endfor %}
+            </div>
+
+            <div class="card-body p-3">
+              <div class="lotes-grid">
+                {% for lote in lotes %}
+                  <div class="lote-item">
+
+                    <a href="{{ url_for('detalle_lote', lote_id=lote.id) }}"
+                       class="btn lote-btn
+                              {% if lote.estado == 'disponible' %}btn-success
+                              {% elif lote.estado == 'vendido' %}btn-danger
+                              {% else %}btn-warning{% endif %}">
+                      Lt {{ lote.numero }}
+                    </a>
+
+                    {% if lote.estado == 'disponible' and current_user.rol == 'superadmin' %}
+                      <form method="POST"
+                            class="delete-lote-form"
+                            action="{{ url_for('eliminar_lote', lote_id=lote.id) }}"
+                            onsubmit="return confirm('¿Seguro que deseas eliminar el lote {{ manzana }}-{{ lote.numero }}? Esta acción no se puede deshacer.');">
+
+                        <button type="submit"
+                                class="delete-lote-btn"
+                                title="Eliminar lote"
+                                aria-label="Eliminar lote {{ manzana }}-{{ lote.numero }}">
+                          🗑️
+                        </button>
+                      </form>
+                    {% endif %}
+
+                  </div>
+                {% endfor %}
+              </div>
+            </div>
+
           </div>
         </div>
-
-      </div>
+      {% endfor %}
     </div>
-    {% endfor %}
-  </div>
   </section>
 </div>
 
 <script>
 (() => {
-  const tabLista = document.getElementById("tab-lista");
-  const tabPlano = document.getElementById("tab-plano");
-  const vistaLista = document.getElementById("vista-lista");
-  const vistaPlano = document.getElementById("vista-plano");
-  const filtro = document.getElementById("filtro-manzana");
-  const svg = document.getElementById("plano-svg");
+  const $ = id => document.getElementById(id);
 
-  if (
-    !tabLista || !tabPlano || !vistaPlano ||
-    !vistaLista || !filtro || !svg
-  ) {
+  const tabLista = $("tab-lista");
+  const tabPlano = $("tab-plano");
+  const lista = $("vista-lista");
+  const plano = $("vista-plano");
+  const filtro = $("filtro-manzana");
+  const svg = $("plano-svg");
+
+  if (!tabLista || !tabPlano || !lista || !plano || !filtro || !svg) {
     return;
   }
 
   const lienzo = svg.closest(".plano-lienzo");
-  const imagen = lienzo.querySelector("img");
+  const escena = lienzo.querySelector(".plano-escena");
+  const imagen = escena.querySelector("img");
+  const menos = $("plano-zoom-menos");
+  const mas = $("plano-zoom-mas");
+  const nivel = $("plano-zoom-nivel");
+  const aviso = $("plano-aviso");
+  const zonas = Array.from(svg.querySelectorAll(".plano-zona"));
 
-  if (!imagen) return;
+  // Cada usuario y proyecto conserva su propia vista en esta pestaña.
+  const clave =
+    `plano-vista:v2:${plano.dataset.usuario}:${plano.dataset.proyecto}`;
 
-  // La imagen y las zonas se acercan juntas, sin desalinearse.
-  const escena = document.createElement("div");
-  escena.style.position = "relative";
-  escena.style.width = "100%";
-  escena.style.transformOrigin = "0 0";
+  // Si cambia la geometría del plano, recalcular el acercamiento.
+  let huella = 0;
+  const geometria = plano.dataset.plano + zonas.map(z =>
+    z.dataset.manzana + ":" + z.getAttribute("points")
+  ).join("|");
 
-  escena.append(imagen, svg);
-  lienzo.append(escena);
-
-  svg.setAttribute("viewBox", "0 0 100 100");
-
-  const zonas = Array.from(
-    svg.querySelectorAll(".plano-zona")
-  );
-
-  zonas.forEach(zona => {
-    zona.style.strokeWidth = "0.15";
-  });
-
-  const aviso = document.createElement("div");
-  aviso.className = "small text-muted mt-2";
-  aviso.setAttribute("role", "status");
-
-  const toolbar = vistaPlano.querySelector(".plano-toolbar");
-
-  const botonTodo = document.createElement("button");
-  botonTodo.type = "button";
-  botonTodo.className = "btn btn-outline-primary btn-sm mt-2";
-  botonTodo.textContent = "Ver todo el plano";
-
-  toolbar.append(botonTodo, aviso);
-
-  function mostrar(plano) {
-    vistaLista.hidden = plano;
-    vistaPlano.hidden = !plano;
-
-    tabLista.classList.toggle("active", !plano);
-    tabPlano.classList.toggle("active", plano);
-
-    tabLista.setAttribute("aria-selected", String(!plano));
-    tabPlano.setAttribute("aria-selected", String(plano));
-
-    tabLista.tabIndex = plano ? -1 : 0;
-    tabPlano.tabIndex = plano ? 0 : -1;
+  for (let i = 0; i < geometria.length; i++) {
+    huella = ((huella << 5) - huella + geometria.charCodeAt(i)) | 0;
   }
 
-  function aplicarFiltro() {
+  const limite = (v, min, max) => Math.max(min, Math.min(max, v));
+
+  let escala = 1;
+  let x = 0;
+  let y = 0;
+  let arrastre = null;
+  let bloquearClickHasta = 0;
+  let regresoY = null;
+
+  const MAX = 8;
+
+  function guardar(regresar = false) {
+    try {
+      sessionStorage.setItem(clave, JSON.stringify({
+        huella,
+        vista: plano.hidden ? "lista" : "plano",
+        manzana: filtro.value,
+        escala,
+        x,
+        y,
+        regresar,
+        scrollY: window.scrollY
+      }));
+    } catch (_) {
+      // El plano funciona aunque el navegador bloquee el almacenamiento.
+    }
+  }
+
+  function pintar() {
+    escala = limite(escala, 1, MAX);
+    x = limite(x, 0, 1 - 1 / escala);
+    y = limite(y, 0, 1 - 1 / escala);
+
+    // Imagen y polígonos se mueven juntos para conservar la alineación.
+    escena.style.transform =
+      `scale(${escala}) translate(${-x * 100}%, ${-y * 100}%)`;
+
+    lienzo.classList.toggle("acercado", escala > 1);
+    nivel.textContent = `${Math.round(escala * 100)}%`;
+
+    menos.disabled = escala <= 1;
+    mas.disabled = escala >= MAX;
+  }
+
+  function mostrar(verPlano, persistir = true) {
+    lista.hidden = verPlano;
+    plano.hidden = !verPlano;
+
+    tabLista.classList.toggle("active", !verPlano);
+    tabPlano.classList.toggle("active", verPlano);
+
+    tabLista.setAttribute("aria-selected", String(!verPlano));
+    tabPlano.setAttribute("aria-selected", String(verPlano));
+
+    tabLista.tabIndex = verPlano ? -1 : 0;
+    tabPlano.tabIndex = verPlano ? 0 : -1;
+
+    if (persistir) guardar();
+  }
+
+  function aplicarFiltro(centrar = true) {
     const manzana = filtro.value;
 
-    escena.style.transform = "none";
-
-    zonas.forEach(zona => {
-      zona.classList.toggle(
-        "oculta",
-        Boolean(manzana) && zona.dataset.manzana !== manzana
-      );
-    });
-
-    if (!manzana) {
-      aviso.textContent =
-        `${zonas.length} lotes vinculados al plano.`;
-      return;
-    }
+    zonas.forEach(z => z.classList.toggle(
+      "oculta",
+      Boolean(manzana) && z.dataset.manzana !== manzana
+    ));
 
     const visibles = zonas.filter(
-      zona => zona.dataset.manzana === manzana
+      z => !manzana || z.dataset.manzana === manzana
     );
 
-    const puntos = visibles.flatMap(zona =>
-      zona.getAttribute("points")
-        .trim()
-        .split(/\s+/)
-        .map(par => par.split(",").map(Number))
-    ).filter(
-      punto => punto.length === 2 && punto.every(Number.isFinite)
-    );
+    aviso.textContent = manzana
+      ? (
+          visibles.length
+            ? `Manzana ${manzana}: ${visibles.length} lotes vinculados.`
+            : `La manzana ${manzana} todavía no tiene zonas vinculadas.`
+        )
+      : `${zonas.length} lotes vinculados al plano.`;
 
-    if (!puntos.length) {
-      aviso.textContent =
-        `La manzana ${manzana} todavía no tiene zonas vinculadas.`;
-      return;
+    if (centrar) {
+      escala = 1;
+      x = 0;
+      y = 0;
+
+      const puntos = manzana
+        ? visibles.flatMap(z =>
+            z.getAttribute("points")
+              .trim()
+              .split(/\s+/)
+              .map(par => par.split(",").map(Number))
+          ).filter(
+            p => p.length === 2 && p.every(Number.isFinite)
+          )
+        : [];
+
+      if (puntos.length) {
+        let minX = 100;
+        let minY = 100;
+        let maxX = 0;
+        let maxY = 0;
+
+        puntos.forEach(p => {
+          minX = Math.min(minX, p[0]);
+          maxX = Math.max(maxX, p[0]);
+          minY = Math.min(minY, p[1]);
+          maxY = Math.max(maxY, p[1]);
+        });
+
+        const lado = Math.min(
+          100,
+          Math.max(maxX - minX + 6, maxY - minY + 6, 100 / 6)
+        );
+
+        escala = 100 / lado;
+        x = (minX + maxX - lado) / 200;
+        y = (minY + maxY - lado) / 200;
+      }
     }
 
-    const xs = puntos.map(punto => punto[0]);
-    const ys = puntos.map(punto => punto[1]);
-
-    const minX = Math.min(...xs);
-    const maxX = Math.max(...xs);
-    const minY = Math.min(...ys);
-    const maxY = Math.max(...ys);
-
-    // Mantiene las proporciones y limita el acercamiento a 6 veces.
-    const lado = Math.min(
-      100,
-      Math.max(maxX-minX+6, maxY-minY+6, 100/6)
-    );
-
-    const x = Math.max(
-      0,
-      Math.min(100-lado, (minX+maxX-lado)/2)
-    );
-
-    const y = Math.max(
-      0,
-      Math.min(100-lado, (minY+maxY-lado)/2)
-    );
-
-    escena.style.transform =
-      `scale(${100/lado}) translate(${-x}%, ${-y}%)`;
-
-    aviso.textContent =
-      `Manzana ${manzana}: ${visibles.length} lotes vinculados.`;
+    pintar();
   }
 
-  tabLista.setAttribute("aria-controls", "vista-lista");
-  tabPlano.setAttribute("aria-controls", "vista-plano");
+  function zoom(factor, u = .5, v = .5) {
+    const nueva = limite(escala * factor, 1, MAX);
 
-  vistaLista.setAttribute("role", "tabpanel");
-  vistaPlano.setAttribute("role", "tabpanel");
+    // Conservar el punto bajo el mouse al acercar o alejar.
+    x += u * (1 / escala - 1 / nueva);
+    y += v * (1 / escala - 1 / nueva);
 
-  vistaLista.setAttribute("aria-labelledby", "tab-lista");
-  vistaPlano.setAttribute("aria-labelledby", "tab-plano");
+    escala = nueva;
+    pintar();
+    guardar();
+  }
 
   tabLista.addEventListener("click", () => mostrar(false));
   tabPlano.addEventListener("click", () => mostrar(true));
 
   [tabLista, tabPlano].forEach(tab => {
-    tab.addEventListener("keydown", evento => {
-      if (
-        !["ArrowLeft", "ArrowRight", "Home", "End"]
-          .includes(evento.key)
-      ) {
+    tab.addEventListener("keydown", e => {
+      if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) {
         return;
       }
 
-      evento.preventDefault();
+      e.preventDefault();
 
-      const plano =
-        evento.key === "End" ||
-        (evento.key !== "Home" && tab === tabLista);
+      const verPlano =
+        e.key === "End" || (e.key !== "Home" && tab === tabLista);
 
-      mostrar(plano);
-      (plano ? tabPlano : tabLista).focus();
+      mostrar(verPlano);
+      (verPlano ? tabPlano : tabLista).focus();
     });
   });
 
-  filtro.addEventListener("change", aplicarFiltro);
-
-  botonTodo.addEventListener("click", () => {
-    filtro.value = "";
+  filtro.addEventListener("change", () => {
     aplicarFiltro();
+    guardar();
   });
 
-  aplicarFiltro();
-  mostrar(false);
+  mas.addEventListener("click", () => zoom(1.25));
+  menos.addEventListener("click", () => zoom(1 / 1.25));
+
+  $("plano-ver-todo").addEventListener("click", () => {
+    filtro.value = "";
+    aplicarFiltro();
+    guardar();
+  });
+
+  // ZOOM CON LA RUEDA DEL MOUSE
+  lienzo.addEventListener("wheel", e => {
+    if (plano.hidden || !imagen.naturalWidth) return;
+
+    const rect = escena.getBoundingClientRect();
+    const ancho = rect.width / escala;
+    const alto = rect.height / escala;
+
+    if (!ancho || !alto) return;
+
+    const marco = lienzo.getBoundingClientRect();
+
+    const delta = e.deltaY * (
+      e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? alto : 1
+    );
+
+    e.preventDefault();
+
+    zoom(
+      Math.exp(-limite(delta, -100, 100) * .002),
+      limite(
+        (e.clientX - marco.left - lienzo.clientLeft) / ancho,
+        0,
+        1
+      ),
+      limite(
+        (e.clientY - marco.top - lienzo.clientTop) / alto,
+        0,
+        1
+      )
+    );
+  }, { passive: false });
+
+  // DESPLAZAMIENTO AL ARRASTRAR
+  lienzo.addEventListener("pointerdown", e => {
+    if (
+      e.button !== 0 ||
+      !e.isPrimary ||
+      escala <= 1 ||
+      !imagen.naturalWidth
+    ) {
+      return;
+    }
+
+    const rect = escena.getBoundingClientRect();
+
+    arrastre = {
+      id: e.pointerId,
+      inicioX: e.clientX,
+      inicioY: e.clientY,
+      x,
+      y,
+      ancho: rect.width,
+      alto: rect.height,
+      movido: false
+    };
+  });
+
+  window.addEventListener("pointermove", e => {
+    if (!arrastre || e.pointerId !== arrastre.id) return;
+
+    const dx = e.clientX - arrastre.inicioX;
+    const dy = e.clientY - arrastre.inicioY;
+
+    if (!arrastre.movido && Math.hypot(dx, dy) < 6) return;
+
+    arrastre.movido = true;
+
+    if (!arrastre.ancho || !arrastre.alto) return;
+
+    lienzo.classList.add("arrastrando");
+
+    x = arrastre.x - dx / arrastre.ancho;
+    y = arrastre.y - dy / arrastre.alto;
+
+    pintar();
+  });
+
+  function terminar(e) {
+    if (!arrastre || e.pointerId !== arrastre.id) return;
+
+    if (arrastre.movido) {
+      bloquearClickHasta = Date.now() + 350;
+      guardar();
+    }
+
+    arrastre = null;
+    lienzo.classList.remove("arrastrando");
+  }
+
+  window.addEventListener("pointerup", terminar);
+  window.addEventListener("pointercancel", terminar);
+
+  window.addEventListener("blur", () => {
+    if (arrastre) terminar({ pointerId: arrastre.id });
+  });
+
+  lienzo.addEventListener("dragstart", e => e.preventDefault());
+
+  // Evitar abrir un lote por accidente al terminar de arrastrar.
+  lienzo.addEventListener("click", e => {
+    if (Date.now() < bloquearClickHasta) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+
+    if (
+      e.target.closest("a") &&
+      !e.ctrlKey &&
+      !e.metaKey &&
+      !e.shiftKey
+    ) {
+      guardar(true);
+    }
+  }, true);
+
+  lista.addEventListener("click", e => {
+    if (
+      e.target.closest(".lote-btn") &&
+      !e.ctrlKey &&
+      !e.metaKey &&
+      !e.shiftKey
+    ) {
+      guardar(true);
+    }
+  });
+
+  // RESTAURAR LA VISTA AL VOLVER DESDE EL DETALLE DEL LOTE
+  let previo = null;
+
+  try {
+    previo = JSON.parse(sessionStorage.getItem(clave));
+  } catch (_) {}
+
+  if (previo && typeof previo === "object") {
+    if (
+      Array.from(filtro.options).some(
+        o => o.value === previo.manzana
+      )
+    ) {
+      filtro.value = previo.manzana;
+    }
+
+    aplicarFiltro();
+
+    if (
+      previo.huella === huella &&
+      [previo.escala, previo.x, previo.y].every(Number.isFinite)
+    ) {
+      escala = previo.escala;
+      x = previo.x;
+      y = previo.y;
+      pintar();
+    }
+
+    mostrar(previo.vista === "plano", false);
+
+    if (previo.regresar && Number.isFinite(previo.scrollY)) {
+      regresoY = previo.scrollY;
+    }
+  } else {
+    aplicarFiltro();
+    mostrar(false, false);
+  }
+
+  function restaurarScroll() {
+    if (regresoY === null) return;
+
+    const destino = regresoY;
+    regresoY = null;
+
+    requestAnimationFrame(() => window.scrollTo(0, destino));
+  }
+
+  if (imagen.complete) {
+    restaurarScroll();
+  } else {
+    imagen.addEventListener("load", restaurarScroll, { once: true });
+    imagen.addEventListener("error", restaurarScroll, { once: true });
+  }
+
+  guardar();
 })();
 </script>
 

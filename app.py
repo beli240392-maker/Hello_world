@@ -3,7 +3,7 @@ import uuid
 from utils import lotizacion_required, admin_required, superadmin_required 
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session,current_app
 from werkzeug.utils import secure_filename
-from models import db, Cliente, Lote, Compra, Pago, Cuota, Separacion, Historial, Lotizacion, Voucher
+from models import db, Cliente, Lote, Compra, Pago, Cuota, Separacion, Historial, Lotizacion, Voucher, TransferenciaTitular
 from datetime import datetime, timedelta, date
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from flask_login import LoginManager
@@ -388,13 +388,25 @@ def detalle_lote(lote_id):
             session["lotizacion_id"]
         )
 
+        transferencias_titular = (
+        TransferenciaTitular.query
+        .filter_by(lote_id=lote.id)
+        .order_by(
+            TransferenciaTitular.fecha.desc(),
+            TransferenciaTitular.id.desc()
+        )
+        .all()
+    )
+
     return render_template(
         "detalle_lote.html",
         lote=lote,
         compra=compra,
         separacion=separacion,
         lotizacion=lotizacion,
-        error_linderos=error_linderos
+        error_linderos=error_linderos,
+        transferencias_titular=transferencias_titular,
+        formulario_titular=None
     )
 
 @app.route("/estado_pagos")
@@ -1105,18 +1117,18 @@ def ver_cliente():
     compras_contado = []
     compras_credito = []
     historial = []
-
-    # Vouchers de separaciones que fueron convertidas en compra
+    transferencias_titular = []
     vouchers_separacion = {}
 
-    # Obtener lotización activa desde la sesión
     lotizacion = None
+
     if "lotizacion_id" in session:
-        lotizacion = Lotizacion.query.get(session["lotizacion_id"])
+        lotizacion = Lotizacion.query.get(
+            session["lotizacion_id"]
+        )
 
     lotizacion_id = lotizacion.id if lotizacion else None
 
-    # Buscar cliente
     cliente_id = request.args.get("cliente_id")
 
     if cliente_id:
@@ -1127,28 +1139,15 @@ def ver_cliente():
 
         if criterio and lotizacion_id:
             cliente = (
-                Cliente.query
-                .join(Separacion, isouter=True)
-                .join(Compra, isouter=True)
-                .join(Lote, isouter=True)
+                _clientes_del_proyecto(lotizacion_id)
                 .filter(
-                    (
-                        (Cliente.dni == criterio)
-                        | (Cliente.apellidos.ilike(f"%{criterio}%"))
-                    ),
-                    Lote.lotizacion_id == lotizacion_id
+                    (Cliente.dni == criterio)
+                    | Cliente.apellidos.ilike(f"%{criterio}%")
                 )
-                .distinct()
-                .all()
+                .first()
             )
 
-    if isinstance(cliente, list):
-        cliente = cliente[0] if cliente else None
-
-    # Si se encontró cliente, traer sus datos SOLO
-    # de la lotización activa
     if cliente and lotizacion_id:
-
         separaciones = (
             Separacion.query
             .join(Lote)
@@ -1192,58 +1191,37 @@ def ver_cliente():
             .all()
         )
 
-        # =====================================================
-        # VOUCHER DE SEPARACIÓN CONVERTIDA EN COMPRA
-        # =====================================================
-        for compra in compras_contado + compras_credito:
+        transferencias_titular = (
+            TransferenciaTitular.query
+            .join(
+                Lote,
+                Lote.id == TransferenciaTitular.lote_id
+            )
+            .filter(
+                Lote.lotizacion_id == lotizacion_id,
+                (
+                    TransferenciaTitular.cliente_anterior_id == cliente.id
+                )
+                | (
+                    TransferenciaTitular.cliente_nuevo_id == cliente.id
+                )
+            )
+            .order_by(
+                TransferenciaTitular.fecha.desc(),
+                TransferenciaTitular.id.desc()
+            )
+            .all()
+        )
 
-            # Revisamos el último evento importante de ese
-            # cliente y lote.
-            ultimo_evento = (
-                Historial.query
-                .filter(
-                    Historial.cliente_id == compra.cliente_id,
-                    Historial.lote_id == compra.lote_id,
-                    Historial.tipo.in_([
-                        "Separación convertida",
-                        "Compra liberada"
-                    ])
-                )
-                .order_by(
-                    Historial.fecha.desc(),
-                    Historial.id.desc()
-                )
-                .first()
+        # Conservar el voucher de la separación original,
+        # aunque la compra haya cambiado de titular.
+        for compra in compras_contado + compras_credito:
+            separacion_convertida = _separacion_original_compra(
+                compra
             )
 
-            # Solo si realmente provino de una separación
-            if (
-                ultimo_evento
-                and ultimo_evento.tipo == "Separación convertida"
-            ):
-
-                separacion_convertida = (
-                    Separacion.query
-                    .filter(
-                        Separacion.cliente_id == compra.cliente_id,
-                        Separacion.lote_id == compra.lote_id,
-                        Separacion.activa == False,
-                        Separacion.boucher.isnot(None)
-                    )
-                    .order_by(
-                        Separacion.fecha.desc(),
-                        Separacion.id.desc()
-                    )
-                    .first()
-                )
-
-                if (
-                    separacion_convertida
-                    and separacion_convertida.boucher
-                ):
-                    vouchers_separacion[compra.id] = (
-                        separacion_convertida
-                    )
+            if separacion_convertida and separacion_convertida.boucher:
+                vouchers_separacion[compra.id] = separacion_convertida
 
     return render_template(
         "ver_cliente.html",
@@ -1252,6 +1230,7 @@ def ver_cliente():
         compras_contado=compras_contado,
         compras_credito=compras_credito,
         historial=historial,
+        transferencias_titular=transferencias_titular,
         vouchers_separacion=vouchers_separacion,
         now=datetime.now(lima),
         lotizacion=lotizacion,
@@ -1696,40 +1675,26 @@ def buscar_cliente():
     clientes = []
 
     if query:
-        lotizacion_id = session.get("lotizacion_id")
         term = f"%{query.lower()}%"
 
-        # Subquery de separaciones
-        cli_ids_sep = (
-            db.session.query(Separacion.cliente_id.label("cliente_id"))
-            .join(Lote, Lote.id == Separacion.lote_id)
-            .filter(Lote.lotizacion_id == lotizacion_id)
-        )
-
-        # Subquery de compras
-        cli_ids_com = (
-            db.session.query(Compra.cliente_id.label("cliente_id"))
-            .join(Lote, Lote.id == Compra.lote_id)
-            .filter(Lote.lotizacion_id == lotizacion_id)
-        )
-
-        # Unimos ambos subqueries
-        activos_subq = cli_ids_sep.union(cli_ids_com).subquery()
-
-        # Ahora sí filtramos clientes
         clientes = (
-            Cliente.query
-            .join(activos_subq, activos_subq.c.cliente_id == Cliente.id)
-            .filter(
-            or_(
-                db.func.lower(Cliente.dni).like(term),
-                db.func.lower(Cliente.apellidos).like(f"%{query.lower()}%")
+            _clientes_del_proyecto(
+                session.get("lotizacion_id")
             )
+            .filter(
+                or_(
+                    db.func.lower(Cliente.dni).like(term),
+                    db.func.lower(Cliente.apellidos).like(term)
+                )
+            )
+            .all()
+        )
+
+    return render_template(
+        "buscar_cliente.html",
+        query=query,
+        clientes=clientes
     )
-    .distinct()
-    .all()
-)
-    return render_template("buscar_cliente.html", query=query, clientes=clientes)
 
 @app.route("/buscar_cliente_json")
 @login_required
@@ -1763,19 +1728,20 @@ def autocomplete_clientes():
         return jsonify([])
 
     clientes = (
-        Cliente.query
-        .join(Separacion, isouter=True)
-        .join(Compra, isouter=True)
-        .join(Lote, isouter=True)
+        _clientes_del_proyecto(lotizacion_id)
         .filter(
-            ((Cliente.dni.ilike(f"%{term}%")) | (Cliente.apellidos.ilike(f"%{term}%"))),
-            Lote.lotizacion_id == lotizacion_id
+            Cliente.dni.ilike(f"%{term}%")
+            | Cliente.apellidos.ilike(f"%{term}%")
         )
         .all()
     )
 
     results = [
-        {"id": c.id, "label": f"{c.apellidos} {c.nombre} - {c.dni}", "value": c.apellidos}
+        {
+            "id": c.id,
+            "label": f"{c.apellidos} {c.nombre} - {c.dni}",
+            "value": c.apellidos
+        }
         for c in clientes
     ]
 
@@ -5083,6 +5049,684 @@ def procesar_plano_automatico(lot_id):
 
     return redirect(url_for("panel_superadmin"))
 
+# ------------------- CAMBIO DE TITULAR -------------------
+
+def _copia_para_transferencia(registro):
+    """Guardar los datos tal como estaban al realizar la transferencia."""
+    datos = {}
+
+    for columna in registro.__table__.columns:
+        valor = getattr(registro, columna.key)
+
+        if isinstance(valor, (datetime, date)):
+            valor = valor.isoformat()
+
+        datos[columna.key] = valor
+
+    return datos
+
+
+def _separacion_original_compra(compra):
+    """Conservar el origen de la separación aunque cambie el titular."""
+    primera = (
+        TransferenciaTitular.query
+        .filter_by(compra_id=compra.id)
+        .order_by(
+            TransferenciaTitular.fecha,
+            TransferenciaTitular.id
+        )
+        .first()
+    )
+
+    if primera:
+        datos = (
+            primera.datos_compra or {}
+        ).get("separacion_convertida")
+
+        if datos:
+            return Separacion.query.filter_by(
+                id=datos["id"],
+                lote_id=compra.lote_id,
+                cliente_id=datos["cliente_id"],
+                activa=False
+            ).first()
+
+        return None
+
+    evento = (
+        Historial.query
+        .filter(
+            Historial.cliente_id == compra.cliente_id,
+            Historial.lote_id == compra.lote_id,
+            Historial.tipo.in_([
+                "Separación convertida",
+                "Compra liberada"
+            ])
+        )
+        .order_by(
+            Historial.fecha.desc(),
+            Historial.id.desc()
+        )
+        .first()
+    )
+
+    if not evento or evento.tipo != "Separación convertida":
+        return None
+
+    return (
+        Separacion.query
+        .filter(
+            Separacion.cliente_id == compra.cliente_id,
+            Separacion.lote_id == compra.lote_id,
+            Separacion.activa == False,
+            Separacion.boucher.isnot(None)
+        )
+        .order_by(
+            Separacion.fecha.desc(),
+            Separacion.id.desc()
+        )
+        .first()
+    )
+
+
+def _pagina_cambio_titular(compra, formulario):
+    lote = compra.lote
+
+    transferencias = (
+        TransferenciaTitular.query
+        .filter_by(lote_id=lote.id)
+        .order_by(
+            TransferenciaTitular.fecha.desc(),
+            TransferenciaTitular.id.desc()
+        )
+        .all()
+    )
+
+    return render_template(
+        "detalle_lote.html",
+        lote=lote,
+        compra=compra,
+        separacion=None,
+        lotizacion=db.session.get(
+            Lotizacion,
+            lote.lotizacion_id
+        ),
+        error_linderos=None,
+        transferencias_titular=transferencias,
+        formulario_titular=formulario
+    )
+
+@app.route(
+    "/cambiar_titular/<int:compra_id>",
+    methods=["GET", "POST"]
+)
+@login_required
+@lotizacion_required
+@superadmin_required
+def cambiar_titular(compra_id):
+    compra = Compra.query.get_or_404(compra_id)
+    lote = compra.lote
+
+    if str(session.get("lotizacion_id")) != str(lote.lotizacion_id):
+        flash(
+            "Selecciona primero el proyecto de esta compra.",
+            "warning"
+        )
+        return redirect(url_for("lotes_disponibles"))
+
+    if compra.anulada or lote.estado != "vendido":
+        flash(
+            "Solo puedes cambiar el titular de una compra vigente.",
+            "warning"
+        )
+        return redirect(
+            url_for("detalle_lote", lote_id=lote.id)
+        )
+
+    if not session.get("csrf_cambio_titular"):
+        session["csrf_cambio_titular"] = secrets.token_urlsafe(32)
+
+    firmador = URLSafeTimedSerializer(
+        app.config["SECRET_KEY"],
+        salt="cambio-titular-v1"
+    )
+
+    base = {
+        "compra_id": compra.id,
+        "anterior_id": compra.cliente_id,
+        "lote_id": lote.id,
+        "usuario_id": current_user.id,
+        "csrf": session["csrf_cambio_titular"]
+    }
+
+    formulario = {
+        "dni": request.form.get("dni", "").strip(),
+        "motivo": request.form.get("motivo", "").strip(),
+        "error": None,
+        "nuevo": None,
+        "crear": False,
+        "es_nuevo": False,
+        "datos_cliente": {
+            campo: request.form.get(campo, "")
+            for campo in (
+                "nombre", "apellidos", "telefono", "correo",
+                "estado_civil", "ocupacion", "ciudad",
+                "provincia", "departamento", "direccion"
+            )
+        },
+        "token": firmador.dumps({
+            **base,
+            "paso": "consultar"
+        })
+    }
+
+    if request.method == "GET":
+        return _pagina_cambio_titular(compra, formulario)
+
+    archivos_creados = []
+    datos = None
+
+    try:
+        datos = firmador.loads(
+            request.form.get("token_titular", ""),
+            max_age=1800
+        )
+
+        if (
+            not isinstance(datos, dict)
+            or any(datos.get(k) != v for k, v in base.items())
+        ):
+            raise ValueError(
+                "La compra o la sesión cambió. "
+                "Consulta nuevamente al titular."
+            )
+
+        accion = request.form.get("accion", "")
+
+        # CONSULTAR EL DNI
+        if accion == "consultar" and datos.get("paso") == "consultar":
+            dni = formulario["dni"]
+            motivo = formulario["motivo"]
+
+            if not dni or len(dni) > 20:
+                raise ValueError(
+                    "Escribe el DNI del nuevo titular."
+                )
+
+            if not motivo or len(motivo) > 2000:
+                raise ValueError(
+                    "Escribe un motivo de hasta 2000 caracteres."
+                )
+
+            nuevo = Cliente.query.filter_by(dni=dni).first()
+
+            # Mostrar el registro cuando la persona no existe.
+            if nuevo is None:
+                formulario["crear"] = True
+                formulario["token"] = firmador.dumps({
+                    **base,
+                    "paso": "registrar",
+                    "dni": dni,
+                    "motivo": motivo
+                })
+
+                return _pagina_cambio_titular(compra, formulario)
+
+            if nuevo.id == compra.cliente_id:
+                raise ValueError(
+                    "Ese cliente ya es el titular de esta compra."
+                )
+
+            formulario["nuevo"] = nuevo
+            formulario["token"] = firmador.dumps({
+                **base,
+                "paso": "confirmar",
+                "nuevo_id": nuevo.id,
+                "identidad": [
+                    nuevo.nombre,
+                    nuevo.apellidos,
+                    nuevo.dni
+                ],
+                "motivo": motivo
+            })
+
+            return _pagina_cambio_titular(compra, formulario)
+
+        # REVISAR LOS DATOS DE LA PERSONA NUEVA
+        if (
+            accion == "revisar_nuevo"
+            and datos.get("paso") == "registrar"
+        ):
+            formulario["dni"] = datos["dni"]
+            formulario["motivo"] = datos["motivo"]
+
+            if Cliente.query.filter_by(dni=datos["dni"]).first():
+                raise ValueError(
+                    "Ese DNI ya está registrado. "
+                    "Consulta nuevamente para usar su ficha."
+                )
+
+            cliente_nuevo = _datos_nuevo_titular(request.form)
+            cliente_nuevo["dni"] = datos["dni"]
+
+            formulario["nuevo"] = cliente_nuevo
+            formulario["es_nuevo"] = True
+            formulario["token"] = firmador.dumps({
+                **base,
+                "paso": "confirmar",
+                "crear": True,
+                "cliente": cliente_nuevo,
+                "motivo": datos["motivo"]
+            })
+
+            return _pagina_cambio_titular(compra, formulario)
+
+        # CONFIRMAR EL CAMBIO
+        if (
+            accion != "confirmar"
+            or datos.get("paso") != "confirmar"
+        ):
+            raise ValueError(
+                "Consulta primero al nuevo titular antes de confirmar."
+            )
+
+        if request.form.get("confirmacion") != "si":
+            raise ValueError(
+                "Marca la casilla para confirmar el cambio de titular."
+            )
+
+        lote = (
+            Lote.query
+            .filter_by(id=datos["lote_id"])
+            .populate_existing()
+            .with_for_update()
+            .first()
+        )
+
+        compra = (
+            Compra.query
+            .filter_by(id=compra_id)
+            .populate_existing()
+            .with_for_update()
+            .first()
+        )
+
+        if (
+            lote is None
+            or compra is None
+            or compra.lote_id != datos["lote_id"]
+            or compra.cliente_id != datos["anterior_id"]
+            or compra.anulada
+            or lote.estado != "vendido"
+            or str(session.get("lotizacion_id")) != str(lote.lotizacion_id)
+        ):
+            raise ValueError(
+                "La operación cambió. "
+                "Recarga la página y revisa su estado."
+            )
+
+        # Crear al cliente nuevo dentro de la misma transacción.
+        if datos.get("crear"):
+            cliente_nuevo = _datos_nuevo_titular(datos["cliente"])
+            cliente_nuevo["dni"] = datos["cliente"]["dni"]
+
+            formulario["dni"] = cliente_nuevo["dni"]
+            formulario["motivo"] = datos["motivo"]
+
+            if Cliente.query.filter_by(
+                dni=cliente_nuevo["dni"]
+            ).first():
+                raise ValueError(
+                    "Ese DNI ya está registrado. "
+                    "Consulta nuevamente para usar su ficha."
+                )
+
+            anterior = (
+                Cliente.query
+                .filter_by(id=compra.cliente_id)
+                .populate_existing()
+                .with_for_update()
+                .first()
+            )
+
+            if anterior is None:
+                raise ValueError(
+                    "El titular anterior ya no existe."
+                )
+
+            nuevo = Cliente(**cliente_nuevo)
+            db.session.add(nuevo)
+            db.session.flush()
+
+            nuevo.dni_frontal = _guardar_dni_titular(
+                request.files.get("dni_frontal"),
+                archivos_creados
+            )
+
+            nuevo.dni_reverso = _guardar_dni_titular(
+                request.files.get("dni_reverso"),
+                archivos_creados
+            )
+
+        # Usar la ficha cuando el cliente ya está registrado.
+        else:
+            ids_clientes = sorted([
+                compra.cliente_id,
+                datos["nuevo_id"]
+            ])
+
+            clientes = (
+                Cliente.query
+                .filter(Cliente.id.in_(ids_clientes))
+                .order_by(Cliente.id)
+                .populate_existing()
+                .with_for_update()
+                .all()
+            )
+
+            por_id = {c.id: c for c in clientes}
+            anterior = por_id.get(compra.cliente_id)
+            nuevo = por_id.get(datos["nuevo_id"])
+
+            if (
+                anterior is None
+                or nuevo is None
+                or anterior.id == nuevo.id
+            ):
+                raise ValueError(
+                    "Los titulares no son válidos. Consulta nuevamente."
+                )
+
+            if [
+                nuevo.nombre,
+                nuevo.apellidos,
+                nuevo.dni
+            ] != datos["identidad"]:
+                raise ValueError(
+                    "Los datos del nuevo cliente cambiaron. "
+                    "Consulta nuevamente su DNI."
+                )
+
+        fecha = hora_local_peru()
+
+        # Conservar la información anterior de la operación.
+        copia = _copia_para_transferencia(compra)
+
+        copia["pagos"] = [
+            _copia_para_transferencia(p)
+            for p in compra.pagos
+        ]
+
+        copia["cuotas"] = [
+            _copia_para_transferencia(c)
+            for c in compra.cuotas
+        ]
+
+        copia["usuario_transferencia"] = current_user.username
+        copia["lotizacion_id"] = lote.lotizacion_id
+        copia["manzana"] = lote.manzana
+        copia["numero"] = lote.numero
+
+        separacion = _separacion_original_compra(compra)
+
+        copia["separacion_convertida"] = (
+            _copia_para_transferencia(separacion)
+            if separacion else None
+        )
+
+        transferencia = TransferenciaTitular(
+            compra_id=compra.id,
+            lote_id=lote.id,
+            cliente_anterior_id=anterior.id,
+            cliente_nuevo_id=nuevo.id,
+            usuario_id=current_user.id,
+            fecha=fecha,
+            motivo=datos["motivo"],
+            datos_cliente_anterior=_copia_para_transferencia(anterior),
+            datos_cliente_nuevo=_copia_para_transferencia(nuevo),
+            datos_compra=copia
+        )
+
+        db.session.add(transferencia)
+
+        db.session.add(Historial(
+            cliente_id=anterior.id,
+            lote_id=lote.id,
+            tipo="Titularidad transferida",
+            fecha=fecha,
+            detalle=(
+                f"Compra #{compra.id} transferida a "
+                f"{nuevo.nombre} {nuevo.apellidos}, "
+                f"DNI {nuevo.dni}."
+            )[:200]
+        ))
+
+        db.session.add(Historial(
+            cliente_id=nuevo.id,
+            lote_id=lote.id,
+            tipo="Titularidad recibida",
+            fecha=fecha,
+            detalle=(
+                f"Compra #{compra.id} recibida de "
+                f"{anterior.nombre} {anterior.apellidos}, "
+                f"DNI {anterior.dni}."
+            )[:200]
+        ))
+
+        compra.cliente_id = nuevo.id
+
+        # Confirmar cliente, transferencia e historial juntos.
+        db.session.commit()
+
+        flash(
+            "Titular cambiado. Se conservaron la compra, "
+            "los pagos y las cuotas.",
+            "success"
+        )
+
+        return redirect(
+            url_for("detalle_lote", lote_id=lote.id)
+            + "#historial-titulares"
+        )
+
+    except (BadSignature, SignatureExpired):
+        db.session.rollback()
+        formulario["error"] = (
+            "El formulario venció o no es válido. "
+            "Consulta nuevamente al cliente."
+        )
+
+    except ValueError as error:
+        db.session.rollback()
+        formulario["error"] = str(error)
+
+    except Exception:
+        db.session.rollback()
+
+        current_app.logger.exception(
+            "Error al cambiar titular de la compra %s",
+            compra_id
+        )
+
+        formulario["error"] = (
+            "No se pudo guardar el cambio. "
+            "No se modificó la compra."
+        )
+
+    # Retirar las fotos creadas si la operación falló.
+    for ruta in archivos_creados:
+        try:
+            if os.path.isfile(ruta):
+                os.remove(ruta)
+        except OSError:
+            current_app.logger.exception(
+                "No se pudo retirar una foto de DNI sin confirmar."
+            )
+
+    compra = db.session.get(Compra, compra_id)
+
+    if compra is None:
+        flash("La compra ya no existe.", "warning")
+        return redirect(url_for("lotes_disponibles"))
+
+    formulario["token"] = firmador.dumps({
+        **base,
+        "anterior_id": compra.cliente_id,
+        "paso": "consultar"
+    })
+
+    # Mantener los datos cuando el usuario debe corregir algo.
+    if (
+        isinstance(datos, dict)
+        and all(datos.get(k) == v for k, v in base.items())
+        and compra.cliente_id == base["anterior_id"]
+    ):
+        if datos.get("paso") == "registrar":
+            formulario["dni"] = datos["dni"]
+            formulario["motivo"] = datos["motivo"]
+
+            if not Cliente.query.filter_by(dni=datos["dni"]).first():
+                formulario["crear"] = True
+                formulario["token"] = firmador.dumps(datos)
+
+        elif datos.get("crear") and datos.get("paso") == "confirmar":
+            if not Cliente.query.filter_by(
+                dni=datos["cliente"]["dni"]
+            ).first():
+                formulario["dni"] = datos["cliente"]["dni"]
+                formulario["motivo"] = datos["motivo"]
+                formulario["nuevo"] = datos["cliente"]
+                formulario["es_nuevo"] = True
+                formulario["token"] = firmador.dumps(datos)
+
+    return _pagina_cambio_titular(compra, formulario)
+
+
+
+def _clientes_del_proyecto(lotizacion_id):
+    compras = (
+        db.session.query(
+            Compra.cliente_id.label("cliente_id")
+        )
+        .join(Lote, Lote.id == Compra.lote_id)
+        .filter(Lote.lotizacion_id == lotizacion_id)
+    )
+
+    separaciones = (
+        db.session.query(
+            Separacion.cliente_id.label("cliente_id")
+        )
+        .join(Lote, Lote.id == Separacion.lote_id)
+        .filter(Lote.lotizacion_id == lotizacion_id)
+    )
+
+    anteriores = (
+        db.session.query(
+            TransferenciaTitular.cliente_anterior_id.label("cliente_id")
+        )
+        .join(Lote, Lote.id == TransferenciaTitular.lote_id)
+        .filter(Lote.lotizacion_id == lotizacion_id)
+    )
+
+    nuevos = (
+        db.session.query(
+            TransferenciaTitular.cliente_nuevo_id.label("cliente_id")
+        )
+        .join(Lote, Lote.id == TransferenciaTitular.lote_id)
+        .filter(Lote.lotizacion_id == lotizacion_id)
+    )
+
+    ids = compras.union(
+        separaciones,
+        anteriores,
+        nuevos
+    ).subquery()
+
+    return Cliente.query.join(
+        ids,
+        ids.c.cliente_id == Cliente.id
+    )
+
+def _datos_nuevo_titular(origen):
+    limites = {
+        "nombre": 100,
+        "apellidos": 100,
+        "telefono": 20,
+        "correo": 150,
+        "estado_civil": 50,
+        "ocupacion": 100,
+        "ciudad": 50,
+        "provincia": 100,
+        "departamento": 100,
+        "direccion": 200
+    }
+
+    datos = {}
+
+    for campo, limite in limites.items():
+        valor = str(origen.get(campo) or "").strip()
+
+        if len(valor) > limite:
+            raise ValueError(
+                f"El campo {campo} admite hasta {limite} caracteres."
+            )
+
+        datos[campo] = valor
+
+    if not datos["nombre"] or not datos["apellidos"]:
+        raise ValueError(
+            "Completa los nombres y apellidos del nuevo titular."
+        )
+
+    datos["correo"] = datos["correo"].lower()
+
+    return datos
+
+
+def _guardar_dni_titular(archivo, archivos_creados):
+    if not archivo or not archivo.filename:
+        return None
+
+    from io import BytesIO
+    from PIL import Image, ImageOps, UnidentifiedImageError
+
+    contenido = archivo.read(8 * 1024 * 1024 + 1)
+
+    if len(contenido) > 8 * 1024 * 1024:
+        raise ValueError(
+            "Cada foto del DNI debe pesar como máximo 8 MB."
+        )
+
+    try:
+        with Image.open(BytesIO(contenido)) as imagen:
+            if imagen.format not in ("JPEG", "PNG", "WEBP"):
+                raise ValueError(
+                    "Las fotos del DNI deben ser JPG, PNG o WEBP."
+                )
+
+            if imagen.width * imagen.height > 30000000:
+                raise ValueError(
+                    "La foto del DNI es demasiado grande."
+                )
+
+            imagen = ImageOps.exif_transpose(imagen).convert("RGB")
+
+            nombre = f"titular_{uuid.uuid4().hex}.jpg"
+            carpeta = os.path.join(app.static_folder, "dni")
+
+            os.makedirs(carpeta, exist_ok=True)
+
+            ruta = os.path.join(carpeta, nombre)
+            archivos_creados.append(ruta)
+
+            imagen.save(ruta, "JPEG", quality=95)
+
+            return f"dni/{nombre}"
+
+    except (UnidentifiedImageError, Image.DecompressionBombError):
+        raise ValueError(
+            "No se pudo leer una de las fotos del DNI."
+        )
 # ------------------- MAIN -------------------
 if __name__ == "__main__":
     app.run(debug=True)

@@ -1089,13 +1089,13 @@
   </div>
 
   {% if cliente %}
-    {% if not separaciones and not compras_contado and not compras_credito and not historial %}
+    {% if not separaciones and not compras_contado and not compras_credito and not historial and not transferencias_titular %}
       <div class="alert alert-warning text-center rounded-4 shadow-sm">
         Este cliente no tiene lotes activos ni historial en la lotización actual.
       </div>
     {% else %}
 
-      {% if separaciones or compras_contado or compras_credito %}
+      {% if separaciones or compras_contado or compras_credito or transferencias_titular %}
 
             <!-- PERFIL DEL CLIENTE -->
       {% set pm_nombre = (cliente.nombre or '')|trim %}
@@ -1351,6 +1351,108 @@
 
       {% endif %}
 
+            <!-- HISTORIAL DE TITULARIDAD -->
+      {% if transferencias_titular %}
+        <div
+          class="card section-card mb-4"
+          id="historial-titularidad">
+
+          <div class="section-header d-flex justify-content-between align-items-center">
+            <h3 class="section-title">
+              Historial de titularidad
+            </h3>
+
+            <span class="badge text-bg-primary">
+              {{ transferencias_titular|length }}
+            </span>
+          </div>
+
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>Lote</th>
+                  <th>Fecha</th>
+                  <th>Cambio de titular</th>
+                  <th>Motivo y registro</th>
+                  <th class="text-end">Detalle</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {% for cambio in transferencias_titular %}
+                  {% set operacion = cambio.datos_compra or {} %}
+
+                  {% if cambio.cliente_anterior_id == cliente.id %}
+                    {% set otro = cambio.datos_cliente_nuevo or {} %}
+                    {% set etiqueta = 'Transferido a' %}
+                  {% else %}
+                    {% set otro = cambio.datos_cliente_anterior or {} %}
+                    {% set etiqueta = 'Recibido de' %}
+                  {% endif %}
+
+                  <tr>
+                    <td>
+                      <span class="lot-pill">
+                        Mz {{ operacion.get('manzana', cambio.lote.manzana) }} ·
+                        Lt {{ operacion.get('numero', cambio.lote.numero) }}
+                      </span>
+                    </td>
+
+                    <td class="text-nowrap">
+                      {{ cambio.fecha.strftime('%d/%m/%Y') }}
+
+                      <div class="small text-muted">
+                        {{ cambio.fecha.strftime('%H:%M') }}
+                      </div>
+                    </td>
+
+                    <td>
+                      <div class="small text-muted">
+                        {{ etiqueta }}
+                      </div>
+
+                      <div class="fw-semibold">
+                        {{ otro.get('nombre', '') }}
+                        {{ otro.get('apellidos', '') }}
+                      </div>
+
+                      <div class="small text-muted">
+                        DNI: {{ otro.get('dni', '') }}
+                      </div>
+                    </td>
+
+                    <td>
+                      <div style="white-space: pre-line; overflow-wrap: anywhere;">{{ cambio.motivo }}</div>
+
+                      <div class="small text-muted mt-1">
+                        Registrado por:
+                        {{ operacion.get('usuario_transferencia') or 'Sin registrar' }}
+                      </div>
+                    </td>
+
+                    <td class="text-end">
+                      <a
+                        href="{{ url_for('detalle_lote', lote_id=cambio.lote_id) }}#historial-titulares"
+                        class="btn btn-outline-primary btn-sm text-nowrap">
+                        Ver historial
+                      </a>
+                    </td>
+                  </tr>
+
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+
+          <div class="px-3 py-3 small text-muted border-top">
+            Los lotes transferidos a otra persona no se suman
+            a las compras actuales. Los pagos y documentos
+            conservan su registro en la misma operación.
+          </div>
+
+        </div>
+      {% endif %}
 
       <!-- LOTES SEPARADOS -->
       {% if separaciones %}

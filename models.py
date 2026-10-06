@@ -321,3 +321,124 @@ class Documento(db.Model):
     lote = db.relationship("Lote", backref="documentos")
     cliente = db.relationship("Cliente", backref="documentos")
     usuario = db.relationship("Usuario", backref="documentos")
+
+# ---------------- TRANSFERENCIAS DE TITULAR ----------------
+class TransferenciaTitular(db.Model):
+    __tablename__ = "transferencias_titular"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    compra_id = db.Column(
+        db.Integer,
+        db.ForeignKey("compras.id", ondelete="SET NULL"),
+        nullable=True
+    )
+
+    lote_id = db.Column(
+        db.Integer,
+        db.ForeignKey("lotes.id", ondelete="RESTRICT"),
+        nullable=False
+    )
+
+    cliente_anterior_id = db.Column(
+        db.Integer,
+        db.ForeignKey("clientes.id", ondelete="RESTRICT"),
+        nullable=False
+    )
+
+    cliente_nuevo_id = db.Column(
+        db.Integer,
+        db.ForeignKey("clientes.id", ondelete="RESTRICT"),
+        nullable=False
+    )
+
+    usuario_id = db.Column(
+        db.Integer,
+        db.ForeignKey("usuarios.id", ondelete="SET NULL"),
+        nullable=True
+    )
+
+    fecha = db.Column(
+        db.DateTime,
+        nullable=False,
+        default=hora_local_peru
+    )
+
+    motivo = db.Column(db.Text, nullable=False)
+
+    # Copias de los datos al momento de la transferencia.
+    datos_cliente_anterior = db.Column(
+        db.JSON,
+        nullable=False,
+        default=dict,
+        server_default=db.text("'{}'")
+    )
+
+    datos_cliente_nuevo = db.Column(
+        db.JSON,
+        nullable=False,
+        default=dict,
+        server_default=db.text("'{}'")
+    )
+
+    datos_compra = db.Column(
+        db.JSON,
+        nullable=False,
+        default=dict,
+        server_default=db.text("'{}'")
+    )
+
+    compra = db.relationship(
+        "Compra",
+        foreign_keys=[compra_id]
+    )
+
+    lote = db.relationship(
+        "Lote",
+        foreign_keys=[lote_id]
+    )
+
+    cliente_anterior = db.relationship(
+        "Cliente",
+        foreign_keys=[cliente_anterior_id]
+    )
+
+    cliente_nuevo = db.relationship(
+        "Cliente",
+        foreign_keys=[cliente_nuevo_id]
+    )
+
+    usuario = db.relationship(
+        "Usuario",
+        foreign_keys=[usuario_id]
+    )
+
+    __table_args__ = (
+        db.CheckConstraint(
+            "cliente_anterior_id <> cliente_nuevo_id",
+            name="ck_transferencia_titulares_distintos"
+        ),
+        db.CheckConstraint(
+            "length(trim(motivo)) > 0",
+            name="ck_transferencia_motivo"
+        ),
+        db.Index(
+            "ix_transferencia_lote_fecha",
+            "lote_id",
+            "fecha",
+            "id"
+        ),
+        db.Index(
+            "ix_transferencia_cliente_anterior",
+            "cliente_anterior_id"
+        ),
+        db.Index(
+            "ix_transferencia_cliente_nuevo",
+            "cliente_nuevo_id"
+        ),
+        db.Index(
+            "ix_transferencia_compra",
+            "compra_id"
+        ),
+    )
+    
