@@ -1095,7 +1095,7 @@
       </div>
     {% else %}
 
-      {% if separaciones or compras_contado or compras_credito or transferencias_titular %}
+      {% if separaciones or compras_contado or compras_credito or transferencias_titular or historial %}
 
             <!-- PERFIL DEL CLIENTE -->
       {% set pm_nombre = (cliente.nombre or '')|trim %}
@@ -1351,6 +1351,71 @@
 
       {% endif %}
 
+            <!-- HISTORIAL DE OPERACIONES -->
+      {% if historial %}
+        <div class="card section-card mb-4" id="historial-operaciones">
+
+          <div class="section-header d-flex justify-content-between align-items-center">
+            <h3 class="section-title">Historial de operaciones</h3>
+
+            <span class="badge text-bg-primary">
+              {{ historial|length }}
+            </span>
+          </div>
+
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>Lote</th>
+                  <th>Fecha</th>
+                  <th>Movimiento</th>
+                  <th>Detalle</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {% for movimiento in historial|sort(attribute='id', reverse=true) %}
+                  <tr>
+                    <td class="text-nowrap">
+                      {% if movimiento.lote %}
+                        <span class="lot-pill">
+                          Mz {{ movimiento.lote.manzana }} ·
+                          Lt {{ movimiento.lote.numero }}
+                        </span>
+                      {% else %}
+                        Sin referencia
+                      {% endif %}
+                    </td>
+
+                    <td class="text-nowrap">
+                      {% if movimiento.fecha %}
+                        {{ movimiento.fecha.strftime('%d/%m/%Y') }}
+
+                        <div class="small text-muted">
+                          {{ movimiento.fecha.strftime('%H:%M') }}
+                        </div>
+                      {% else %}
+                        Sin registrar
+                      {% endif %}
+                    </td>
+
+                    <td class="fw-semibold">
+                      {{ movimiento.tipo }}
+                    </td>
+
+                    <td class="text-break">
+                      {{ movimiento.detalle or 'Sin detalle' }}
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+
+        </div>
+      {% endif %}
+
             <!-- HISTORIAL DE TITULARIDAD -->
       {% if transferencias_titular %}
         <div
@@ -1507,7 +1572,7 @@
                       💰 Convertir a Compra
                     </a>
 
-                    {% if current_user.rol == 'admin' %}
+                    {% if current_user.rol in ('admin', 'superadmin') %}
                     <form action="{{ url_for('liberar_separacion', sep_id=s.id) }}"
                           method="POST"
                           class="d-inline">
@@ -1598,7 +1663,7 @@
                       🔵 Voucher compra
                     </a>
 
-                    {% if current_user.rol == "admin" %}
+                    {% if current_user.rol in ('admin', 'superadmin') %}
                     <form action="{{ url_for('liberar_lote', id=c.lote_id, tipo='compra') }}"
                           method="POST"
                           class="mt-1">
@@ -2032,7 +2097,7 @@
                       Ver Cuotas
                     </a>
 
-                    {% if current_user.rol == "admin" %}
+                    {% if current_user.rol in ('admin', 'superadmin') %}
                     <form action="{{ url_for('liberar_lote', id=c.lote_id, tipo='compra') }}"
                           method="POST">
                       <button type="submit"

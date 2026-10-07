@@ -243,22 +243,35 @@ def lotes_disponibles():
                            lotizacion=lotizacion)
 
 @app.route("/editar_cliente/<int:cliente_id>", methods=["GET", "POST"])
+@login_required
+@lotizacion_required
 def editar_cliente(cliente_id):
-    cliente = Cliente.query.get_or_404(cliente_id)
-    lotizacion = None
-    if "lotizacion_id" in session:
-        lotizacion = Lotizacion.query.get(session["lotizacion_id"])
+    cliente = (
+        _clientes_del_proyecto(session["lotizacion_id"])
+        .filter(Cliente.id == cliente_id)
+        .first_or_404()
+    )
+
+    lotizacion = Lotizacion.query.get(session["lotizacion_id"])
 
     if request.method == "POST":
         cliente.nombre = request.form["nombre"].strip().lower()
         cliente.apellidos = request.form["apellidos"].strip().lower()
         cliente.dni = request.form["dni"].strip()
         cliente.telefono = request.form["telefono"].strip()
-        cliente.estado_civil = request.form.get("estado_civil", "No registrado").strip().lower()
-        cliente.ocupacion = request.form.get("ocupacion", "No registrada").strip().lower()
+        cliente.estado_civil = request.form.get(
+            "estado_civil", "No registrado"
+        ).strip().lower()
+        cliente.ocupacion = request.form.get(
+            "ocupacion", "No registrada"
+        ).strip().lower()
         cliente.ciudad = request.form["ciudad"].strip().lower()
-        cliente.provincia = request.form.get("provincia", "").strip().lower()
-        cliente.departamento = request.form.get("departamento", "").strip().lower()
+        cliente.provincia = request.form.get(
+            "provincia", ""
+        ).strip().lower()
+        cliente.departamento = request.form.get(
+            "departamento", ""
+        ).strip().lower()
         cliente.direccion = request.form["direccion"].strip().lower()
         cliente.correo = request.form.get("correo", "").strip().lower()
 
@@ -266,7 +279,11 @@ def editar_cliente(cliente_id):
         flash("✅ Cliente actualizado correctamente.", "success")
         return redirect(url_for("ver_cliente", cliente_id=cliente.id))
 
-    return render_template("editar_cliente.html", cliente=cliente, lotizacion=lotizacion)
+    return render_template(
+        "editar_cliente.html",
+        cliente=cliente,
+        lotizacion=lotizacion
+    )
 
 # ------------------- API para obtener lotes por manzana -------------------
 @app.route("/get_lotes/<int:lotizacion_id>")
@@ -410,30 +427,49 @@ def detalle_lote(lote_id):
     )
 
 @app.route("/estado_pagos")
+@login_required
+@lotizacion_required
 def estado_pagos():
-    clientes = Cliente.query.all()
+    lotizacion_id = session["lotizacion_id"]
+    lotizacion = Lotizacion.query.get(lotizacion_id)
+
+    clientes = _clientes_del_proyecto(lotizacion_id).all()
     resumen = []
+
     for cliente in clientes:
-        compras = Compra.query.filter_by(cliente_id=cliente.id).all()
-        total_precio = sum([c.precio for c in compras])
+        compras = (
+            Compra.query
+            .join(Lote)
+            .filter(
+                Compra.cliente_id == cliente.id,
+                Lote.lotizacion_id == lotizacion_id
+            )
+            .all()
+        )
+
+        total_precio = sum(c.precio for c in compras)
         total_pagado = 0
-        for c in compras:
-            total_pagado += c.inicial
-            total_pagado += sum([cuota.monto for cuota in c.cuotas if cuota.pagada])
-        saldo = total_precio - total_pagado
+
+        for compra in compras:
+            total_pagado += compra.inicial
+            total_pagado += sum(
+                cuota.monto
+                for cuota in compra.cuotas
+                if cuota.pagada
+            )
+
         resumen.append({
             "cliente": cliente,
             "total_precio": total_precio,
             "total_pagado": total_pagado,
-            "saldo": saldo
+            "saldo": total_precio - total_pagado
         })
 
-    lotizacion = None
-    if "lotizacion_id" in session:
-        lotizacion = Lotizacion.query.get(session["lotizacion_id"])
-
-    return render_template("estado_pagos.html", resumen=resumen, lotizacion=lotizacion)
-
+    return render_template(
+        "estado_pagos.html",
+        resumen=resumen,
+        lotizacion=lotizacion
+    )
 # ------------------- AGREGAR LOTES -------------------
 
 # Solo acepta manzanas de la A -Z y manzanas con apostrofe o comillas
@@ -1132,7 +1168,11 @@ def ver_cliente():
     cliente_id = request.args.get("cliente_id")
 
     if cliente_id:
-        cliente = Cliente.query.get(int(cliente_id))
+        cliente = (
+            _clientes_del_proyecto(lotizacion_id)
+            .filter(Cliente.id == int(cliente_id))
+            .first_or_404()
+        )
 
     elif request.method == "POST":
         criterio = request.form.get("criterio")
@@ -1470,6 +1510,7 @@ def liberar_lote(id, tipo):
 @app.route("/liberar_separacion/<int:sep_id>", methods=["POST"])
 @login_required
 @lotizacion_required
+@admin_required
 def liberar_separacion(sep_id):
     sep = Separacion.query.get_or_404(sep_id)
 
@@ -1698,25 +1739,36 @@ def buscar_cliente():
 
 @app.route("/buscar_cliente_json")
 @login_required
+@lotizacion_required
 def buscar_cliente_json():
     q = request.args.get("q", "").strip()
+
     if len(q) < 2:
         return jsonify([])
-    
+
     term = f"%{q.lower()}%"
-    clientes = Cliente.query.filter(
-        or_(
-            db.func.lower(Cliente.apellidos).like(term),
-            db.func.lower(Cliente.dni).like(term)
+
+    clientes = (
+        _clientes_del_proyecto(session["lotizacion_id"])
+        .filter(
+            or_(
+                db.func.lower(Cliente.apellidos).like(term),
+                db.func.lower(Cliente.dni).like(term)
+            )
         )
-    ).limit(10).all()
-    
-    return jsonify([{
-        "id": c.id,
-        "nombre": c.nombre,
-        "apellidos": c.apellidos,
-        "dni": c.dni
-    } for c in clientes])
+        .limit(10)
+        .all()
+    )
+
+    return jsonify([
+        {
+            "id": cliente.id,
+            "nombre": cliente.nombre,
+            "apellidos": cliente.apellidos,
+            "dni": cliente.dni
+        }
+        for cliente in clientes
+    ])
 
 @app.route("/autocomplete_clientes")
 @login_required
@@ -2163,7 +2215,14 @@ def subir_documentos(compra_id):
 @lotizacion_required
 def eliminar_documento(compra_id, tipo):
     compra = Compra.query.get_or_404(compra_id)
-    
+
+    bloqueo = bloquear_si_no_es_lotizacion_activa(
+        compra.lote.lotizacion_id
+    )
+
+    if bloqueo:
+        return bloqueo
+
     import json
     
     if tipo == "escritura":
@@ -2264,8 +2323,16 @@ def editar_voucher(id):
 @app.route("/eliminar_voucher_cuota/<int:cuota_id>", methods=["POST"])
 @login_required
 @admin_required
+@lotizacion_required
 def eliminar_voucher_cuota(cuota_id):
     cuota = Cuota.query.get_or_404(cuota_id)
+
+    bloqueo = bloquear_si_no_es_lotizacion_activa(
+        cuota.compra.lote.lotizacion_id
+    )
+
+    if bloqueo:
+        return bloqueo
     
     if not cuota.pago_id:
         flash("⚠️ Esta cuota no tiene voucher registrado.", "warning")
@@ -5162,7 +5229,7 @@ def _pagina_cambio_titular(compra, formulario):
 )
 @login_required
 @lotizacion_required
-@superadmin_required
+@admin_required
 def cambiar_titular(compra_id):
     compra = Compra.query.get_or_404(compra_id)
     lote = compra.lote
@@ -5636,10 +5703,19 @@ def _clientes_del_proyecto(lotizacion_id):
         .filter(Lote.lotizacion_id == lotizacion_id)
     )
 
+    historicos = (
+        db.session.query(
+            Historial.cliente_id.label("cliente_id")
+        )
+        .join(Lote, Lote.id == Historial.lote_id)
+        .filter(Lote.lotizacion_id == lotizacion_id)
+    )
+
     ids = compras.union(
         separaciones,
         anteriores,
-        nuevos
+        nuevos,
+        historicos
     ).subquery()
 
     return Cliente.query.join(

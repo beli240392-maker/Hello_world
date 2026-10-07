@@ -866,7 +866,7 @@
               {{ icono_lote('documento') }}
               Generar acta de entrega
             </a>
-            {% if current_user.rol == 'superadmin' %}
+            {% if current_user.rol in ('admin', 'superadmin') %}
               <a
                 href="{{ url_for('cambiar_titular', compra_id=compra.id) }}#cambio-titular"
                 class="btn btn-outline-primary">
