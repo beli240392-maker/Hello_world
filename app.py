@@ -669,326 +669,627 @@ def agregar_comentario(compra_id):
 
 
 # ------------------- REGISTRAR SEPARACION -------------------
-@app.route("/registrar_compra", methods=["GET", "POST"]) 
+# ---------------- VALIDACIÓN DEL LOTE AL REGISTRAR ----------------
+
+def _lotes_libres_registro(lotizacion_id):
+    return Lote.query.filter(
+        Lote.lotizacion_id == lotizacion_id,
+        Lote.estado == "disponible",
+        ~db.session.query(Compra.id).filter(
+            Compra.lote_id == Lote.id
+        ).exists(),
+        ~db.session.query(Separacion.id).filter(
+            Separacion.lote_id == Lote.id,
+            Separacion.activa.is_(True)
+        ).exists()
+    ).order_by(Lote.manzana, Lote.id).all()
+
+
+def _validar_lote_registro(lotizacion_id, lote_id, sep_id=None):
+    try:
+        lote_id = int(lote_id)
+    except (TypeError, ValueError):
+        raise ValueError(
+            "Selecciona un lote disponible de este proyecto."
+        )
+
+    lote = (
+        Lote.query
+        .filter_by(
+            id=lote_id,
+            lotizacion_id=lotizacion_id
+        )
+        .populate_existing()
+        .with_for_update()
+        .first()
+    )
+
+    if lote is None:
+        raise ValueError(
+            "El lote no existe o no pertenece al proyecto activo."
+        )
+
+    if Compra.query.filter_by(lote_id=lote.id).first():
+        raise ValueError(
+            "Este lote ya tiene una compra registrada. "
+            "Selecciona otro lote."
+        )
+
+    activas = Separacion.query.filter_by(
+        lote_id=lote.id,
+        activa=True
+    ).all()
+
+    separacion = None
+
+    if sep_id:
+        try:
+            sep_id = int(sep_id)
+        except (TypeError, ValueError):
+            raise ValueError(
+                "La separación recibida no es válida."
+            )
+
+        if (
+            lote.estado != "separado"
+            or len(activas) != 1
+            or activas[0].id != sep_id
+        ):
+            raise ValueError(
+                "La separación ya no está activa "
+                "o no corresponde al lote elegido."
+            )
+
+        separacion = (
+            Separacion.query
+            .filter_by(
+                id=sep_id,
+                lote_id=lote.id,
+                activa=True
+            )
+            .populate_existing()
+            .with_for_update()
+            .first()
+        )
+
+        if separacion is None:
+            raise ValueError(
+                "La separación ya no está activa."
+            )
+
+    elif lote.estado != "disponible" or activas:
+        raise ValueError(
+            "Este lote ya no está disponible. "
+            "Selecciona otro lote."
+        )
+
+    return lote, separacion
+
+
+def _guardar_archivo_registro(
+    archivo,
+    carpeta,
+    archivos_creados
+):
+    if not archivo or not archivo.filename:
+        return None
+
+    nombre = (
+        uuid.uuid4().hex
+        + "_"
+        + (secure_filename(archivo.filename) or "archivo")
+    )
+
+    destino = os.path.join(app.static_folder, carpeta)
+    os.makedirs(destino, exist_ok=True)
+
+    ruta = os.path.join(destino, nombre)
+    archivos_creados.append(ruta)
+    archivo.save(ruta)
+
+    return f"{carpeta}/{nombre}"
+
+
+def _error_registro_lote(
+    tipo,
+    lotizacion,
+    mensaje,
+    cliente=None,
+    separacion=None
+):
+    db.session.rollback()
+
+    # Un cliente nuevo cuyo guardado falló todavía no está registrado.
+    if cliente is not None:
+        cliente = (
+            db.session.get(Cliente, cliente.id)
+            if cliente.id else None
+        )
+
+    lotes = _lotes_libres_registro(lotizacion.id)
+
+    sep_valida = bool(
+        separacion
+        and separacion.activa
+        and separacion.lote.lotizacion_id == lotizacion.id
+        and separacion.lote.estado == "separado"
+        and not Compra.query.filter_by(
+            lote_id=separacion.lote_id
+        ).first()
+    )
+
+    if sep_valida:
+        lotes.append(separacion.lote)
+    else:
+        separacion = None
+
+    sep_id = separacion.id if separacion else None
+
+    if request.headers.get("X-Registro-Lote") == "1":
+        return jsonify(
+            error=mensaje,
+            lotes=[
+                {
+                    "id": lote.id,
+                    "manzana": lote.manzana,
+                    "numero": lote.numero,
+                    "estado": lote.estado
+                }
+                for lote in lotes
+            ],
+            sep_id=sep_id
+        ), 400
+
+    flash(mensaje, "warning")
+
+    elegido = next(
+        (
+            lote
+            for lote in lotes
+            if str(lote.id) == request.form.get("lote")
+        ),
+        None
+    )
+
+    return render_template(
+        f"registrar_{tipo}.html",
+        lotizacion=lotizacion,
+        lotes=lotes,
+        lote=elegido,
+        cliente=cliente,
+        separacion=separacion,
+        sep_id=sep_id
+    ), 400
+
+
+def _retirar_archivos_registro(archivos_creados):
+    # Solo retira archivos nuevos de una operación que no se guardó.
+    for ruta in archivos_creados:
+        try:
+            if os.path.isfile(ruta):
+                os.remove(ruta)
+        except OSError:
+            current_app.logger.exception(
+                "No se pudo retirar un archivo sin confirmar."
+            )
+
+
+@app.route("/registrar_compra", methods=["GET", "POST"])
 @lotizacion_required
 @login_required
 def registrar_compra():
-    lotizacion = None
-    if "lotizacion_id" in session:
-        lotizacion = Lotizacion.query.get(session["lotizacion_id"])
+    lotizacion = db.session.get(
+        Lotizacion,
+        session["lotizacion_id"]
+    )
 
-    lotes = []
-    if lotizacion:
-        from urllib.parse import unquote
-        manzana_param = request.args.get("manzana") or request.form.get("manzana")
+    if lotizacion is None:
+        flash("Selecciona un proyecto válido.", "warning")
+        return redirect(url_for("seleccionar_lotizacion"))
 
-        if manzana_param:
-            # ✅ Normalizamos la manzana para evitar errores con apóstrofes o espacios
-            manzana_param = unquote(manzana_param).strip().replace("&#39;", "'").replace("&apos;", "'")
-
-            # 🔍 Filtramos de forma más robusta
-            lotes = (
-                Lote.query
-                .filter(
-                    Lote.lotizacion_id == lotizacion.id,
-                    Lote.estado == "disponible",
-                    db.func.replace(Lote.manzana, "'", "'") == manzana_param  # acepta distintos tipos de comilla
-                )
-                .all()
-            )
-        else:
-            # Muestra todos los disponibles si no hay parámetro
-            lotes = Lote.query.filter_by(lotizacion_id=lotizacion.id, estado="disponible").all()
-
-    sep_id = request.args.get("sep_id")
-    cliente_id_param = request.args.get("cliente_id")
-    lote_id_param = request.args.get("lote_id")
-
-    lote = None
     cliente = None
     separacion = None
+    lote = None
 
-    # Si viene desde Detalle del Lote
-    if lote_id_param and not sep_id and lotizacion:
-        lote = (
-            Lote.query
-            .filter_by(
-                id=int(lote_id_param),
-                lotizacion_id=lotizacion.id,
-                estado="disponible"
-            )
-            .first()
-        )
+    sep_id = (
+        request.form.get("sep_id")
+        if request.method == "POST"
+        else request.args.get("sep_id")
+    )
 
-        if not lote:
-            flash("⚠️ El lote no está disponible o no pertenece a la lotización activa.", "warning")
-            return redirect(url_for("lotes_disponibles"))
-
-        if lote not in lotes:
-            lotes.append(lote)
-
-    # ✅ Si viene lote_id desde "Detalle del Lote", cargar ese lote disponible
-    if lote_id_param and not sep_id and lotizacion:
-        lote = (
-            Lote.query
-            .filter_by(
-                id=int(lote_id_param),
-                lotizacion_id=lotizacion.id,
-                estado="disponible"
-            )
-            .first()
-        )
-
-        if not lote:
-            flash("⚠️ El lote no está disponible o no pertenece a la lotización activa.", "warning")
-            return redirect(url_for("lotes_disponibles"))
-
-        if lote not in lotes:
-            lotes.append(lote)
-
-    # ✅ Si viene cliente_id, cargar el cliente existente
-    if cliente_id_param:
-        cliente = Cliente.query.get(int(cliente_id_param))
-    
-    if sep_id:
-        separacion = Separacion.query.get(sep_id)
-        if separacion:
-            lote = separacion.lote
-            cliente = separacion.cliente
-            # ✅ Si el lote está separado o vendido, lo agregamos manualmente para que aparezca en el combo
-            if lote not in lotes:
-                lotes.append(lote)
+    archivos_creados = []
 
     if request.method == "POST":
-        # 👇 Normalizamos a minúsculas y quitamos espacios
-        nombre = request.form["nombre"].strip().lower()
-        apellidos = request.form.get("apellidos", "").strip().lower()
-        dni = request.form["dni"].strip()
-        correo = request.form.get("correo", "").strip().lower()
-        telefono = request.form.get("telefono", "").strip()
-        direccion = request.form.get("direccion", "").strip().lower()
-        ciudad = request.form.get("ciudad", "").strip().lower()
-        provincia = request.form.get("provincia", "").strip().lower()
-        departamento = request.form.get("departamento", "").strip().lower()
-        estado_civil = request.form.get("estado_civil", "").strip().lower()
-        ocupacion = request.form.get("ocupacion", "").strip().lower()
-
-        precio = float(request.form.get("precio", 0))
-        forma_pago = request.form["forma_pago"]
-        inicial = float(request.form.get("inicial", 0)) if forma_pago == "credito" else 0
-        interes = float(request.form.get("interes") or 0) if forma_pago == "credito" else 0
-
         try:
-            cuotas_total = (
-                int(request.form.get("cuotas") or 0)
-                if forma_pago == "credito" else 0
-            )
-        except (ValueError, TypeError):
-            cuotas_total = None
-
-        # Validar antes de guardar clientes, compras o cambiar el lote.
-        if forma_pago == "credito" and (
-            cuotas_total is None
-            or cuotas_total < 0
-            or (precio > inicial and cuotas_total == 0)
-        ):
-            flash(
-                "Si es una compra al credito , cuotas no puede ser cero. "
-                "Debes indicar al menos 1 cuota.",
-                "warning"
+            # Primero comprobar y bloquear el lote.
+            lote, separacion = _validar_lote_registro(
+                lotizacion.id,
+                request.form.get("lote"),
+                sep_id
             )
 
-            return render_template(
-                "registrar_compra.html",
-                lotes=lotes,
-                lote=lote,
-                cliente=cliente,
-                sep_id=sep_id,
-                separacion=separacion,
-                lotizacion=lotizacion
-            ), 400
-       
-        # Cliente
-        # ✅ Si viene cliente_id en el formulario (hidden), usar ese cliente
-        cliente_id_form = request.form.get("cliente_id")
-        if cliente_id_form:
-            cliente = Cliente.query.get(int(cliente_id_form))
-            # Actualizar datos del cliente si es necesario
-            if cliente:
-                cliente.nombre = nombre
-                cliente.apellidos = apellidos
-                cliente.telefono = telefono
-                cliente.direccion = direccion
-                cliente.ciudad = ciudad
-                cliente.provincia = provincia
-                cliente.departamento = departamento
-                cliente.estado_civil = estado_civil
-                cliente.ocupacion = ocupacion
-                if correo:
-                    cliente.correo = correo
-                db.session.commit()
-        else:
-            # Buscar por DNI si no viene cliente_id
-            cliente = Cliente.query.filter_by(dni=dni).first()
-        
-        if not cliente:
-            cliente = Cliente(
-                nombre=nombre,
-                apellidos=apellidos,
-                dni=dni,
-                telefono=telefono,
-                direccion=direccion,
-                ciudad=ciudad,
-                provincia=provincia,
-                departamento=departamento,
-                estado_civil=estado_civil,  
-                ocupacion=ocupacion,
-                correo=correo if correo else None 
-            )
-            db.session.add(cliente)
-            db.session.commit()  # ✅ Commit para obtener el ID
-        else:
+            dni = request.form.get("dni", "").strip()
+            nombre = request.form.get(
+                "nombre", ""
+            ).strip().lower()
+            apellidos = request.form.get(
+                "apellidos", ""
+            ).strip().lower()
+
+            if not dni or not nombre or not apellidos:
+                raise ValueError(
+                    "Completa el DNI, nombre y apellidos del cliente."
+                )
+
+            cliente_id = request.form.get(
+                "cliente_id", ""
+            ).strip()
+
+            if separacion:
+                cliente = separacion.cliente
+
+                if (
+                    cliente.dni != dni
+                    or (
+                        cliente_id
+                        and cliente_id != str(cliente.id)
+                    )
+                ):
+                    raise ValueError(
+                        "Los datos del cliente no corresponden "
+                        "a esta separación."
+                    )
+
+            elif cliente_id:
+                try:
+                    cliente = db.session.get(
+                        Cliente,
+                        int(cliente_id)
+                    )
+                except ValueError:
+                    raise ValueError(
+                        "El cliente seleccionado no es válido."
+                    )
+
+                if cliente is None or cliente.dni != dni:
+                    cliente = None
+                    raise ValueError(
+                        "El DNI no coincide con el cliente seleccionado. "
+                        "Consulta nuevamente."
+                    )
+
+            else:
+                cliente = Cliente.query.filter_by(
+                    dni=dni
+                ).first()
+
+            forma_pago = request.form.get("forma_pago", "")
+
+            if forma_pago not in ("contado", "credito"):
+                raise ValueError(
+                    "Selecciona una forma de pago válida."
+                )
+
+            try:
+                precio = float(request.form.get("precio", ""))
+
+                inicial = (
+                    float(request.form.get("inicial") or 0)
+                    if forma_pago == "credito"
+                    else 0
+                )
+
+                interes = (
+                    float(request.form.get("interes") or 0)
+                    if forma_pago == "credito"
+                    else 0
+                )
+            except (TypeError, ValueError):
+                raise ValueError(
+                    "Revisa el precio, la inicial y el interés."
+                )
+
+            if (
+                any(
+                    not (0 <= valor < float("inf"))
+                    for valor in (precio, inicial, interes)
+                )
+                or inicial > precio
+            ):
+                raise ValueError(
+                    "Los montos deben ser válidos y la inicial "
+                    "no puede superar el precio."
+                )
+
+            try:
+                cuotas_total = (
+                    int(request.form.get("cuotas") or 0)
+                    if forma_pago == "credito"
+                    else 0
+                )
+            except (TypeError, ValueError):
+                raise ValueError(
+                    "La cantidad de cuotas debe ser un número entero."
+                )
+
+            if (
+                cuotas_total < 0
+                or (
+                    forma_pago == "credito"
+                    and precio > inicial
+                    and cuotas_total == 0
+                )
+            ):
+                raise ValueError(
+                    "Si queda saldo por pagar, "
+                    "debes indicar al menos 1 cuota."
+                )
+
+            fecha_texto = request.form.get(
+                "fecha_compra", ""
+            ).strip()
+
+            try:
+                fecha_compra = (
+                    datetime.strptime(fecha_texto, "%Y-%m-%d")
+                    if fecha_texto
+                    else datetime.utcnow()
+                )
+            except ValueError:
+                raise ValueError(
+                    "La fecha de compra no es válida."
+                )
+
+            monto_total = precio
+
+            if forma_pago == "credito" and interes > 0:
+                monto_total = (
+                    precio
+                    + (precio - inicial) * (interes / 100)
+                )
+
+            if not (0 <= monto_total < float("inf")):
+                raise ValueError(
+                    "Revisa el precio y el interés; "
+                    "el total no es válido."
+                )
+
+            if cliente is None:
+                cliente = Cliente(
+                    dni=dni,
+                    nombre=nombre,
+                    apellidos=apellidos
+                )
+                db.session.add(cliente)
+
             cliente.nombre = nombre
             cliente.apellidos = apellidos
-            cliente.telefono = telefono
-            cliente.direccion = direccion
-            cliente.ciudad = ciudad
-            cliente.provincia = provincia
-            cliente.departamento = departamento
-            cliente.estado_civil = estado_civil
-            cliente.ocupacion = ocupacion
-            if correo:  # 👈 NUEVO: Solo actualiza si hay correo
+
+            for campo in (
+                "telefono",
+                "direccion",
+                "ciudad",
+                "provincia",
+                "departamento",
+                "estado_civil",
+                "ocupacion"
+            ):
+                valor = request.form.get(campo, "").strip()
+
+                if campo in (
+                    "direccion",
+                    "ciudad",
+                    "provincia",
+                    "departamento",
+                    "estado_civil",
+                    "ocupacion"
+                ):
+                    valor = valor.lower()
+
+                setattr(cliente, campo, valor)
+
+            correo = request.form.get(
+                "correo", ""
+            ).strip().lower()
+
+            if correo:
                 cliente.correo = correo
-            db.session.commit()  # ✅ Commit para actualizar datos
 
-        # ✅ Guardar fotos de DNI (solo si se suben nuevas)
-        dni_frontal_file = request.files.get("dni_frontal")
-        dni_reverso_file = request.files.get("dni_reverso")
+            db.session.flush()
 
-        if dni_frontal_file and dni_frontal_file.filename:
-            from werkzeug.utils import secure_filename
-            filename = secure_filename(dni_frontal_file.filename)
-            save_path = os.path.join("static", "dni", filename)
-            os.makedirs(os.path.dirname(save_path), exist_ok=True)
-            dni_frontal_file.save(save_path)
-            cliente.dni_frontal = f"dni/{filename}".replace("\\", "/")
-
-        if dni_reverso_file and dni_reverso_file.filename:
-            from werkzeug.utils import secure_filename
-            filename = secure_filename(dni_reverso_file.filename)
-            save_path = os.path.join("static", "dni", filename)
-            os.makedirs(os.path.dirname(save_path), exist_ok=True)
-            dni_reverso_file.save(save_path)
-            cliente.dni_reverso = f"dni/{filename}".replace("\\", "/")
-
-        if dni_frontal_file and dni_frontal_file.filename or dni_reverso_file and dni_reverso_file.filename:
-            db.session.commit()  # ✅ Commit para guardar las fotos solo si se subieron
-
-        # Lote
-        # Lote
-        lote_id = request.form.get("lote")
-
-        if not lote_id and lote:
-            lote_id = lote.id
-
-        lote = Lote.query.get(lote_id)
-
-        # ✅ Evitar convertir dos veces una separación
-        sep_id_form = request.form.get("sep_id")
-
-        if sep_id_form:
-            compra_existente = Compra.query.filter_by(lote_id=lote.id).first()
-
-            if compra_existente:
-                flash(
-                    "⚠️ Esta separación ya fue convertida en compra anteriormente.",
-                    "warning"
+            for campo in ("dni_frontal", "dni_reverso"):
+                ruta = _guardar_archivo_registro(
+                    request.files.get(campo),
+                    "dni",
+                    archivos_creados
                 )
-                return redirect(
-                    url_for(
-                        "ver_cliente",
-                        cliente_id=compra_existente.cliente_id
+
+                if ruta:
+                    setattr(cliente, campo, ruta)
+
+            boucher = _guardar_archivo_registro(
+                request.files.get("boucher_inicial"),
+                "bouchers",
+                archivos_creados
+            )
+
+            compra = Compra(
+                cliente_id=cliente.id,
+                lote_id=lote.id,
+                forma_pago=forma_pago,
+                precio=monto_total,
+                inicial=inicial,
+                cuotas_total=cuotas_total,
+                cuota_monto=(
+                    (monto_total - inicial) / cuotas_total
+                    if forma_pago == "credito" and cuotas_total > 0
+                    else 0
+                ),
+                boucher_inicial=boucher,
+                interes=interes,
+                usuario_id=current_user.id,
+                fecha_compra=fecha_compra
+            )
+
+            if forma_pago == "contado":
+                compra.cancelado = True
+                compra.fecha_cancelacion = fecha_compra
+
+            db.session.add(compra)
+            db.session.flush()
+
+            for numero in range(1, cuotas_total + 1):
+                db.session.add(
+                    Cuota(
+                        compra_id=compra.id,
+                        numero=numero,
+                        monto=compra.cuota_monto,
+                        fecha_vencimiento=(
+                            fecha_compra
+                            + timedelta(days=30 * numero)
+                        )
                     )
                 )
 
-        lote.estado = "vendido"
-
-        # ✅ Guardar boucher inicial
-        boucher_file = request.files.get("boucher_inicial")
-        boucher_path = None
-        if boucher_file and boucher_file.filename:
-            from werkzeug.utils import secure_filename
-            boucher_path = guardar_boucher(boucher_file)
-
-        # Calcular precio total con interés
-        monto_total = precio
-        if forma_pago == "credito" and interes > 0:
-            saldo_a_financiar = precio - inicial
-            interes_monto = saldo_a_financiar * (interes / 100)
-            monto_total = precio + interes_monto
-        
-        # ✅ Fecha de compra (si no se ingresa, usa la actual)
-        fecha_compra_str = request.form.get("fecha_compra")
-        if fecha_compra_str:
-            try:
-                fecha_compra = datetime.strptime(fecha_compra_str, "%Y-%m-%d")
-            except ValueError:
-                fecha_compra = datetime.utcnow()
-        else:
-            fecha_compra = datetime.utcnow()
-
-        # Crear compra
-        compra = Compra(
-            cliente_id=cliente.id,  # ✅ Ahora cliente.id existe
-            lote_id=lote.id,
-            forma_pago=forma_pago,
-            precio=monto_total,
-            inicial=inicial,
-            cuotas_total=cuotas_total,
-            cuota_monto=(monto_total - inicial) / cuotas_total if forma_pago == "credito" and cuotas_total > 0 else 0,
-            boucher_inicial=boucher_path,
-            interes=interes,
-            usuario_id=current_user.id,
-            fecha_compra=fecha_compra
-        )
-        db.session.add(compra)
-        db.session.flush()  # ✅ flush para obtener compra.id antes del commit final
-
-        # ✅ Si es al contado, marcar como cancelado inmediatamente
-        if forma_pago == "contado":
-            compra.cancelado = True
-            compra.fecha_cancelacion = fecha_compra
-
-       # Generar cuotas
-        if forma_pago == "credito" and cuotas_total > 0:
-            for i in range(1, cuotas_total + 1):
-                # Calcula directamente desde fecha_compra
-                fecha_vencimiento = fecha_compra + timedelta(days=30 * i)
-                cuota = Cuota(
-                    compra_id=compra.id,
-                    numero=i,
-                    monto=compra.cuota_monto,
-                    fecha_vencimiento=fecha_vencimiento
-                )
-                db.session.add(cuota)
-
-        # Si venía de separación → marcar inactiva
-        sep_id = request.form.get("sep_id")
-        if sep_id:
-            separacion = Separacion.query.get(sep_id)
             if separacion:
                 separacion.activa = False
-                historial = Historial(
-                    cliente_id=cliente.id,
-                    lote_id=lote.id,
-                    tipo="Separación convertida",
-                    detalle=f"Separación de S/ {separacion.monto} convertida en compra"
-                )
-                db.session.add(historial)
 
-        db.session.commit()  # ✅ Commit final
+                db.session.add(
+                    Historial(
+                        cliente_id=cliente.id,
+                        lote_id=lote.id,
+                        tipo="Separación convertida",
+                        detalle=(
+                            f"Separación de S/ {separacion.monto} "
+                            "convertida en compra"
+                        )
+                    )
+                )
+
+            lote.estado = "vendido"
+            cliente_guardado = cliente.id
+
+            # Guardar cliente, compra, cuotas y estado juntos.
+            db.session.commit()
+
+        except (ValueError, TypeError) as error:
+            db.session.rollback()
+            _retirar_archivos_registro(archivos_creados)
+
+            return _error_registro_lote(
+                "compra",
+                lotizacion,
+                str(error),
+                cliente,
+                separacion
+            )
+
+        except Exception:
+            db.session.rollback()
+            _retirar_archivos_registro(archivos_creados)
+
+            current_app.logger.exception(
+                "Error al registrar una compra."
+            )
+
+            return _error_registro_lote(
+                "compra",
+                lotizacion,
+                "No se pudo guardar la compra. "
+                "Revisa los datos e inténtalo nuevamente."
+            )
+
+        destino = url_for(
+            "ver_cliente",
+            cliente_id=cliente_guardado
+        )
+
         flash("Compra registrada correctamente.", "success")
-        return redirect(url_for("ver_cliente", cliente_id=cliente.id))
+
+        if request.headers.get("X-Registro-Lote") == "1":
+            return jsonify(url=destino)
+
+        return redirect(destino)
+
+    lotes = _lotes_libres_registro(lotizacion.id)
+
+    if sep_id:
+        try:
+            separacion = (
+                Separacion.query
+                .join(Lote)
+                .filter(
+                    Separacion.id == int(sep_id),
+                    Separacion.activa.is_(True),
+                    Lote.lotizacion_id == lotizacion.id,
+                    Lote.estado == "separado"
+                )
+                .first()
+            )
+        except ValueError:
+            separacion = None
+
+        if (
+            separacion is None
+            or Compra.query.filter_by(
+                lote_id=separacion.lote_id
+            ).first()
+        ):
+            flash(
+                "La separación ya no está activa "
+                "o no pertenece al proyecto.",
+                "warning"
+            )
+            return redirect(url_for("lotes_disponibles"))
+
+        lote = separacion.lote
+        cliente = separacion.cliente
+        lotes.append(lote)
+
+    else:
+        lote_param = request.args.get("lote_id", type=int)
+
+        if lote_param:
+            lote = next(
+                (
+                    disponible
+                    for disponible in lotes
+                    if disponible.id == lote_param
+                ),
+                None
+            )
+
+            if lote is None:
+                flash(
+                    "El lote ya no está disponible en este proyecto.",
+                    "warning"
+                )
+                return redirect(url_for("lotes_disponibles"))
+
+        cliente_param = request.args.get(
+            "cliente_id",
+            type=int
+        )
+
+        if cliente_param:
+            cliente = db.session.get(
+                Cliente,
+                cliente_param
+            )
+
+        manzana = (
+            request.args.get("manzana", "")
+            .strip()
+            .replace("&#39;", "'")
+            .replace("&apos;", "'")
+        )
+
+        if manzana and not lote:
+            lotes = [
+                disponible
+                for disponible in lotes
+                if disponible.manzana == manzana
+            ]
 
     return render_template(
         "registrar_compra.html",
@@ -1000,147 +1301,187 @@ def registrar_compra():
         lotizacion=lotizacion
     )
 
+
 @app.route("/registrar_separacion", methods=["GET", "POST"])
 @lotizacion_required
 @login_required
 def registrar_separacion():
-    lotizacion = None
-    if "lotizacion_id" in session:
-        lotizacion = Lotizacion.query.get(session["lotizacion_id"])
+    lotizacion = db.session.get(
+        Lotizacion,
+        session["lotizacion_id"]
+    )
 
-    lotes = []
-    lote = None
+    if lotizacion is None:
+        flash("Selecciona un proyecto válido.", "warning")
+        return redirect(url_for("seleccionar_lotizacion"))
 
-    if lotizacion:
-        lotes = Lote.query.filter_by(
-            estado="disponible",
-            lotizacion_id=lotizacion.id
-        ).all()
-
-        # ✅ Si viene lote_id desde "Detalle del Lote", cargar ese lote disponible
-        lote_id_param = request.args.get("lote_id", type=int)
-
-        if lote_id_param:
-            lote = (
-                Lote.query
-                .filter_by(
-                    id=lote_id_param,
-                    lotizacion_id=lotizacion.id,
-                    estado="disponible"
-                )
-                .first()
-            )
-
-            if not lote:
-                flash(
-                    "⚠️ El lote no está disponible o no pertenece a la lotización activa.",
-                    "warning"
-                )
-                return redirect(url_for("lotes_disponibles"))
+    cliente = None
+    archivos_creados = []
 
     if request.method == "POST":
-        nombre = request.form["nombre"].strip().lower()
-        apellidos = request.form.get("apellidos").strip().lower()
-        dni = request.form["dni"].strip()
-        telefono = request.form.get("telefono").strip()
-        direccion = request.form.get("direccion").strip().lower()
-        ciudad = request.form.get("ciudad").strip().lower()
-        provincia = request.form.get("provincia", "").strip().lower()
-        departamento = request.form.get("departamento", "").strip().lower()
-        correo = request.form.get("correo", "").strip().lower()
-
-        # 🔹 Nuevos campos
-        estado_civil = request.form.get("estado_civil").strip().lower()
-        ocupacion = request.form.get("ocupacion").strip().lower()
-
-        monto = float(request.form.get("monto", 0))
-        lote_id = request.form["lote"]
-
-        # ✅ Buscar cliente existente o crearlo
-        cliente = Cliente.query.filter_by(dni=dni).first()
-        if not cliente:
-            cliente = Cliente(
-                nombre=nombre,
-                apellidos=apellidos,
-                dni=dni,
-                telefono=telefono,
-                direccion=direccion,
-                ciudad=ciudad,
-                provincia=provincia,
-                departamento=departamento,
-                estado_civil=estado_civil,
-                ocupacion=ocupacion,
-                correo=correo if correo else None
+        try:
+            lote, _ = _validar_lote_registro(
+                lotizacion.id,
+                request.form.get("lote")
             )
-            db.session.add(cliente)
+
+            dni = request.form.get("dni", "").strip()
+            nombre = request.form.get(
+                "nombre", ""
+            ).strip().lower()
+            apellidos = request.form.get(
+                "apellidos", ""
+            ).strip().lower()
+
+            if not dni or not nombre or not apellidos:
+                raise ValueError(
+                    "Completa el DNI, nombre y apellidos del cliente."
+                )
+
+            try:
+                monto = float(request.form.get("monto", ""))
+            except (TypeError, ValueError):
+                raise ValueError(
+                    "El monto de separación no es válido."
+                )
+
+            if not (0 <= monto < float("inf")):
+                raise ValueError(
+                    "El monto de separación debe ser válido "
+                    "y no negativo."
+                )
+
+            cliente = Cliente.query.filter_by(dni=dni).first()
+
+            if cliente is None:
+                cliente = Cliente(
+                    dni=dni,
+                    nombre=nombre,
+                    apellidos=apellidos
+                )
+                db.session.add(cliente)
+
+            for campo in (
+                "estado_civil",
+                "ocupacion",
+                "telefono",
+                "direccion",
+                "ciudad",
+                "provincia",
+                "departamento",
+                "correo"
+            ):
+                valor = request.form.get(campo, "").strip()
+
+                if campo != "telefono":
+                    valor = valor.lower()
+
+                if valor:
+                    setattr(cliente, campo, valor)
+
+            db.session.flush()
+
+            for campo in ("dni_frontal", "dni_reverso"):
+                ruta = _guardar_archivo_registro(
+                    request.files.get(campo),
+                    "dni",
+                    archivos_creados
+                )
+
+                if ruta:
+                    setattr(cliente, campo, ruta)
+
+            boucher = _guardar_archivo_registro(
+                request.files.get("boucher"),
+                "bouchers",
+                archivos_creados
+            )
+
+            db.session.add(
+                Separacion(
+                    cliente_id=cliente.id,
+                    lote_id=lote.id,
+                    monto=monto,
+                    fecha=hora_local_peru(),
+                    boucher=boucher,
+                    activa=True,
+                    usuario_id=current_user.id
+                )
+            )
+
+            lote.estado = "separado"
+            cliente_guardado = cliente.id
+
             db.session.commit()
-        else:
-            # 🔹 Si ya existe, actualizar sus datos
-            cliente.estado_civil = estado_civil or cliente.estado_civil
-            cliente.ocupacion = ocupacion or cliente.ocupacion
-            cliente.telefono = telefono or cliente.telefono
-            cliente.direccion = direccion or cliente.direccion
-            cliente.ciudad = ciudad or cliente.ciudad
-            cliente.provincia = provincia or cliente.provincia
-            cliente.departamento = departamento or cliente.departamento
-            cliente.correo = correo or cliente.correo
 
-        # ✅ Subida de fotos de DNI
-        dni_frontal_file = request.files.get("dni_frontal")
-        dni_reverso_file = request.files.get("dni_reverso")
+        except (ValueError, TypeError) as error:
+            db.session.rollback()
+            _retirar_archivos_registro(archivos_creados)
 
-        if dni_frontal_file and dni_frontal_file.filename:
-            from werkzeug.utils import secure_filename
-            filename = secure_filename(dni_frontal_file.filename)
-            save_path = os.path.join("static", "dni", filename)
-            os.makedirs(os.path.dirname(save_path), exist_ok=True)
-            dni_frontal_file.save(save_path)
-            cliente.dni_frontal = f"dni/{filename}".replace("\\", "/")
+            return _error_registro_lote(
+                "separacion",
+                lotizacion,
+                str(error),
+                cliente
+            )
 
-        if dni_reverso_file and dni_reverso_file.filename:
-            from werkzeug.utils import secure_filename
-            filename = secure_filename(dni_reverso_file.filename)
-            save_path = os.path.join("static", "dni", filename)
-            os.makedirs(os.path.dirname(save_path), exist_ok=True)
-            dni_reverso_file.save(save_path)
-            cliente.dni_reverso = f"dni/{filename}".replace("\\", "/")
+        except Exception:
+            db.session.rollback()
+            _retirar_archivos_registro(archivos_creados)
 
-        db.session.commit()
+            current_app.logger.exception(
+                "Error al registrar una separación."
+            )
 
-        # ✅ Subida de boucher
-        boucher_file = request.files.get("boucher")
-        boucher_path = None
-        if boucher_file and boucher_file.filename:
-            boucher_path = guardar_boucher(boucher_file)
+            return _error_registro_lote(
+                "separacion",
+                lotizacion,
+                "No se pudo guardar la separación. "
+                "Revisa los datos e inténtalo nuevamente."
+            )
 
-        # ✅ Crear la separación con cliente_id correcto
-        separacion = Separacion(
-            cliente_id=cliente.id,
-            lote_id=lote_id,
-            monto=monto,
-            fecha=hora_local_peru(),
-            boucher=boucher_path,
-            activa=True,
-            usuario_id=current_user.id
+        destino = url_for(
+            "ver_cliente",
+            cliente_id=cliente_guardado
         )
-        db.session.add(separacion)
 
-        # Cambiar estado del lote
-        lote = Lote.query.get(lote_id)
-        lote.estado = "separado"
+        flash(
+            "Separación registrada correctamente.",
+            "success"
+        )
 
-        db.session.commit()
-        flash("Separación registrada correctamente.", "success")
-        return redirect(url_for("ver_cliente", cliente_id=cliente.id))
+        if request.headers.get("X-Registro-Lote") == "1":
+            return jsonify(url=destino)
+
+        return redirect(destino)
+
+    lotes = _lotes_libres_registro(lotizacion.id)
+
+    lote_param = request.args.get("lote_id", type=int)
+
+    lote = next(
+        (
+            disponible
+            for disponible in lotes
+            if disponible.id == lote_param
+        ),
+        None
+    )
+
+    if lote_param and lote is None:
+        flash(
+            "El lote ya no está disponible en este proyecto.",
+            "warning"
+        )
+        return redirect(url_for("lotes_disponibles"))
 
     return render_template(
         "registrar_separacion.html",
         lotes=lotes,
         lote=lote,
+        cliente=None,
         lotizacion=lotizacion
     )
-
-
 
 
 # ------------------- VER CLIENTE -------------------

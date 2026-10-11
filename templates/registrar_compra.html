@@ -237,7 +237,7 @@
 </div>
 
 {% if sep_id and separacion %}
-<div class="alert alert-info">
+<div class="alert alert-info" id="referencia-separacion">
   ⚠️ Estás convirtiendo una <strong>separación</strong> en compra.<br>
   <strong>Lote:</strong> Mz {{ lote.manzana }} - Lt {{ lote.numero }} <br>
   <strong>Monto de separación:</strong> S/ {{ "%.2f"|format(separacion.monto) }} <br>
@@ -309,6 +309,8 @@
       <input type="hidden" name="telefono" value="{{ cliente.telefono or '' }}">
       <input type="hidden" name="direccion" value="{{ cliente.direccion or '' }}">
       <input type="hidden" name="ciudad" value="{{ cliente.ciudad or '' }}">
+      <input type="hidden" name="provincia" value="{{ cliente.provincia or '' }}">
+      <input type="hidden" name="departamento" value="{{ cliente.departamento or '' }}">
     {% else %}
       {# Nuevo cliente - campos editables #}
       <div class="mb-3">
@@ -516,9 +518,9 @@
 <script>
   const lotesData = {};
   {% for mz, group in lotes|groupby("manzana") %}
-    lotesData["{{ mz }}"] = [
+    lotesData[{{ mz|tojson }}] = [
       {% for l in group %}
-        {id: "{{ l.id }}", numero: "{{ l.numero }}", estado: "{{ l.estado }}"},
+        {id: "{{ l.id }}", numero: {{ l.numero|tojson }}, estado: "{{ l.estado }}"},
       {% endfor %}
     ];
   {% endfor %}
@@ -526,8 +528,8 @@
   const manzanaSelect = document.getElementById("manzana");
   const loteSelect = document.getElementById("lote");
 
-  const preselectedMz = "{{ lote.manzana if lote else '' }}";
-  const preselectedLoteId = "{{ lote.id if lote else '' }}";  // 👈 string
+  const preselectedMz = {{ request.form.get('manzana', lote.manzana if lote else '')|tojson }};
+  const preselectedLoteId = {{ request.form.get('lote', lote.id|string if lote else '')|tojson }};
 
   function cargarLotes(mz) {
     loteSelect.innerHTML = '<option value="">Seleccione un lote</option>';
@@ -575,7 +577,7 @@
   // Autocompletar cliente por DNI
 const dniInput = document.querySelector("input[name='dni']");
 
-dniInput.addEventListener("blur", function() {
+if (dniInput && dniInput.type !== "hidden") dniInput.addEventListener("blur", function() {
     const dni = this.value.trim();
     if (dni.length < 8) return;
 
@@ -749,6 +751,150 @@ dniInput.addEventListener("blur", function() {
   });
 
   validarCuotas(false);
+})();
+</script>
+
+<script>
+(() => {
+  const formulario = document.querySelector('form[method="POST"]');
+
+  if (!formulario) return;
+
+  let enviando = false;
+
+  const aviso = document.createElement('div');
+  aviso.className = 'alert alert-warning';
+  aviso.setAttribute('role', 'alert');
+  aviso.hidden = true;
+  formulario.before(aviso);
+
+  formulario.addEventListener('submit', async event => {
+    // Respetar la validación de cuotas que ya existe.
+    if (event.defaultPrevented) return;
+
+    event.preventDefault();
+
+    if (enviando || !formulario.reportValidity()) return;
+
+    enviando = true;
+    aviso.hidden = true;
+
+    const botones = [
+      ...formulario.querySelectorAll('[type="submit"]')
+    ];
+
+    botones.forEach(boton => {
+      boton.disabled = true;
+    });
+
+    try {
+      const respuesta = await fetch(formulario.action, {
+        method: 'POST',
+        body: new FormData(formulario),
+        headers: {
+          'X-Registro-Lote': '1'
+        }
+      });
+
+      if (respuesta.redirected) {
+        window.location.assign(respuesta.url);
+        return;
+      }
+
+      const datos = await respuesta.json();
+
+      if (respuesta.ok && datos.url) {
+        window.location.assign(datos.url);
+        return;
+      }
+
+      aviso.textContent =
+        datos.error || 'No se pudo guardar. Revisa los datos.';
+
+      aviso.hidden = false;
+
+      // Actualizar únicamente las opciones de manzanas y lotes.
+      if (Array.isArray(datos.lotes)) {
+        const manzanaAnterior = manzanaSelect.value;
+        const loteAnterior = loteSelect.value;
+
+        Object.keys(lotesData).forEach(clave => {
+          delete lotesData[clave];
+        });
+
+        datos.lotes.forEach(lote => {
+          if (!lotesData[lote.manzana]) {
+            lotesData[lote.manzana] = [];
+          }
+
+          lotesData[lote.manzana].push(lote);
+        });
+
+        manzanaSelect.replaceChildren(
+          new Option('Seleccione una manzana', '')
+        );
+
+        Object.keys(lotesData).sort().forEach(manzana => {
+          manzanaSelect.add(
+            new Option(manzana, manzana)
+          );
+        });
+
+        manzanaSelect.value = lotesData[manzanaAnterior]
+          ? manzanaAnterior
+          : '';
+
+        cargarLotes(manzanaSelect.value);
+
+        loteSelect.value = datos.lotes.some(
+          lote => String(lote.id) === loteAnterior
+        ) ? loteAnterior : '';
+      }
+
+      const separacion = formulario.querySelector(
+        '[name="sep_id"]'
+      );
+
+      if (
+        separacion
+        && separacion.value
+        && !datos.sep_id
+      ) {
+        separacion.value = '';
+
+        const referencia = document.getElementById(
+          'referencia-separacion'
+        );
+
+        if (referencia) {
+          referencia.hidden = true;
+        }
+
+        const accion = new URL(formulario.action);
+        accion.searchParams.delete('sep_id');
+        formulario.action = accion.href;
+      }
+
+      aviso.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center'
+      });
+
+    } catch (error) {
+      aviso.textContent =
+        'No se pudo confirmar la respuesta del servidor. ' +
+        'Comprueba si la operación quedó registrada antes de reintentar.';
+
+      aviso.hidden = false;
+
+    } finally {
+      enviando = false;
+
+      botones.forEach(boton => {
+        boton.disabled = false;
+      });
+    }
+  });
 })();
 </script>
 
