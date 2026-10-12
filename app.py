@@ -3322,200 +3322,973 @@ def eliminar_lotizacion(lot_id):
     flash(f"✅ Lotización '{lot.nombre}' eliminada.", "success")
     return redirect(url_for("panel_superadmin"))
  
+
 # ============================================================
 # GESTOR DE DOCUMENTOS
 # ============================================================
-from file_helper import subir_archivo, eliminar_archivo, get_ruta_empresa, get_ruta_lote, get_ruta_lotizacion_general
-from models import Documento
+from models import Documento, ProyectoArchivo
+
+_DOC_TIPOS = {
+    "legal": ("Legal", "⚖️"),
+    "contrato": ("Contrato", "📝"),
+    "escritura": ("Escritura", "📜"),
+    "dni": ("DNI", "🪪"),
+    "plano": ("Plano", "📐"),
+    "memoria": ("Memoria descriptiva", "📑"),
+    "acta": ("Acta", "📋"),
+    "otro": ("Otro", "📄")
+}
+
+_DOC_EXTENSIONES = {
+    ".pdf", ".jpg", ".jpeg", ".png", ".webp", ".gif",
+    ".tif", ".tiff", ".heic", ".doc", ".docx", ".xls",
+    ".xlsx", ".csv", ".ppt", ".pptx", ".odt", ".ods",
+    ".txt", ".zip", ".dwg", ".dxf"
+}
+
+
+def _docs_token():
+    if not session.get("csrf_documentos"):
+        session["csrf_documentos"] = secrets.token_urlsafe(32)
+    return session["csrf_documentos"]
+
+
+@app.context_processor
+def _docs_contexto():
+    return {
+        "documentos_token": _docs_token,
+        "documentos_tipos": _DOC_TIPOS
+    }
+
+
+def _docs_verificar_token():
+    recibido = request.form.get("token_documentos", "")
+    esperado = session.get("csrf_documentos", "")
+
+    if not esperado or not secrets.compare_digest(recibido, esperado):
+        raise ValueError(
+            "El formulario venció. Recarga la página e inténtalo nuevamente."
+        )
+
+
+def _docs_respuesta(destino, error=None, mensaje=None):
+    if error:
+        if request.headers.get("X-Documentos") == "1":
+            return jsonify(error=error), 400
+        flash(error, "warning")
+    elif mensaje:
+        flash(mensaje, "success")
+
+    if request.headers.get("X-Documentos") == "1":
+        return jsonify(url=destino)
+
+    return redirect(destino)
+
+
+def _docs_id(valor):
+    if not valor:
+        return None
+
+    try:
+        numero = int(valor)
+        if numero <= 0:
+            raise ValueError()
+        return numero
+    except (TypeError, ValueError):
+        raise ValueError("La selección recibida no es válida.")
+
+
+def _docs_cliente_vinculado(cliente_id, lote_id):
+    return (
+        Compra.query.filter_by(
+            cliente_id=cliente_id, lote_id=lote_id
+        ).first()
+        or Separacion.query.filter_by(
+            cliente_id=cliente_id, lote_id=lote_id
+        ).first()
+        or Historial.query.filter_by(
+            cliente_id=cliente_id, lote_id=lote_id
+        ).first()
+    ) is not None
+
+
+def _docs_destino(doc):
+    if doc.proyecto_archivo_id:
+        return url_for(
+            "documentos_archivo",
+            proyecto_id=doc.proyecto_archivo_id
+        )
+
+    if doc.lotizacion_id:
+        return url_for(
+            "documentos_lotizacion",
+            lotizacion_id=doc.lotizacion_id
+        )
+
+    return url_for("documentos_empresa")
+
+
+def _docs_permitido(doc):
+    if current_user.rol not in ("admin", "superadmin"):
+        return False
+
+    if doc.proyecto_archivo_id:
+        return (
+            not doc.lotizacion_id
+            and not doc.lote_id
+            and not doc.cliente_id
+        )
+
+    if doc.lotizacion_id:
+        return usuario_puede_acceder_lotizacion(
+            current_user, doc.lotizacion_id
+        )
+
+    return doc.lote_id is None
+
+
+def _docs_ruta(doc):
+    from werkzeug.utils import safe_join
+
+    ruta = (doc.ruta or "").replace("\\", "/")
+
+    if ruta.startswith("privado_documentos/"):
+        base = os.path.join(app.instance_path, "documentos")
+        relativa = ruta[len("privado_documentos/"):]
+    else:
+        base = app.static_folder
+        relativa = (
+            ruta[len("static/"):]
+            if ruta.startswith("static/")
+            else ruta
+        )
+
+    destino = safe_join(base, relativa)
+
+    if destino is None:
+        raise ValueError("La ruta del archivo no es válida.")
+
+    base_real = os.path.realpath(base)
+    destino_real = os.path.realpath(destino)
+
+    if os.path.commonpath([base_real, destino_real]) != base_real:
+        raise ValueError("La ruta del archivo no es válida.")
+
+    return destino_real
+
+
+def _docs_guardar_archivo(archivo):
+    extension = os.path.splitext(archivo.filename or "")[1].lower()
+
+    if extension not in _DOC_EXTENSIONES:
+        raise ValueError(
+            "Este formato no está permitido. "
+            "Usa un documento, imagen o plano."
+        )
+
+    nombre = uuid.uuid4().hex + extension
+    base = os.path.join(app.instance_path, "documentos")
+    os.makedirs(base, exist_ok=True)
+    destino = os.path.join(base, nombre)
+
+    try:
+        total = 0
+
+        with open(destino, "xb") as salida:
+            while True:
+                bloque = archivo.stream.read(1024 * 1024)
+
+                if not bloque:
+                    break
+
+                total += len(bloque)
+
+                if total > 20 * 1024 * 1024:
+                    raise ValueError(
+                        "El archivo supera el límite de 20 MB."
+                    )
+
+                salida.write(bloque)
+
+        if total == 0:
+            raise ValueError("El archivo está vacío.")
+
+    except Exception:
+        if os.path.isfile(destino):
+            os.remove(destino)
+        raise
+
+    return "privado_documentos/" + nombre, destino
+
+
+def _docs_pagina(
+    ambito, titulo, consulta, destino,
+    lotizacion=None, proyecto=None
+):
+    busqueda = request.args.get(
+        "q",
+        request.args.get(
+            "nombre", request.args.get("apellido", "")
+        )
+    ).strip()[:200]
+
+    tipo = request.args.get("tipo", "").strip()
+    manzana = request.args.get("manzana", "").strip()
+    total = consulta.count()
+
+    if tipo:
+        consulta = consulta.filter(Documento.tipo == tipo)
+
+    if busqueda:
+        coincidencia_cliente = Documento.cliente.has(or_(
+            Cliente.nombre.ilike(f"%{busqueda}%"),
+            Cliente.apellidos.ilike(f"%{busqueda}%"),
+            Cliente.dni.ilike(f"%{busqueda}%")
+        ))
+
+        consulta = consulta.filter(or_(
+            Documento.nombre.ilike(f"%{busqueda}%"),
+            Documento.nombre_cliente_libre.ilike(f"%{busqueda}%"),
+            coincidencia_cliente
+        ))
+
+    if lotizacion and manzana:
+        consulta = consulta.filter(
+            Documento.lote.has(Lote.manzana == manzana)
+        )
+
+    paginacion = consulta.order_by(
+        Documento.fecha_subida.desc(),
+        Documento.id.desc()
+    ).paginate(
+        page=max(request.args.get("page", 1, type=int) or 1, 1),
+        per_page=20,
+        error_out=False
+    )
+
+    lotes_json = {}
+
+    if lotizacion:
+        lotes = Lote.query.filter_by(
+            lotizacion_id=lotizacion.id
+        ).all()
+
+        lotes.sort(key=lambda l: (
+            l.manzana,
+            (
+                (0, int(l.numero))
+                if str(l.numero).isdigit()
+                else (1, str(l.numero))
+            ),
+            l.id
+        ))
+
+        for lote in lotes:
+            lotes_json.setdefault(lote.manzana, []).append({
+                "id": lote.id,
+                "numero": lote.numero
+            })
+
+    tipos = {
+        k: v for k, v in _DOC_TIPOS.items()
+        if ambito != "empresa" or k in ("legal", "plano", "otro")
+    }
+
+    plantilla = (
+        "documentos_lotizacion.html"
+        if lotizacion
+        else "documentos_empresa.html"
+    )
+
+    return render_template(
+        plantilla,
+        ambito=ambito,
+        titulo=titulo,
+        destino=destino,
+        total=total,
+        busqueda=busqueda,
+        tipo=tipo,
+        manzana_sel=manzana,
+        tipos=tipos,
+        docs=paginacion.items,
+        paginacion=paginacion,
+        proyecto_lotizacion=lotizacion,
+        proyecto=proyecto,
+        lotes_json=lotes_json
+    )
+
 
 @app.route("/documentos")
 @login_required
+@admin_required
 def documentos():
-    if current_user.rol not in ("admin", "superadmin"):
-        flash("No tienes permisos para acceder.", "danger")
-        return redirect(url_for("home"))
     lotizaciones = lotizaciones_permitidas_para(current_user)
-    return render_template("documentos.html", lotizaciones=lotizaciones)
+    archivos = ProyectoArchivo.query.order_by(
+        ProyectoArchivo.nombre
+    ).all()
+
+    conteos_lotes = dict(
+        db.session.query(
+            Documento.lotizacion_id,
+            func.count(Documento.id)
+        ).filter(
+            Documento.lotizacion_id.in_([
+                l.id for l in lotizaciones
+            ]),
+            Documento.proyecto_archivo_id.is_(None)
+        ).group_by(Documento.lotizacion_id).all()
+    )
+
+    conteos_archivos = dict(
+        db.session.query(
+            Documento.proyecto_archivo_id,
+            func.count(Documento.id)
+        ).filter(
+            Documento.proyecto_archivo_id.is_not(None),
+            Documento.lotizacion_id.is_(None)
+        ).group_by(Documento.proyecto_archivo_id).all()
+    )
+
+    total_empresa = Documento.query.filter_by(
+        lotizacion_id=None,
+        lote_id=None,
+        proyecto_archivo_id=None
+    ).count()
+
+    busqueda = request.args.get("q", "").strip()[:150]
+
+    if busqueda:
+        lotizaciones = [
+            l for l in lotizaciones
+            if busqueda.casefold() in l.nombre.casefold()
+        ]
+        archivos = [
+            p for p in archivos
+            if busqueda.casefold() in p.nombre.casefold()
+        ]
+
+    return render_template(
+        "documentos.html",
+        lotizaciones=lotizaciones,
+        archivos=archivos,
+        conteos_lotes=conteos_lotes,
+        conteos_archivos=conteos_archivos,
+        total_empresa=total_empresa,
+        total_documentos=(
+            total_empresa
+            + sum(conteos_lotes.values())
+            + sum(conteos_archivos.values())
+        ),
+        busqueda=busqueda
+    )
 
 
 @app.route("/documentos/empresa")
 @login_required
+@admin_required
 def documentos_empresa():
-    if current_user.rol not in ("admin", "superadmin"):
-        flash("No tienes permisos para acceder.", "danger")
-        return redirect(url_for("home"))
-    
-    tipo = request.args.get("tipo", "")
-    nombre = request.args.get("nombre", "")
-    
-    docs = Documento.query.filter_by(lotizacion_id=None, lote_id=None)
-    if tipo:
-        docs = docs.filter_by(tipo=tipo)
-    if nombre:
-        docs = docs.filter(Documento.nombre.ilike(f"%{nombre}%"))
-    docs = docs.order_by(Documento.fecha_subida.desc()).all()
-    
-    return render_template("documentos_empresa.html", docs=docs, tipo=tipo, nombre=nombre)
+    consulta = Documento.query.filter_by(
+        lotizacion_id=None,
+        lote_id=None,
+        proyecto_archivo_id=None
+    )
+
+    return _docs_pagina(
+        "empresa",
+        "Documentos de la empresa",
+        consulta,
+        url_for("documentos_empresa")
+    )
 
 
 @app.route("/documentos/lotizacion/<int:lotizacion_id>")
 @login_required
+@admin_required
 def documentos_lotizacion(lotizacion_id):
-    if current_user.rol not in ("admin", "superadmin"):
-        flash("No tienes permisos para acceder.", "danger")
-        return redirect(url_for("home"))
-
-    if not usuario_puede_acceder_lotizacion(current_user, lotizacion_id):
-        flash("No tienes acceso a esa lotización.", "danger")
+    if not usuario_puede_acceder_lotizacion(
+        current_user, lotizacion_id
+    ):
+        flash("No tienes acceso a esa lotización.", "warning")
         return redirect(url_for("documentos"))
+
     lotizacion = Lotizacion.query.get_or_404(lotizacion_id)
-    manzana = request.args.get("manzana", "")
-    apellido = request.args.get("apellido", "")
 
-    manzanas = db.session.query(Lote.manzana).filter_by(
-        lotizacion_id=lotizacion_id
-    ).distinct().order_by(Lote.manzana).all()
-    manzanas = [m[0] for m in manzanas]
+    consulta = Documento.query.filter_by(
+        lotizacion_id=lotizacion.id,
+        proyecto_archivo_id=None
+    )
 
-    docs = Documento.query.filter_by(lotizacion_id=lotizacion_id)
+    return _docs_pagina(
+        "lotizacion",
+        lotizacion.nombre,
+        consulta,
+        url_for(
+            "documentos_lotizacion",
+            lotizacion_id=lotizacion.id
+        ),
+        lotizacion=lotizacion
+    )
 
-    if manzana:
-        lotes_manzana = Lote.query.filter_by(lotizacion_id=lotizacion_id, manzana=manzana).all()
-        lote_ids = [l.id for l in lotes_manzana]
-        docs = docs.filter(Documento.lote_id.in_(lote_ids))
 
-    if apellido:
-        clientes = Cliente.query.filter(Cliente.apellidos.ilike(f"%{apellido}%")).all()
-        cliente_ids = [c.id for c in clientes]
-        docs = docs.filter(
-            or_(
-                Documento.cliente_id.in_(cliente_ids),
-                Documento.nombre.ilike(f"%{apellido}%")
+@app.route("/documentos/archivo/<int:proyecto_id>")
+@login_required
+@admin_required
+def documentos_archivo(proyecto_id):
+    proyecto = ProyectoArchivo.query.get_or_404(proyecto_id)
+
+    consulta = Documento.query.filter_by(
+        proyecto_archivo_id=proyecto.id,
+        lotizacion_id=None,
+        lote_id=None,
+        cliente_id=None
+    )
+
+    return _docs_pagina(
+        "archivo",
+        proyecto.nombre,
+        consulta,
+        url_for("documentos_archivo", proyecto_id=proyecto.id),
+        proyecto=proyecto
+    )
+
+
+@app.route("/documentos/archivo/crear", methods=["POST"])
+@login_required
+@admin_required
+def crear_proyecto_archivo():
+    destino = url_for("documentos")
+
+    try:
+        _docs_verificar_token()
+
+        nombre = request.form.get("nombre", "").strip()
+        ubicacion = request.form.get("ubicacion", "").strip()
+        descripcion = request.form.get("descripcion", "").strip()
+
+        if (
+            not nombre
+            or len(nombre) > 150
+            or len(ubicacion) > 200
+            or len(descripcion) > 2000
+        ):
+            raise ValueError(
+                "Completa el nombre (hasta 150 caracteres) "
+                "y revisa la ubicación y descripción."
+            )
+
+        if ProyectoArchivo.query.filter(
+            func.lower(ProyectoArchivo.nombre) == nombre.lower()
+        ).first():
+            raise ValueError(
+                "Ya existe un proyecto antiguo con ese nombre."
+            )
+
+        proyecto = ProyectoArchivo(
+            nombre=nombre,
+            ubicacion=ubicacion or None,
+            descripcion=descripcion or None,
+            usuario_id=current_user.id
+        )
+
+        db.session.add(proyecto)
+        db.session.flush()
+
+        destino = url_for(
+            "documentos_archivo", proyecto_id=proyecto.id
+        )
+
+        db.session.commit()
+
+        return _docs_respuesta(
+            destino,
+            mensaje=(
+                "Proyecto antiguo registrado. "
+                "Ya puedes guardar sus documentos."
             )
         )
 
-    docs = docs.order_by(Documento.fecha_subida.desc()).all()
+    except ValueError as error:
+        db.session.rollback()
+        return _docs_respuesta(
+            url_for("documentos"), error=str(error)
+        )
 
-    return render_template(
-        "documentos_lotizacion.html",
-        lotizacion=lotizacion,
-        docs=docs,
-        manzanas=manzanas,
-        manzana_sel=manzana,
-        apellido=apellido
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception(
+            "Error al crear un proyecto de archivo."
+        )
+        return _docs_respuesta(
+            url_for("documentos"),
+            error=(
+                "No se pudo crear el proyecto. "
+                "Revisa si ya existe e inténtalo nuevamente."
+            )
+        )
+
+
+@app.route(
+    "/documentos/archivo/<int:proyecto_id>/editar",
+    methods=["POST"]
+)
+@login_required
+@admin_required
+def editar_proyecto_archivo(proyecto_id):
+    proyecto = ProyectoArchivo.query.get_or_404(proyecto_id)
+    destino = url_for(
+        "documentos_archivo", proyecto_id=proyecto.id
     )
+
+    try:
+        _docs_verificar_token()
+
+        nombre = request.form.get("nombre", "").strip()
+        ubicacion = request.form.get("ubicacion", "").strip()
+        descripcion = request.form.get("descripcion", "").strip()
+
+        if (
+            not nombre
+            or len(nombre) > 150
+            or len(ubicacion) > 200
+            or len(descripcion) > 2000
+        ):
+            raise ValueError(
+                "Revisa el nombre, ubicación y descripción del proyecto."
+            )
+
+        if ProyectoArchivo.query.filter(
+            ProyectoArchivo.id != proyecto.id,
+            func.lower(ProyectoArchivo.nombre) == nombre.lower()
+        ).first():
+            raise ValueError(
+                "Ya existe otro proyecto antiguo con ese nombre."
+            )
+
+        proyecto.nombre = nombre
+        proyecto.ubicacion = ubicacion or None
+        proyecto.descripcion = descripcion or None
+
+        db.session.commit()
+
+        return _docs_respuesta(
+            destino, mensaje="Datos del proyecto actualizados."
+        )
+
+    except ValueError as error:
+        db.session.rollback()
+        return _docs_respuesta(destino, error=str(error))
+
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception(
+            "Error al editar proyecto antiguo %s", proyecto_id
+        )
+        return _docs_respuesta(
+            destino,
+            error="No se pudieron guardar los datos del proyecto."
+        )
+
+
+@app.route("/documentos/clientes/<int:lotizacion_id>")
+@login_required
+@admin_required
+def documentos_buscar_clientes(lotizacion_id):
+    if not usuario_puede_acceder_lotizacion(
+        current_user, lotizacion_id
+    ):
+        return jsonify(
+            error="No tienes acceso a este proyecto."
+        ), 403
+
+    try:
+        lote_id = _docs_id(request.args.get("lote_id"))
+
+        lote = Lote.query.filter_by(
+            id=lote_id,
+            lotizacion_id=lotizacion_id
+        ).first()
+
+        if lote is None:
+            raise ValueError(
+                "Selecciona primero un lote de este proyecto."
+            )
+
+    except ValueError as error:
+        return jsonify(error=str(error)), 400
+
+    q = request.args.get("q", "").strip()[:100]
+
+    if len(q) < 2:
+        return jsonify([])
+
+    clientes = Cliente.query.filter(
+        or_(
+            Cliente.nombre.ilike(f"%{q}%"),
+            Cliente.apellidos.ilike(f"%{q}%"),
+            Cliente.dni.ilike(f"%{q}%")
+        ),
+        or_(
+            db.session.query(Compra.id).filter(
+                Compra.cliente_id == Cliente.id,
+                Compra.lote_id == lote.id
+            ).exists(),
+            db.session.query(Separacion.id).filter(
+                Separacion.cliente_id == Cliente.id,
+                Separacion.lote_id == lote.id
+            ).exists(),
+            db.session.query(Historial.id).filter(
+                Historial.cliente_id == Cliente.id,
+                Historial.lote_id == lote.id
+            ).exists()
+        )
+    ).order_by(
+        Cliente.apellidos, Cliente.nombre
+    ).limit(10).all()
+
+    return jsonify([
+        {
+            "id": c.id,
+            "nombre": c.nombre,
+            "apellidos": c.apellidos,
+            "dni": c.dni
+        }
+        for c in clientes
+    ])
+
 
 @app.route("/documentos/subir", methods=["POST"])
 @login_required
+@admin_required
 def subir_documento():
-    if current_user.rol not in ("admin", "superadmin"):
-        flash("No tienes permisos.", "danger")
-        return redirect(url_for("documentos"))
-
-    archivo = request.files.get("archivo")
-    tipo = request.form.get("tipo", "otro")
-    lotizacion_id = request.form.get("lotizacion_id") or None
-    lote_id = request.form.get("lote_id") or None
-    cliente_id = request.form.get("cliente_id") or None
-
-    if lotizacion_id and not usuario_puede_acceder_lotizacion(current_user, lotizacion_id):
-        flash("No tienes acceso a esa lotización.", "danger")
-        return redirect(url_for("documentos"))
-    nombre_cliente_libre = request.form.get("nombre_cliente_libre", "").strip()
-    nombre_personalizado = request.form.get("nombre_personalizado", "").strip()
-
-    if not archivo or archivo.filename == "":
-        flash("Debes seleccionar un archivo.", "danger")
-        return redirect(request.referrer)
-
-    if not lotizacion_id and not nombre_personalizado:
-        flash("Debes ingresar un nombre para el documento.", "danger")
-        return redirect(request.referrer)
-
-    if lotizacion_id and not lote_id and not cliente_id and not nombre_cliente_libre:
-        flash("Debes seleccionar un lote, un cliente o ingresar un nombre.", "danger")
-        return redirect(request.referrer)
+    destino = url_for("documentos")
+    archivo_creado = None
 
     try:
-        import datetime as dt
-        fecha_str = dt.datetime.now().strftime("%d%m%Y")
-        ext = os.path.splitext(archivo.filename)[1]
+        _docs_verificar_token()
 
-        # Nombre del cliente: de BD o libre
-        nombre_cli = None
-        if cliente_id:
-            cliente = Cliente.query.get(cliente_id)
-            nombre_cli = cliente.apellidos if cliente else None
-        elif nombre_cliente_libre:
-            nombre_cli = nombre_cliente_libre
+        lotizacion_id = _docs_id(
+            request.form.get("lotizacion_id")
+        )
+        proyecto_id = _docs_id(
+            request.form.get("proyecto_archivo_id")
+        )
+        lote_id = _docs_id(request.form.get("lote_id"))
+        cliente_id = _docs_id(request.form.get("cliente_id"))
+        nombre_libre = request.form.get(
+            "nombre_cliente_libre", ""
+        ).strip()
+
+        if lotizacion_id and proyecto_id:
+            raise ValueError(
+                "Elige una sola sección para el documento."
+            )
 
         if lotizacion_id:
-            lotizacion = Lotizacion.query.get(lotizacion_id)
-            if lote_id:
-                lote = Lote.query.get(lote_id)
-                ruta_carpeta = get_ruta_lote(lotizacion.nombre, lote.manzana, lote.numero)
-                if nombre_cli:
-                    nombre_base = f"{nombre_cli}_Mz{lote.manzana}_Lt{lote.numero}_{tipo}_{fecha_str}{ext}"
-                else:
-                    nombre_base = f"Mz{lote.manzana}_Lt{lote.numero}_{tipo}_{fecha_str}{ext}"
-            else:
-                ruta_carpeta = get_ruta_lotizacion_general(lotizacion.nombre)
-                if nombre_cli:
-                    nombre_base = f"{nombre_cli}_{tipo}_{fecha_str}{ext}"
-                else:
-                    nombre_base = f"{lotizacion.nombre}_{tipo}_{fecha_str}{ext}"
-        else:
-            ruta_carpeta = get_ruta_empresa(tipo)
-            if nombre_personalizado:
-                nombre_base = f"{nombre_personalizado}{ext}"
-            else:
-                nombre_base = f"{tipo}_{fecha_str}{ext}"
+            if not usuario_puede_acceder_lotizacion(
+                current_user, lotizacion_id
+            ):
+                raise ValueError(
+                    "No tienes acceso al proyecto elegido."
+                )
 
-        nombre_base = nombre_base.replace(" ", "_")
-        nombre_guardado, ruta_relativa = subir_archivo(archivo, nombre_base, ruta_carpeta)
+            destino = url_for(
+                "documentos_lotizacion",
+                lotizacion_id=lotizacion_id
+            )
+
+        elif proyecto_id:
+            if db.session.get(ProyectoArchivo, proyecto_id) is None:
+                raise ValueError("El proyecto antiguo no existe.")
+
+            destino = url_for(
+                "documentos_archivo", proyecto_id=proyecto_id
+            )
+
+        else:
+            destino = url_for("documentos_empresa")
+
+        asociacion = request.form.get("asociacion", "general")
+
+        if asociacion not in ("general", "lote", "cliente", "libre"):
+            raise ValueError(
+                "Elige una asociación válida para el documento."
+            )
+
+        if (
+            (proyecto_id or not lotizacion_id)
+            and (
+                asociacion != "general"
+                or lote_id
+                or cliente_id
+                or nombre_libre
+            )
+        ):
+            raise ValueError(
+                "Esta sección guarda documentos generales, "
+                "sin asociarlos a lotes o clientes."
+            )
+
+        if asociacion == "general" and (
+            lote_id or cliente_id or nombre_libre
+        ):
+            raise ValueError(
+                "Revisa la asociación: un documento general "
+                "no debe tener lote ni cliente."
+            )
+
+        if asociacion in ("lote", "cliente"):
+            lote = Lote.query.filter_by(
+                id=lote_id,
+                lotizacion_id=lotizacion_id
+            ).first()
+
+            if lote is None:
+                raise ValueError(
+                    "El lote no pertenece al proyecto elegido."
+                )
+
+            if nombre_libre or (
+                asociacion == "lote" and cliente_id
+            ):
+                raise ValueError(
+                    "Revisa los datos de asociación del documento."
+                )
+
+            if asociacion == "cliente" and (
+                not cliente_id
+                or not _docs_cliente_vinculado(cliente_id, lote.id)
+            ):
+                raise ValueError(
+                    "Selecciona un cliente que tenga una operación "
+                    "o historial en este lote."
+                )
+
+        elif asociacion == "libre":
+            if (
+                lote_id
+                or cliente_id
+                or not nombre_libre
+                or len(nombre_libre) > 200
+            ):
+                raise ValueError(
+                    "Escribe un nombre libre de hasta 200 caracteres, "
+                    "sin seleccionar lote o cliente."
+                )
+
+        tipo = request.form.get("tipo", "otro")
+
+        permitidos = (
+            ("legal", "plano", "otro")
+            if not lotizacion_id and not proyecto_id
+            else _DOC_TIPOS
+        )
+
+        if tipo not in permitidos:
+            raise ValueError(
+                "El tipo de documento no corresponde a esta sección."
+            )
+
+        archivo = request.files.get("archivo")
+
+        if not archivo or not archivo.filename:
+            raise ValueError(
+                "Selecciona el archivo que deseas subir."
+            )
+
+        nombre = (
+            request.form.get("nombre_personalizado", "").strip()
+            or os.path.basename(
+                archivo.filename.replace("\\", "/")
+            )
+        )
+
+        if len(nombre) > 200 or any(
+            c in nombre for c in ("\n", "\r", "\x00")
+        ):
+            raise ValueError(
+                "El nombre del documento debe tener hasta 200 caracteres."
+            )
+
+        ruta, archivo_creado = _docs_guardar_archivo(archivo)
 
         doc = Documento(
-            nombre=nombre_guardado,
-            ruta=ruta_relativa,
+            nombre=nombre,
+            ruta=ruta,
             tipo=tipo,
-            lotizacion_id=int(lotizacion_id) if lotizacion_id else None,
-            lote_id=int(lote_id) if lote_id else None,
-            cliente_id=int(cliente_id) if cliente_id else None,
+            lotizacion_id=lotizacion_id,
+            proyecto_archivo_id=proyecto_id,
+            lote_id=lote_id,
+            cliente_id=cliente_id,
+            nombre_cliente_libre=nombre_libre or None,
             usuario_id=current_user.id
         )
+
         db.session.add(doc)
         db.session.commit()
-        flash("✅ Documento subido correctamente.", "success")
 
-    except Exception as e:
-        flash(f"❌ Error al subir: {str(e)}", "danger")
+        return _docs_respuesta(
+            destino, mensaje="Documento guardado correctamente."
+        )
 
-    return redirect(request.referrer)
+    except ValueError as error:
+        db.session.rollback()
+
+        if archivo_creado and os.path.isfile(archivo_creado):
+            os.remove(archivo_creado)
+
+        return _docs_respuesta(destino, error=str(error))
+
+    except Exception:
+        db.session.rollback()
+
+        if archivo_creado and os.path.isfile(archivo_creado):
+            os.remove(archivo_creado)
+
+        current_app.logger.exception(
+            "Error al subir un documento."
+        )
+
+        return _docs_respuesta(
+            destino,
+            error=(
+                "No se pudo guardar el documento. "
+                "Comprueba si aparece en la lista antes de reintentar."
+            )
+        )
+
+
+@app.route("/documentos/archivo_documento/<int:doc_id>")
+@login_required
+@admin_required
+def abrir_documento(doc_id):
+    from flask import abort
+
+    doc = Documento.query.get_or_404(doc_id)
+
+    if not _docs_permitido(doc):
+        abort(403)
+
+    try:
+        ruta = _docs_ruta(doc)
+    except ValueError:
+        abort(404)
+
+    if not os.path.isfile(ruta):
+        abort(404)
+
+    extension = os.path.splitext(ruta)[1].lower()
+    nombre = secure_filename(doc.nombre) or "documento"
+
+    if not nombre.lower().endswith(extension):
+        nombre += extension
+
+    descargar = (
+        request.args.get("descargar") == "1"
+        or extension not in (
+            ".pdf", ".jpg", ".jpeg", ".png",
+            ".webp", ".gif", ".txt"
+        )
+    )
+
+    respuesta = send_file(
+        ruta,
+        as_attachment=descargar,
+        download_name=nombre,
+        conditional=True
+    )
+
+    respuesta.headers["Cache-Control"] = "private, no-store"
+    respuesta.headers["X-Content-Type-Options"] = "nosniff"
+
+    return respuesta
 
 
 @app.route("/documentos/eliminar/<int:doc_id>", methods=["POST"])
 @login_required
+@superadmin_required
 def eliminar_documento_drive(doc_id):
-    if current_user.rol not in ("admin", "superadmin"):
-        flash("No tienes permisos.", "danger")
-        return redirect(url_for("documentos"))
+    doc = (
+        Documento.query
+        .filter_by(id=doc_id)
+        .populate_existing()
+        .with_for_update()
+        .first_or_404()
+    )
 
-    doc = Documento.query.get_or_404(doc_id)
+    destino = _docs_destino(doc)
+    original = None
+    temporal = None
 
-    if doc.lotizacion_id and not usuario_puede_acceder_lotizacion(current_user, doc.lotizacion_id):
-        flash("No tienes acceso a ese documento.", "danger")
-        return redirect(url_for("documentos"))
     try:
-        eliminar_archivo(doc.ruta)
+        _docs_verificar_token()
+
+        if not _docs_permitido(doc):
+            raise ValueError(
+                "No tienes acceso a este documento."
+            )
+
+        original = _docs_ruta(doc)
+
+        # Conservar archivos utilizados por otros documentos.
+        variantes = {
+            doc.ruta,
+            doc.ruta.replace("\\", "/")
+        }
+
+        if not doc.ruta.startswith("privado_documentos/"):
+            relativa = (
+                doc.ruta.replace("\\", "/")
+                .removeprefix("static/")
+            )
+            variantes.update((
+                relativa,
+                "static/" + relativa
+            ))
+
+        compartido = Documento.query.filter(
+            Documento.id != doc.id,
+            Documento.ruta.in_(variantes)
+        ).first()
+
+        if not compartido and os.path.isfile(original):
+            temporal = original + ".eliminar-" + uuid.uuid4().hex
+            os.replace(original, temporal)
+
         db.session.delete(doc)
         db.session.commit()
-        flash("✅ Documento eliminado.", "success")
-    except Exception as e:
-        flash(f"❌ Error al eliminar: {str(e)}", "danger")
 
-    return redirect(request.referrer)
+    except Exception as error:
+        db.session.rollback()
 
+        if temporal and os.path.isfile(temporal):
+            os.replace(temporal, original)
 
+        if not isinstance(error, ValueError):
+            current_app.logger.exception(
+                "Error al eliminar documento %s", doc_id
+            )
+
+        return _docs_respuesta(
+            destino,
+            error=(
+                str(error)
+                if isinstance(error, ValueError)
+                else "No se pudo eliminar el documento."
+            )
+        )
+
+    if temporal:
+        try:
+            os.remove(temporal)
+        except OSError:
+            current_app.logger.exception(
+                "No se pudo retirar el archivo eliminado %s",
+                doc_id
+            )
+
+    return _docs_respuesta(
+        destino, mensaje="Documento eliminado."
+    )
 
 # ------------------- EDITAR UBICACIÓN DE LOTIZACIÓN -------------------
 

@@ -316,11 +316,29 @@ class Documento(db.Model):
     lote_id = db.Column(db.Integer, db.ForeignKey("lotes.id"), nullable=True)
     cliente_id = db.Column(db.Integer, db.ForeignKey("clientes.id"), nullable=True)
     usuario_id = db.Column(db.Integer, db.ForeignKey("usuarios.id"), nullable=True)
+    proyecto_archivo_id = db.Column(db.Integer,db.ForeignKey("proyectos_archivo.id"),nullable=True,index=True)
+    nombre_cliente_libre = db.Column(db.String(200),nullable=True)
 
     lotizacion = db.relationship("Lotizacion", backref="documentos")
     lote = db.relationship("Lote", backref="documentos")
     cliente = db.relationship("Cliente", backref="documentos")
     usuario = db.relationship("Usuario", backref="documentos")
+    proyecto_archivo = db.relationship("ProyectoArchivo",back_populates="documentos")
+
+
+class ProyectoArchivo(db.Model):
+    __tablename__ = "proyectos_archivo"
+
+    id = db.Column(db.Integer, primary_key=True)
+    nombre = db.Column(db.String(150), unique=True, nullable=False)
+    ubicacion = db.Column(db.String(200))
+    descripcion = db.Column(db.Text)
+    fecha_creacion = db.Column(db.DateTime, default=hora_local_peru, nullable=False)
+    usuario_id = db.Column(db.Integer, db.ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True)
+
+    usuario = db.relationship("Usuario")
+    documentos = db.relationship("Documento", back_populates="proyecto_archivo")
+    
 
 # ---------------- TRANSFERENCIAS DE TITULAR ----------------
 class TransferenciaTitular(db.Model):

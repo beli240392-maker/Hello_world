@@ -1,0 +1,452 @@
+{% extends "documentos_layout.html" %}
+
+{% block documentos_content %}
+<a class="d-back" href="{{ url_for('documentos') }}">← Volver a Documentos</a>
+
+<div class="d-hero">
+  <div class="d-hero-row">
+    <div>
+      <div class="d-kicker">
+        {{ 'Empresa' if ambito == 'empresa' else ('Archivo histórico' if ambito == 'archivo' else 'Documentos del proyecto') }}
+      </div>
+      <h1>{{ titulo }}</h1>
+      <p>
+        {% if proyecto %}
+          {{ proyecto.ubicacion or 'Archivo documental del proyecto' }}
+        {% else %}
+          Consulta, descarga y guarda los documentos de esta sección.
+        {% endif %}
+      </p>
+    </div>
+    <div class="d-stat">
+      <strong>{{ total }}</strong>
+      <span>documentos</span>
+    </div>
+  </div>
+</div>
+
+{% if proyecto %}
+  {% if proyecto.descripcion %}
+    <div class="d-panel d-pad">
+      <p class="d-help" style="margin:0;white-space:pre-line">{{ proyecto.descripcion }}</p>
+    </div>
+  {% endif %}
+
+  <details class="d-panel d-fold">
+    <summary>Editar datos del proyecto</summary>
+
+    <form class="d-pad" method="POST"
+          action="{{ url_for('editar_proyecto_archivo', proyecto_id=proyecto.id) }}"
+          data-doc-post>
+      <input type="hidden" name="token_documentos" value="{{ documentos_token() }}">
+
+      <div class="d-fields">
+        <div>
+          <label for="editar-nombre">Nombre *</label>
+          <input id="editar-nombre" name="nombre" required maxlength="150"
+                 value="{{ proyecto.nombre }}">
+        </div>
+        <div>
+          <label for="editar-ubicacion">Ubicación</label>
+          <input id="editar-ubicacion" name="ubicacion" maxlength="200"
+                 value="{{ proyecto.ubicacion or '' }}">
+        </div>
+      </div>
+
+      <div style="margin-top:15px">
+        <label for="editar-descripcion">Descripción</label>
+        <textarea id="editar-descripcion" name="descripcion" rows="2"
+                  maxlength="2000">{{ proyecto.descripcion or '' }}</textarea>
+      </div>
+
+      <div class="d-form-actions">
+        <button type="submit" class="d-btn primary">Guardar datos</button>
+      </div>
+    </form>
+  </details>
+{% endif %}
+
+<details class="d-panel d-fold" id="subir-documento">
+  <summary>📤 Subir documento</summary>
+
+  <form class="d-pad" method="POST"
+        action="{{ url_for('subir_documento') }}"
+        enctype="multipart/form-data" data-doc-post>
+    <input type="hidden" name="token_documentos" value="{{ documentos_token() }}">
+
+    {% if proyecto_lotizacion %}
+      <input type="hidden" name="lotizacion_id" value="{{ proyecto_lotizacion.id }}">
+    {% endif %}
+    {% if proyecto %}
+      <input type="hidden" name="proyecto_archivo_id" value="{{ proyecto.id }}">
+    {% endif %}
+
+    <div class="d-fields">
+      <div>
+        <label for="doc-archivo">Archivo *</label>
+        <input type="file" id="doc-archivo" name="archivo" required>
+        <p class="d-help">PDF, imágenes, documentos de Office y planos. Máximo 20 MB.</p>
+      </div>
+      <div>
+        <label for="doc-nombre">Nombre del documento</label>
+        <input id="doc-nombre" name="nombre_personalizado" maxlength="200"
+               placeholder="Ej. Plano aprobado">
+        <p class="d-help">Si lo dejas vacío, se usa el nombre del archivo.</p>
+      </div>
+      <div>
+        <label for="doc-tipo">Tipo *</label>
+        <select id="doc-tipo" name="tipo" required>
+          {% for clave, dato in tipos.items() %}
+            <option value="{{ clave }}">{{ dato[1] }} {{ dato[0] }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    {% if proyecto_lotizacion %}
+      <div style="margin-top:17px">
+        <label for="doc-asociacion">¿Dónde guardar este documento?</label>
+        <select id="doc-asociacion" name="asociacion">
+          <option value="general">General del proyecto</option>
+          <option value="lote">Asociado a un lote</option>
+          <option value="cliente">Asociado a un cliente y lote</option>
+          <option value="libre">Referencia con nombre libre</option>
+        </select>
+      </div>
+
+      <fieldset id="doc-campos-lote" hidden disabled>
+        <div class="d-fields">
+          <div>
+            <label for="doc-manzana">Manzana *</label>
+            <select id="doc-manzana" required>
+              <option value="">Seleccionar manzana</option>
+              {% for mz in lotes_json %}
+                <option value="{{ mz }}">{{ mz }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label for="doc-lote">Lote *</label>
+            <select id="doc-lote" name="lote_id" required>
+              <option value="">Seleccionar lote</option>
+            </select>
+          </div>
+        </div>
+      </fieldset>
+
+      <fieldset id="doc-campos-cliente" hidden disabled>
+        <label for="doc-cliente">Cliente del lote *</label>
+        <input id="doc-cliente" autocomplete="off" maxlength="100"
+               placeholder="Buscar por nombre, apellido o DNI"
+               aria-describedby="doc-cliente-ayuda"
+               aria-controls="doc-resultados">
+        <input type="hidden" name="cliente_id" id="doc-cliente-id">
+        <div id="doc-resultados" class="d-results" aria-live="polite"></div>
+        <p class="d-help" id="doc-cliente-ayuda">
+          Selecciona un lote y elige un cliente de los resultados.
+          Incluye clientes con historial en ese lote.
+        </p>
+      </fieldset>
+
+      <fieldset id="doc-campos-libre" hidden disabled>
+        <label for="doc-libre">Nombre de referencia *</label>
+        <input id="doc-libre" name="nombre_cliente_libre" required maxlength="200"
+               placeholder="Nombre de la persona o referencia">
+      </fieldset>
+    {% else %}
+      <input type="hidden" name="asociacion" value="general">
+    {% endif %}
+
+    <div class="d-form-actions">
+      <button type="submit" class="d-btn primary">Guardar documento</button>
+    </div>
+  </form>
+</details>
+
+<div class="d-panel d-pad">
+  <form method="GET" action="{{ destino }}" class="d-fields">
+    <div>
+      <label for="doc-busqueda">Buscar documento o cliente</label>
+      <input id="doc-busqueda" name="q" value="{{ busqueda }}" maxlength="200"
+             placeholder="Nombre, apellido o DNI…">
+    </div>
+
+    <div>
+      <label for="doc-filtro-tipo">Tipo de documento</label>
+      <select id="doc-filtro-tipo" name="tipo">
+        <option value="">Todos los tipos</option>
+        {% for clave, dato in tipos.items() %}
+          <option value="{{ clave }}" {% if tipo == clave %}selected{% endif %}>
+            {{ dato[0] }}
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    {% if proyecto_lotizacion %}
+      <div>
+        <label for="doc-filtro-manzana">Manzana</label>
+        <select id="doc-filtro-manzana" name="manzana">
+          <option value="">Todas las manzanas</option>
+          {% for mz in lotes_json %}
+            <option value="{{ mz }}" {% if manzana_sel == mz %}selected{% endif %}>
+              {{ mz }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+    {% endif %}
+
+    <div class="d-form-actions"
+         style="align-self:end;margin:0;justify-content:flex-start">
+      <button type="submit" class="d-btn primary">Filtrar</button>
+      <a class="d-btn" href="{{ destino }}">Limpiar</a>
+    </div>
+  </form>
+</div>
+
+<div class="d-panel">
+  <div class="d-pad d-heading" style="margin:0">
+    <h2>Archivos guardados</h2>
+    <span class="d-counter">
+      {{ paginacion.total }} resultado{{ '' if paginacion.total == 1 else 's' }}
+    </span>
+  </div>
+
+  {% if docs %}
+    <div class="d-table-wrap">
+      <table class="d-table">
+        <thead>
+          <tr>
+            <th>Documento</th>
+            <th>Referencia</th>
+            <th>Registro</th>
+            <th style="text-align:right">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for doc in docs %}
+            {% set dato = documentos_tipos.get(doc.tipo, ('Otro', '📄')) %}
+            <tr>
+              <td>
+                <div class="d-file">
+                  <span class="d-icon" aria-hidden="true">{{ dato[1] }}</span>
+                  <div>
+                    <strong title="{{ doc.nombre }}">{{ doc.nombre }}</strong>
+                    <span class="d-meta">
+                      <span class="d-badge">{{ dato[0] }}</span>
+                    </span>
+                  </div>
+                </div>
+              </td>
+
+              <td>
+                {% if doc.lote %}
+                  <strong>Mz {{ doc.lote.manzana }} · Lt {{ doc.lote.numero }}</strong>
+                {% else %}
+                  <span class="d-badge">General</span>
+                {% endif %}
+
+                {% if doc.cliente %}
+                  <span class="d-meta">
+                    {{ doc.cliente.apellidos }} {{ doc.cliente.nombre }}<br>
+                    DNI {{ doc.cliente.dni }}
+                  </span>
+                {% elif doc.nombre_cliente_libre %}
+                  <span class="d-meta">{{ doc.nombre_cliente_libre }}</span>
+                {% endif %}
+              </td>
+
+              <td>
+                {{ doc.fecha_subida.strftime('%d/%m/%Y') if doc.fecha_subida else '—' }}
+                <span class="d-meta">
+                  {{ doc.usuario.username if doc.usuario else 'Sin usuario registrado' }}
+                </span>
+              </td>
+
+              <td>
+                <div class="d-actions">
+                  <a class="d-btn"
+                     href="{{ url_for('abrir_documento', doc_id=doc.id) }}"
+                     target="_blank" rel="noopener">Ver</a>
+
+                  <a class="d-btn"
+                     href="{{ url_for('abrir_documento', doc_id=doc.id, descargar=1) }}">
+                    Descargar
+                  </a>
+
+                  {% if current_user.rol == 'superadmin' %}
+                    <form method="POST"
+                          action="{{ url_for('eliminar_documento_drive', doc_id=doc.id) }}"
+                          data-doc-post
+                          data-confirm="¿Eliminar este documento? Esta acción quitará su registro y el archivo si no lo utiliza otro documento.">
+                      <input type="hidden" name="token_documentos"
+                             value="{{ documentos_token() }}">
+                      <button type="submit" class="d-btn danger"
+                              aria-label="Eliminar {{ doc.nombre }}"
+                              title="Eliminar documento">🗑️</button>
+                    </form>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="d-pad">
+      <div class="d-empty">
+        <strong>
+          {{ 'No hay coincidencias' if busqueda or tipo or manzana_sel else 'Este archivo está listo para tus documentos' }}
+        </strong>
+        {{ 'Cambia los filtros para ver otros documentos.' if busqueda or tipo or manzana_sel else 'Presiona «Subir documento» para guardar el primer archivo.' }}
+      </div>
+    </div>
+  {% endif %}
+
+  {% if paginacion.pages > 1 %}
+    <div class="d-pagination">
+      <span>Página {{ paginacion.page }} de {{ paginacion.pages }}</span>
+      <div class="d-actions">
+        {% if paginacion.has_prev %}
+          <a class="d-btn"
+             href="{{ destino }}?{{ {'q':busqueda,'tipo':tipo,'manzana':manzana_sel,'page':paginacion.prev_num}|urlencode }}">
+            ← Anterior
+          </a>
+        {% endif %}
+        {% if paginacion.has_next %}
+          <a class="d-btn"
+             href="{{ destino }}?{{ {'q':busqueda,'tipo':tipo,'manzana':manzana_sel,'page':paginacion.next_num}|urlencode }}">
+            Siguiente →
+          </a>
+        {% endif %}
+      </div>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block documentos_scripts %}
+{% if proyecto_lotizacion %}
+<script>
+(() => {
+  const lotes = {{ lotes_json|tojson }};
+  const asociacion = document.getElementById('doc-asociacion');
+  const manzana = document.getElementById('doc-manzana');
+  const lote = document.getElementById('doc-lote');
+  const buscar = document.getElementById('doc-cliente');
+  const clienteId = document.getElementById('doc-cliente-id');
+  const resultados = document.getElementById('doc-resultados');
+
+  const campos = {
+    lote: document.getElementById('doc-campos-lote'),
+    cliente: document.getElementById('doc-campos-cliente'),
+    libre: document.getElementById('doc-campos-libre')
+  };
+
+  let controlador;
+
+  function limpiarCliente() {
+    if (controlador) controlador.abort();
+    buscar.value = '';
+    clienteId.value = '';
+    resultados.replaceChildren();
+  }
+
+  function mostrarCampos() {
+    const visibles = {
+      lote: ['lote','cliente'].includes(asociacion.value),
+      cliente: asociacion.value === 'cliente',
+      libre: asociacion.value === 'libre'
+    };
+
+    Object.entries(campos).forEach(([nombre, campo]) => {
+      campo.hidden = !visibles[nombre];
+      campo.disabled = !visibles[nombre];
+    });
+
+    limpiarCliente();
+  }
+
+  asociacion.addEventListener('change', mostrarCampos);
+  mostrarCampos();
+
+  manzana.addEventListener('change', () => {
+    limpiarCliente();
+    lote.replaceChildren(new Option('Seleccionar lote', ''));
+
+    (lotes[manzana.value] || []).forEach(l => {
+      lote.add(new Option('Lt ' + l.numero, l.id));
+    });
+  });
+
+  lote.addEventListener('change', limpiarCliente);
+
+  buscar.addEventListener('input', async () => {
+    clienteId.value = '';
+    resultados.replaceChildren();
+
+    if (controlador) controlador.abort();
+
+    const q = buscar.value.trim();
+
+    if (!lote.value) {
+      resultados.textContent = 'Selecciona primero un lote.';
+      return;
+    }
+
+    if (q.length < 2) return;
+
+    controlador = new AbortController();
+    const signal = controlador.signal;
+
+    const url = new URL(
+      {{ url_for('documentos_buscar_clientes', lotizacion_id=proyecto_lotizacion.id)|tojson }},
+      location.origin
+    );
+
+    url.searchParams.set('q', q);
+    url.searchParams.set('lote_id', lote.value);
+
+    try {
+      const r = await fetch(url, {signal});
+      const data = await r.json();
+
+      if (signal.aborted) return;
+
+      if (!r.ok || !Array.isArray(data)) {
+        resultados.textContent = data.error || 'No se pudo consultar.';
+        return;
+      }
+
+      if (!data.length) {
+        resultados.textContent = 'No se encontraron clientes asociados a este lote.';
+        return;
+      }
+
+      data.forEach(c => {
+        const boton = document.createElement('button');
+        boton.type = 'button';
+        boton.className = 'd-btn';
+        boton.textContent = `${c.apellidos} ${c.nombre} · DNI ${c.dni}`;
+
+        boton.addEventListener('click', () => {
+          clienteId.value = c.id;
+          buscar.value = `${c.apellidos} ${c.nombre}`;
+          resultados.replaceChildren();
+        });
+
+        resultados.appendChild(boton);
+      });
+
+    } catch(error) {
+      if (error.name !== 'AbortError') {
+        resultados.textContent = 'No se pudo consultar. Inténtalo nuevamente.';
+      }
+    }
+  });
+})();
+</script>
+{% endif %}
+{% endblock %}

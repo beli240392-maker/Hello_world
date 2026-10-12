@@ -1,36 +1,167 @@
-{% extends "base.html" %}
-{% block content %}
+{% extends "documentos_layout.html" %}
 
-<div class="d-flex justify-content-between align-items-center mb-4">
-  <h2>📁 Gestor de Documentos</h2>
+{% block documentos_content %}
+<div class="d-hero">
+  <div class="d-hero-row">
+    <div>
+      <div class="d-kicker">Archivo documental</div>
+      <h1>Documentos</h1>
+      <p>Consulta y organiza los archivos de la empresa y de cada proyecto.</p>
+    </div>
+    <div class="d-stat">
+      <strong>{{ total_documentos }}</strong>
+      <span>documentos</span>
+    </div>
+  </div>
 </div>
 
-<div class="row g-3">
-  <div class="col-md-4">
-    <a href="{{ url_for('documentos_empresa') }}" class="text-decoration-none">
-      <div class="card shadow-sm h-100 border-primary">
-        <div class="card-body text-center py-4">
-          <div style="font-size: 3rem;">🏢</div>
-          <h5 class="mt-2 text-primary">Empresa</h5>
-          <p class="text-muted small">Documentos legales, planos generales y otros.</p>
-        </div>
+<div class="d-panel d-pad">
+  <form method="GET" action="{{ url_for('documentos') }}" class="d-toolbar">
+    <div class="d-search">
+      <label for="buscar-proyecto">Buscar proyecto</label>
+      <input id="buscar-proyecto" name="q" value="{{ busqueda }}"
+             placeholder="Nombre del proyecto…" maxlength="150">
+    </div>
+    <button class="d-btn primary" type="submit">Buscar</button>
+    {% if busqueda %}
+      <a class="d-btn" href="{{ url_for('documentos') }}">Limpiar</a>
+    {% endif %}
+  </form>
+</div>
+
+<section class="d-section" aria-labelledby="empresa-titulo">
+  <div class="d-heading">
+    <div>
+      <h2 id="empresa-titulo">Empresa</h2>
+      <p class="d-help">Documentos generales de la inmobiliaria.</p>
+    </div>
+  </div>
+
+  <div class="d-grid">
+    <a class="d-project" href="{{ url_for('documentos_empresa') }}">
+      <div class="d-project-top">
+        <span class="d-icon">🏢</span>
+        <span class="d-badge">General</span>
+      </div>
+      <div>
+        <h3>Documentos de la empresa</h3>
+        <p>Documentos legales, planos y otros archivos generales.</p>
+      </div>
+      <div class="d-project-foot">
+        <span>{{ total_empresa }} documento{{ '' if total_empresa == 1 else 's' }}</span>
+        <b>Abrir archivo →</b>
       </div>
     </a>
   </div>
+</section>
 
-  {% for lot in lotizaciones %}
-  <div class="col-md-4">
-    <a href="{{ url_for('documentos_lotizacion', lotizacion_id=lot.id) }}" class="text-decoration-none">
-      <div class="card shadow-sm h-100 border-success">
-        <div class="card-body text-center py-4">
-          <div style="font-size: 3rem;">🏘️</div>
-          <h5 class="mt-2 text-success">{{ lot.nombre }}</h5>
-          <p class="text-muted small">Ver documentos por manzana o cliente.</p>
+<section class="d-section" aria-labelledby="actuales-titulo">
+  <div class="d-heading">
+    <div>
+      <h2 id="actuales-titulo">Proyectos del sistema</h2>
+      <p class="d-help">Archivos generales y documentos vinculados a lotes o clientes.</p>
+    </div>
+    <span class="d-counter">{{ lotizaciones|length }} proyectos</span>
+  </div>
+
+  <div class="d-grid">
+    {% for lot in lotizaciones %}
+      <a class="d-project"
+         href="{{ url_for('documentos_lotizacion', lotizacion_id=lot.id) }}">
+        <div class="d-project-top">
+          <span class="d-icon teal">🏘️</span>
+          <span class="d-badge">Lotización</span>
+        </div>
+        <div>
+          <h3>{{ lot.nombre }}</h3>
+          <p>
+            {{ lot.distrito or 'Documentos por proyecto, lote y cliente' }}
+            {% if lot.provincia %} · {{ lot.provincia }}{% endif %}
+          </p>
+        </div>
+        <div class="d-project-foot">
+          <span>{{ conteos_lotes.get(lot.id, 0) }} documentos</span>
+          <b>Abrir archivo →</b>
+        </div>
+      </a>
+    {% else %}
+      <div class="d-empty">
+        <strong>No hay proyectos para mostrar</strong>
+        {{ 'Prueba con otro nombre.' if busqueda else 'Aquí aparecerán las lotizaciones a las que tienes acceso.' }}
+      </div>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="d-section" aria-labelledby="antiguos-titulo">
+  <div class="d-heading">
+    <div>
+      <h2 id="antiguos-titulo">Proyectos antiguos</h2>
+      <p class="d-help">
+        Conserva su documentación aunque no tengan ventas registradas en el sistema.
+      </p>
+    </div>
+    <span class="d-counter">{{ archivos|length }} proyectos</span>
+  </div>
+
+  <details class="d-panel d-fold">
+    <summary>📁 Agregar proyecto antiguo</summary>
+
+    <form class="d-pad" method="POST"
+          action="{{ url_for('crear_proyecto_archivo') }}" data-doc-post>
+      <input type="hidden" name="token_documentos" value="{{ documentos_token() }}">
+
+      <div class="d-fields">
+        <div>
+          <label for="archivo-nombre">Nombre del proyecto *</label>
+          <input id="archivo-nombre" name="nombre" required maxlength="150"
+                 placeholder="Ej. Urbanización Las Palmeras">
+        </div>
+        <div>
+          <label for="archivo-ubicacion">Ubicación</label>
+          <input id="archivo-ubicacion" name="ubicacion" maxlength="200"
+                 placeholder="Distrito, provincia o dirección">
         </div>
       </div>
-    </a>
-  </div>
-  {% endfor %}
-</div>
 
+      <div style="margin-top:15px">
+        <label for="archivo-descripcion">Descripción</label>
+        <textarea id="archivo-descripcion" name="descripcion" rows="2"
+                  maxlength="2000"
+                  placeholder="Información de referencia del proyecto"></textarea>
+      </div>
+
+      <div class="d-form-actions">
+        <button type="submit" class="d-btn primary">Crear archivo del proyecto</button>
+      </div>
+    </form>
+  </details>
+
+  <div class="d-grid">
+    {% for proyecto in archivos %}
+      <a class="d-project"
+         href="{{ url_for('documentos_archivo', proyecto_id=proyecto.id) }}">
+        <div class="d-project-top">
+          <span class="d-icon amber">🗂️</span>
+          <span class="d-badge">Archivo histórico</span>
+        </div>
+        <div>
+          <h3>{{ proyecto.nombre }}</h3>
+          <p>{{ proyecto.ubicacion or 'Documentación del proyecto' }}</p>
+        </div>
+        <div class="d-project-foot">
+          <span>{{ conteos_archivos.get(proyecto.id, 0) }} documentos</span>
+          <b>Abrir archivo →</b>
+        </div>
+      </a>
+    {% else %}
+      <div class="d-empty">
+        <strong>
+          {{ 'No hay coincidencias' if busqueda else 'Tu archivo de proyectos antiguos' }}
+        </strong>
+        {{ 'Prueba con otro nombre.' if busqueda else 'Agrega un proyecto y empieza a guardar sus planos, contratos y documentos.' }}
+      </div>
+    {% endfor %}
+  </div>
+</section>
 {% endblock %}
