@@ -1025,21 +1025,22 @@ def registrar_compra():
                     "debes indicar al menos 1 cuota."
                 )
 
-            fecha_texto = request.form.get(
-                "fecha_compra", ""
-            ).strip()
+            fecha_texto = request.form.get("fecha_compra", "").strip()
+            ahora_peru = hora_local_peru().replace(tzinfo=None)
 
             try:
-                fecha_compra = (
-                    datetime.strptime(fecha_texto, "%Y-%m-%d")
-                    if fecha_texto
-                    else datetime.utcnow()
-                )
+                if fecha_texto:
+                    fecha_compra = datetime.strptime(fecha_texto, "%Y-%m-%d")
+                else:
+                    fecha_compra = ahora_peru
             except ValueError:
-                raise ValueError(
-                    "La fecha de compra no es válida."
-                )
+                raise ValueError("La fecha de compra no es válida.")
 
+            if fecha_compra.date() > ahora_peru.date():
+                raise ValueError(
+                    "La fecha de venta no puede ser posterior a hoy. "
+                    "Revisa la fecha ingresada."
+                )
             monto_total = precio
 
             if forma_pago == "credito" and interes > 0:
@@ -1402,7 +1403,7 @@ def registrar_separacion():
                     cliente_id=cliente.id,
                     lote_id=lote.id,
                     monto=monto,
-                    fecha=hora_local_peru(),
+                    fecha=hora_local_peru().replace(tzinfo=None),
                     boucher=boucher,
                     activa=True,
                     usuario_id=current_user.id
