@@ -221,26 +221,75 @@ lima = pytz.timezone("America/Lima")
 def lotes_disponibles():
     lotizacion = None
     lotes = []
+
     if "lotizacion_id" in session:
         lotizacion = Lotizacion.query.get(session["lotizacion_id"])
-        lotes = (Lote.query.filter_by(lotizacion_id=lotizacion.id).order_by(cast(Lote.numero, Integer))   # ✅ orden numérico correcto
-                 .all()
-)
+
+        lotes = (
+            Lote.query
+            .filter_by(lotizacion_id=lotizacion.id)
+            .order_by(cast(Lote.numero, Integer))
+            .all()
+        )
+
+    # Identificar los lotes vendidos mediante una compra al crédito.
+    lotes_credito = set()
+
+    if lotizacion:
+        lotes_credito = {
+            fila[0]
+            for fila in (
+                db.session.query(Compra.lote_id)
+                .join(Lote, Compra.lote_id == Lote.id)
+                .filter(
+                    Lote.lotizacion_id == lotizacion.id,
+                    Lote.estado == "vendido",
+                    Compra.forma_pago == "credito",
+                    Compra.anulada.is_(False)
+                )
+                .distinct()
+                .all()
+            )
+        }
 
     manzanas = {}
+
     for lote in lotes:
         manzanas.setdefault(lote.manzana, []).append(lote)
 
-    total_disponibles = Lote.query.filter_by(estado="disponible", lotizacion_id=lotizacion.id).count() if lotizacion else 0
-    total_separados = Lote.query.filter_by(estado="separado", lotizacion_id=lotizacion.id).count() if lotizacion else 0
-    total_vendidos = Lote.query.filter_by(estado="vendido", lotizacion_id=lotizacion.id).count() if lotizacion else 0
+    total_disponibles = (
+        Lote.query.filter_by(
+            estado="disponible",
+            lotizacion_id=lotizacion.id
+        ).count()
+        if lotizacion else 0
+    )
 
-    return render_template("lotes_disponibles.html",
-                           manzanas=manzanas,
-                           total_disponibles=total_disponibles,
-                           total_separados=total_separados,
-                           total_vendidos=total_vendidos,
-                           lotizacion=lotizacion)
+    total_separados = (
+        Lote.query.filter_by(
+            estado="separado",
+            lotizacion_id=lotizacion.id
+        ).count()
+        if lotizacion else 0
+    )
+
+    total_vendidos = (
+        Lote.query.filter_by(
+            estado="vendido",
+            lotizacion_id=lotizacion.id
+        ).count()
+        if lotizacion else 0
+    )
+
+    return render_template(
+        "lotes_disponibles.html",
+        manzanas=manzanas,
+        total_disponibles=total_disponibles,
+        total_separados=total_separados,
+        total_vendidos=total_vendidos,
+        lotizacion=lotizacion,
+        lotes_credito=lotes_credito
+    )
 
 @app.route("/editar_cliente/<int:cliente_id>", methods=["GET", "POST"])
 @login_required
@@ -2715,6 +2764,411 @@ def logout():
     flash("Sesión cerrada correctamente.", "info")
     return redirect(url_for("login"))
 
+def _estado_correccion_pago(compra, pago, cuotas):
+    return {
+        "compra": [
+            compra.id,
+            compra.cliente_id,
+            compra.lote_id,
+            compra.forma_pago,
+            compra.precio,
+            compra.inicial,
+            compra.boucher_inicial,
+            compra.anulada,
+            compra.cancelado,
+            (
+                compra.fecha_cancelacion.isoformat()
+                if compra.fecha_cancelacion else None
+            )
+        ],
+        "pago": [
+            pago.id,
+            pago.compra_id,
+            pago.monto,
+            pago.boucher,
+            pago.fecha_pago.isoformat() if pago.fecha_pago else None
+        ],
+        "cuotas": [
+            [
+                c.id,
+                c.compra_id,
+                c.numero,
+                c.monto,
+                c.pagada,
+                c.pago_id,
+                (
+                    c.fecha_vencimiento.isoformat()
+                    if c.fecha_vencimiento else None
+                )
+            ]
+            for c in sorted(cuotas, key=lambda c: c.id)
+        ]
+    }
+
+
+def _contexto_correccion_pagos():
+    csrf = session.setdefault(
+        "csrf_corregir_pago",
+        secrets.token_urlsafe(32)
+    )
+
+    contexto = {
+        "lotizacion": request.args.get("cp_lotizacion", ""),
+        "manzana": request.args.get("cp_manzana", "").strip(),
+        "numero": request.args.get("cp_numero", "").strip(),
+        "compra": None,
+        "pagos": [],
+        "error": None,
+        "csrf": csrf
+    }
+
+    if not any(
+        contexto[k]
+        for k in ("lotizacion", "manzana", "numero")
+    ):
+        return contexto
+
+    try:
+        lotizacion_id = int(contexto["lotizacion"])
+
+        if not contexto["manzana"] or not contexto["numero"]:
+            raise ValueError(
+                "Selecciona el proyecto e indica la manzana y el lote."
+            )
+
+        compras = (
+            Compra.query
+            .join(Lote, Compra.lote_id == Lote.id)
+            .filter(
+                Lote.lotizacion_id == lotizacion_id,
+                func.lower(Lote.manzana)
+                == contexto["manzana"].lower(),
+                Lote.numero == contexto["numero"],
+                Compra.anulada.is_(False),
+                Compra.forma_pago == "credito"
+            )
+            .all()
+        )
+
+        if len(compras) != 1:
+            raise ValueError(
+                "No se encontró una compra vigente al crédito "
+                "para ese lote."
+                if not compras else
+                "Ese lote tiene más de una compra vigente. "
+                "Revisa el caso antes de corregir."
+            )
+
+        compra = compras[0]
+        contexto["compra"] = compra
+
+        firmador = URLSafeTimedSerializer(
+            app.config["SECRET_KEY"],
+            salt="corregir-pago-cuotas-v1"
+        )
+
+        pagos = (
+            Pago.query
+            .filter_by(compra_id=compra.id)
+            .order_by(Pago.id)
+            .all()
+        )
+
+        for pago in pagos:
+            cuotas = (
+                Cuota.query
+                .filter_by(pago_id=pago.id)
+                .order_by(Cuota.numero, Cuota.id)
+                .all()
+            )
+
+            valido = bool(cuotas) and all(
+                c.compra_id == compra.id and c.pagada
+                for c in cuotas
+            )
+
+            contexto["pagos"].append({
+                "pago": pago,
+                "cuotas": cuotas,
+                "valido": valido,
+                "token": (
+                    firmador.dumps({
+                        "usuario_id": current_user.id,
+                        "csrf": csrf,
+                        "compra_id": compra.id,
+                        "pago_id": pago.id,
+                        "estado": _estado_correccion_pago(
+                            compra, pago, cuotas
+                        )
+                    })
+                    if valido else ""
+                )
+            })
+
+    except (TypeError, ValueError) as error:
+        contexto["error"] = str(error)
+
+    return contexto
+
+
+@app.route(
+    "/superadmin/corregir_pago_cuotas",
+    methods=["POST"]
+)
+@login_required
+@superadmin_required
+def corregir_pago_cuotas():
+    destino = (
+        url_for("panel_superadmin") + "#correccion-pagos"
+    )
+
+    ruta_nueva = None
+    archivo_creado = False
+
+    try:
+        csrf = session.get("csrf_corregir_pago", "")
+        recibido = request.form.get("csrf_corregir_pago", "")
+
+        if not csrf or not secrets.compare_digest(csrf, recibido):
+            raise ValueError(
+                "El formulario venció. Busca nuevamente la compra."
+            )
+
+        firmador = URLSafeTimedSerializer(
+            app.config["SECRET_KEY"],
+            salt="corregir-pago-cuotas-v1"
+        )
+
+        datos = firmador.loads(
+            request.form.get("token_pago", ""),
+            max_age=1800
+        )
+
+        if (
+            not isinstance(datos, dict)
+            or datos.get("usuario_id") != current_user.id
+            or datos.get("csrf") != csrf
+        ):
+            raise ValueError(
+                "El formulario no corresponde a tu sesión. "
+                "Busca nuevamente la compra."
+            )
+
+        accion = request.form.get("accion", "")
+
+        if (
+            accion not in ("reemplazar", "deshacer")
+            or request.form.get("confirmacion") != "si"
+        ):
+            raise ValueError(
+                "Selecciona una acción y marca la casilla "
+                "de confirmación."
+            )
+
+        contenido = None
+
+        if accion == "reemplazar":
+            from PIL import Image, UnidentifiedImageError
+
+            archivo = request.files.get("voucher_nuevo")
+
+            if not archivo or not archivo.filename:
+                raise ValueError("Selecciona el nuevo voucher.")
+
+            contenido = archivo.read(10 * 1024 * 1024 + 1)
+
+            if (
+                not contenido
+                or len(contenido) > 10 * 1024 * 1024
+            ):
+                raise ValueError(
+                    "El voucher debe ser una imagen de hasta 10 MB."
+                )
+
+            try:
+                with Image.open(io.BytesIO(contenido)) as imagen:
+                    extension = {
+                        "JPEG": ".jpg",
+                        "PNG": ".png",
+                        "WEBP": ".webp"
+                    }.get(imagen.format)
+
+                    if (
+                        not extension
+                        or imagen.width * imagen.height > 30_000_000
+                    ):
+                        raise ValueError("Imagen no permitida.")
+
+                    imagen.verify()
+
+            except (
+                UnidentifiedImageError,
+                OSError,
+                ValueError,
+                Image.DecompressionBombError
+            ):
+                raise ValueError(
+                    "Selecciona una imagen JPG, PNG o WEBP válida."
+                )
+
+        compra = (
+            Compra.query
+            .filter_by(id=datos["compra_id"])
+            .populate_existing()
+            .with_for_update()
+            .first()
+        )
+
+        if (
+            not compra
+            or compra.anulada
+            or compra.forma_pago != "credito"
+        ):
+            raise ValueError(
+                "La compra ya no está vigente al crédito."
+            )
+
+        destino = url_for(
+            "panel_superadmin",
+            cp_lotizacion=compra.lote.lotizacion_id,
+            cp_manzana=compra.lote.manzana,
+            cp_numero=compra.lote.numero
+        ) + "#correccion-pagos"
+
+        pago = (
+            Pago.query
+            .filter_by(
+                id=datos["pago_id"],
+                compra_id=compra.id
+            )
+            .populate_existing()
+            .with_for_update()
+            .first()
+        )
+
+        if not pago:
+            raise ValueError(
+                "El pago ya no existe. Busca nuevamente la compra."
+            )
+
+        cuotas = (
+            Cuota.query
+            .filter_by(pago_id=pago.id)
+            .order_by(Cuota.id)
+            .populate_existing()
+            .with_for_update()
+            .all()
+        )
+
+        if not cuotas or any(
+            c.compra_id != compra.id or not c.pagada
+            for c in cuotas
+        ):
+            raise ValueError(
+                "Las cuotas asociadas al pago no son válidas "
+                "para esta corrección."
+            )
+
+        if (
+            _estado_correccion_pago(compra, pago, cuotas)
+            != datos["estado"]
+        ):
+            raise ValueError(
+                "La compra o el pago cambió. "
+                "Busca nuevamente y revisa los datos."
+            )
+
+        pago_id = pago.id
+        compra_id = compra.id
+        monto = pago.monto
+
+        if accion == "reemplazar":
+            carpeta = os.path.join(
+                app.static_folder, "bouchers"
+            )
+            os.makedirs(carpeta, exist_ok=True)
+
+            nombre = (
+                "voucher_" + uuid.uuid4().hex + extension
+            )
+            ruta_nueva = os.path.join(carpeta, nombre)
+
+            with open(ruta_nueva, "xb") as salida:
+                archivo_creado = True
+                salida.write(contenido)
+
+            # Cambiar únicamente el adjunto del pago.
+            pago.boucher = "bouchers/" + nombre
+
+        else:
+            # Dejar pendientes todas las cuotas de este pago.
+            for cuota in cuotas:
+                cuota.pagada = False
+                cuota.pago_id = None
+
+            db.session.flush()
+
+            # Retirar únicamente el pago seleccionado.
+            db.session.delete(pago)
+
+            compra.cancelado = False
+            compra.fecha_cancelacion = None
+
+        db.session.commit()
+
+    except (BadSignature, SignatureExpired):
+        db.session.rollback()
+
+        flash(
+            "La confirmación venció o no es válida. "
+            "Busca nuevamente la compra.",
+            "warning"
+        )
+        return redirect(destino)
+
+    except Exception as error:
+        db.session.rollback()
+
+        if archivo_creado:
+            try:
+                os.remove(ruta_nueva)
+            except OSError:
+                current_app.logger.exception(
+                    "No se pudo retirar el archivo nuevo "
+                    "tras el error."
+                )
+
+        if isinstance(error, ValueError):
+            flash(str(error), "warning")
+        else:
+            current_app.logger.exception(
+                "Error al corregir un pago de cuotas"
+            )
+            flash(
+                "No se pudo completar la corrección. "
+                "No se guardaron cambios.",
+                "danger"
+            )
+
+        return redirect(destino)
+
+    current_app.logger.info(
+        "Corrección de cuotas: usuario=%s accion=%s "
+        "compra=%s pago=%s monto=%s",
+        current_user.id, accion, compra_id, pago_id, monto
+    )
+
+    flash(
+        "Voucher reemplazado. El pago y las cuotas se conservan."
+        if accion == "reemplazar" else
+        "Pago deshecho. Sus cuotas quedaron pendientes. "
+        "La inicial se conservó; registra cada cuota "
+        "con su voucher correcto.",
+        "success"
+    )
+
+    return redirect(destino)
+
 
 @app.route("/superadmin")
 @login_required
@@ -2772,6 +3226,7 @@ def panel_superadmin():
         ultimas_compras=ultimas_compras,
         usuarios=usuarios,
         lotizaciones=lotizaciones,
+        correccion=_contexto_correccion_pagos(),
     )
 # ------------------- CONFIGURAR PLANO DE LOTIZACIÓN -------------------
 

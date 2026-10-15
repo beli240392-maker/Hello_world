@@ -64,6 +64,289 @@
   </div>
 </div>
 
+<!-- CORRECCIÓN DE PAGOS: SOLO SUPERADMIN -->
+<div class="card shadow-sm mb-4" id="correccion-pagos">
+  <div class="card-header bg-dark text-white">
+    🧾 Corregir pagos de cuotas
+  </div>
+
+  <div class="card-body">
+    <p class="text-muted small">
+      Busca una compra al crédito para revisar sus pagos.
+      La inicial y su voucher se conservan.
+    </p>
+
+    <form method="GET"
+          action="{{ url_for('panel_superadmin') }}#correccion-pagos"
+          class="row g-2 align-items-end">
+
+      <div class="col-12 col-md-5">
+        <label for="cp-proyecto" class="form-label">
+          Proyecto
+        </label>
+
+        <select id="cp-proyecto"
+                name="cp_lotizacion"
+                class="form-select"
+                required>
+          <option value="">Seleccionar proyecto</option>
+
+          {% for proyecto in lotizaciones %}
+            <option value="{{ proyecto.id }}"
+              {% if correccion.lotizacion|string == proyecto.id|string %}
+                selected
+              {% endif %}>
+              {{ proyecto.nombre }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="col-6 col-md-2">
+        <label for="cp-manzana" class="form-label">
+          Manzana
+        </label>
+
+        <input id="cp-manzana"
+               name="cp_manzana"
+               value="{{ correccion.manzana }}"
+               class="form-control"
+               required>
+      </div>
+
+      <div class="col-6 col-md-2">
+        <label for="cp-lote" class="form-label">
+          Lote
+        </label>
+
+        <input id="cp-lote"
+               name="cp_numero"
+               value="{{ correccion.numero }}"
+               class="form-control"
+               required>
+      </div>
+
+      <div class="col-12 col-md-3">
+        <button class="btn btn-primary w-100"
+                type="submit">
+          Buscar compra
+        </button>
+      </div>
+    </form>
+
+    {% if correccion.error %}
+      <div class="alert alert-warning mt-3 mb-0"
+           role="alert">
+        {{ correccion.error }}
+      </div>
+    {% endif %}
+
+    {% if correccion.compra %}
+      {% set compra_cp = correccion.compra %}
+
+      <div class="border rounded p-3 mt-3 bg-light">
+        <strong>
+          Compra #{{ compra_cp.id }}
+          · Mz {{ compra_cp.lote.manzana }}
+          · Lt {{ compra_cp.lote.numero }}
+        </strong>
+
+        <div>
+          {{ compra_cp.cliente.nombre }}
+          {{ compra_cp.cliente.apellidos }}
+          · DNI {{ compra_cp.cliente.dni }}
+        </div>
+
+        <div class="small text-muted">
+          Inicial que se conserva:
+          <strong>
+            S/ {{ '%.2f'|format(compra_cp.inicial or 0) }}
+          </strong>
+        </div>
+      </div>
+
+      {% for item in correccion.pagos %}
+        <div class="border rounded p-3 mt-3">
+
+          <div class="d-flex flex-wrap justify-content-between
+                      align-items-center gap-2">
+            <strong>
+              Pago #{{ item.pago.id }}
+              · S/ {{ '%.2f'|format(item.pago.monto) }}
+            </strong>
+
+            {% if item.pago.boucher %}
+              <a class="btn btn-sm btn-outline-primary"
+                 href="{{ url_for('static', filename=item.pago.boucher) }}"
+                 target="_blank"
+                 rel="noopener">
+                Ver voucher actual
+              </a>
+            {% else %}
+              <span class="text-muted small">
+                Sin voucher
+              </span>
+            {% endif %}
+          </div>
+
+          <div class="small text-muted mt-1">
+            Fecha registrada:
+            {{ item.pago.fecha_pago.strftime('%d/%m/%Y %H:%M')
+               if item.pago.fecha_pago else 'Sin fecha' }}
+          </div>
+
+          <div class="mt-2">
+            Cuotas asociadas:
+
+            {% for cuota_cp in item.cuotas %}
+              <span class="badge bg-secondary">
+                #{{ cuota_cp.numero }}
+                · S/ {{ '%.2f'|format(cuota_cp.monto) }}
+              </span>
+            {% else %}
+              <span class="text-muted">Ninguna</span>
+            {% endfor %}
+          </div>
+
+          {% if item.valido %}
+
+            {% if item.cuotas|length > 1 %}
+              <div class="alert alert-warning small mt-3 mb-0">
+                Este pago cubre {{ item.cuotas|length }} cuotas.
+                Reemplazar el voucher lo cambia en todas ellas.
+                Deshacer el pago deja todas esas cuotas pendientes.
+              </div>
+            {% endif %}
+
+            <div class="row g-3 mt-1">
+
+              <div class="col-12 col-lg-6">
+                <details class="border rounded p-3 h-100">
+                  <summary class="fw-semibold text-primary"
+                           style="cursor: pointer;">
+                    Reemplazar solo el voucher
+                  </summary>
+
+                  <p class="small text-muted mt-2">
+                    Conserva el monto, la fecha del pago
+                    y las cuotas pagadas.
+                  </p>
+
+                  <form method="POST"
+                        action="{{ url_for('corregir_pago_cuotas') }}"
+                        enctype="multipart/form-data">
+
+                    <input type="hidden"
+                           name="csrf_corregir_pago"
+                           value="{{ correccion.csrf }}">
+
+                    <input type="hidden"
+                           name="token_pago"
+                           value="{{ item.token }}">
+
+                    <input type="hidden"
+                           name="accion"
+                           value="reemplazar">
+
+                    <label for="cp-voucher-{{ item.pago.id }}"
+                           class="form-label small">
+                      Nuevo voucher
+                      (JPG, PNG o WEBP; hasta 10 MB)
+                    </label>
+
+                    <input id="cp-voucher-{{ item.pago.id }}"
+                           type="file"
+                           name="voucher_nuevo"
+                           accept="image/jpeg,image/png,image/webp"
+                           class="form-control form-control-sm"
+                           required>
+
+                    <label class="small d-block mt-2">
+                      <input type="checkbox"
+                             name="confirmacion"
+                             value="si"
+                             required>
+                      Confirmo que corresponde a este pago.
+                    </label>
+
+                    <button type="submit"
+                            class="btn btn-sm btn-primary mt-2">
+                      Guardar nuevo voucher
+                    </button>
+                  </form>
+                </details>
+              </div>
+
+              <div class="col-12 col-lg-6">
+                <details class="border border-danger rounded p-3 h-100">
+                  <summary class="fw-semibold text-danger"
+                           style="cursor: pointer;">
+                    Deshacer este pago
+                  </summary>
+
+                  <p class="small mt-2">
+                    Retira el pago de
+                    <strong>
+                      S/ {{ '%.2f'|format(item.pago.monto) }}
+                    </strong>
+                    y deja pendientes sus
+                    <strong>{{ item.cuotas|length }} cuota(s)</strong>.
+                    Después podrás registrarlas nuevamente
+                    con sus vouchers.
+                  </p>
+
+                  <form method="POST"
+                        action="{{ url_for('corregir_pago_cuotas') }}"
+                        onsubmit="return confirm('¿Deshacer este pago y dejar pendientes todas sus cuotas asociadas? La inicial se conserva.');">
+
+                    <input type="hidden"
+                           name="csrf_corregir_pago"
+                           value="{{ correccion.csrf }}">
+
+                    <input type="hidden"
+                           name="token_pago"
+                           value="{{ item.token }}">
+
+                    <input type="hidden"
+                           name="accion"
+                           value="deshacer">
+
+                    <label class="small d-block">
+                      <input type="checkbox"
+                             name="confirmacion"
+                             value="si"
+                             required>
+                      Confirmo que debo deshacer este pago.
+                    </label>
+
+                    <button type="submit"
+                            class="btn btn-sm btn-outline-danger mt-2">
+                      Deshacer pago y dejar cuotas pendientes
+                    </button>
+                  </form>
+                </details>
+              </div>
+
+            </div>
+
+          {% else %}
+            <div class="alert alert-warning small mt-3 mb-0">
+              Este pago no tiene cuotas pagadas asociadas
+              correctamente. Revisa el caso antes de modificarlo.
+            </div>
+          {% endif %}
+        </div>
+
+      {% else %}
+        <p class="text-muted mt-3 mb-0">
+          Esta compra todavía no tiene pagos de cuotas registrados.
+        </p>
+      {% endfor %}
+    {% endif %}
+  </div>
+</div>
+
+
 <div class="row g-4">
 
   <!-- COLUMNA IZQUIERDA -->

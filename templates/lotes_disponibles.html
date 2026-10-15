@@ -363,6 +363,32 @@
       gap: 10px !important;
     }
   }
+
+  .lotes-page .lote-btn.lote-credito {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .lotes-page .lote-btn.lote-credito::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 5px;
+    background: #0d6efd;
+    border-radius: 0 0 11px 11px;
+    pointer-events: none;
+  }
+
+  .lotes-page .credito-linea {
+    display: inline-block;
+    width: 20px;
+    height: 5px;
+    border-radius: 3px;
+    background: #0d6efd;
+    flex-shrink: 0;
+  }
 </style>
 
 <div class="container-fluid lotes-page px-0 px-md-2">
@@ -443,6 +469,12 @@
 
       <span class="legend-item">
         <span class="summary-dot dot-vendido"></span>Vendido
+      </span>
+
+      <span class="legend-item"
+            title="Franja azul en los botones de la vista Lista">
+        <span class="credito-linea me-2" aria-hidden="true"></span>
+        Venta al crédito
       </span>
     </div>
   </div>
@@ -600,7 +632,7 @@
   <section id="vista-lista"
            role="tabpanel"
            aria-labelledby="tab-lista">
-
+    
     <div class="row g-4">
       {% for manzana, lotes in manzanas.items() %}
         <div class="col-12 col-md-6 col-xl-4">
@@ -618,11 +650,18 @@
                 {% for lote in lotes %}
                   <div class="lote-item">
 
+                    {% set es_credito = lote.estado == 'vendido' and lote.id in lotes_credito %}
+
                     <a href="{{ url_for('detalle_lote', lote_id=lote.id) }}"
                        class="btn lote-btn
                               {% if lote.estado == 'disponible' %}btn-success
                               {% elif lote.estado == 'vendido' %}btn-danger
-                              {% else %}btn-warning{% endif %}">
+                              {% else %}btn-warning{% endif %}
+                              {% if es_credito %}lote-credito{% endif %}"
+                       {% if es_credito %}
+                         title="Venta al crédito"
+                         aria-label="Lote {{ lote.manzana }}-{{ lote.numero }}, vendido al crédito"
+                       {% endif %}>
                       Lt {{ lote.numero }}
                     </a>
 
