@@ -2238,196 +2238,377 @@ def get_cliente_por_dni():
 @login_required
 @lotizacion_required
 def exportar_ventas():
-    """Exporta las ventas a Excel con TODA la información del cliente"""
-    
+    """Exporta ventas y separaciones del proyecto seleccionado."""
+
     import openpyxl
-    from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
+    from openpyxl.styles import (
+        Font, PatternFill, Border, Side, Alignment
+    )
     from openpyxl.utils import get_column_letter
+    from sqlalchemy.orm import selectinload
     from io import BytesIO
-    
+
     lotizacion_id = session.get("lotizacion_id")
 
     if not lotizacion_id:
-        flash("No hay una lotización activa seleccionada.", "warning")
+        flash(
+            "No hay una lotización activa seleccionada.",
+            "warning"
+        )
         return redirect(url_for("home"))
 
-    # Obtener parámetro de fecha si existe, sino traer TODAS las compras
-    fecha_str = request.args.get("fecha")
-    
+    fecha = None
+    fecha_str = request.args.get("fecha", "").strip()
+
     if fecha_str:
         try:
-            fecha = datetime.strptime(fecha_str, "%Y-%m-%d").date()
-            # Filtrar por fecha específica
-            compras = (
-                Compra.query
-                .filter(db.func.date(Compra.fecha_compra) == fecha)
-                .join(Lote)
-                .filter(Lote.lotizacion_id == lotizacion_id)
-                .order_by(Compra.fecha_compra.desc())
-                .all()
-            )
-            titulo_fecha = f" - {fecha.strftime('%d/%m/%Y')}"
-        except:
-            # Si la fecha es inválida, traer todas
-            compras = (
-                Compra.query
-                .join(Lote)
-                .filter(Lote.lotizacion_id == lotizacion_id)
-                .order_by(Compra.fecha_compra.desc())
-                .all()
-            )
-            titulo_fecha = " - Todas"
-    else:
-        # Traer TODAS las compras de la lotización
-        compras = (
-            Compra.query
-            .join(Lote)
-            .filter(Lote.lotizacion_id == lotizacion_id)
-            .order_by(Compra.fecha_compra.desc())
-            .all()
+            fecha = datetime.strptime(
+                fecha_str, "%Y-%m-%d"
+            ).date()
+        except ValueError:
+            pass
+
+    compras_query = (
+        Compra.query
+        .join(Lote, Compra.lote_id == Lote.id)
+        .filter(Lote.lotizacion_id == lotizacion_id)
+        .options(
+            selectinload(Compra.cliente),
+            selectinload(Compra.lote),
+            selectinload(Compra.usuario),
+            selectinload(Compra.cuotas)
         )
-        titulo_fecha = " - Todas"
-
-    # Crear un libro de Excel
-    wb = openpyxl.Workbook()
-    ws = wb.active
-    ws.title = "Ventas"
-
-    # Estilos
-    header_fill = PatternFill(start_color="1a5f3a", end_color="1a5f3a", fill_type="solid")
-    header_font = Font(bold=True, color="FFFFFF", size=10)
-    border = Border(
-        left=Side(style='thin'),
-        right=Side(style='thin'),
-        top=Side(style='thin'),
-        bottom=Side(style='thin')
     )
-    
-    # Título en la primera fila
-    title_cell = ws.cell(row=1, column=1, value=f"📊 REPORTE DE VENTAS{titulo_fecha}")
-    title_cell.font = Font(bold=True, size=14, color="1a5f3a")
-    ws.merge_cells("A1:Z1")
-    
-    # Fila vacía
-    ws.row_dimensions[2].height = 5
 
-    # ✨ TODOS LOS ENCABEZADOS DEL CLIENTE + COMPRA
-    headers = [
-        # Información del Cliente
-        "Nombres", "Apellidos", "DNI", "Teléfono", "Correo", 
-        "Dirección", "Ciudad", "Estado Civil", "Ocupación",
-        
-        # Información de la Compra
-        "Lote", "Forma Pago", "Precio Total", "Inicial", 
-        "Cuota Monto", "Cuotas Total", "Cuotas Pagadas",
-        
-        # Fechas y Vendedor
-        "Fecha Compra", "Vendedor"
+    separaciones_query = (
+        Separacion.query
+        .join(Lote, Separacion.lote_id == Lote.id)
+        .filter(Lote.lotizacion_id == lotizacion_id)
+        .options(
+            selectinload(Separacion.cliente),
+            selectinload(Separacion.lote),
+            selectinload(Separacion.usuario)
+        )
+    )
+
+    if fecha:
+        compras_query = compras_query.filter(
+            db.func.date(Compra.fecha_compra) == fecha
+        )
+        separaciones_query = separaciones_query.filter(
+            db.func.date(Separacion.fecha) == fecha
+        )
+
+    compras = (
+        compras_query
+        .order_by(Compra.fecha_compra.desc(), Compra.id.desc())
+        .all()
+    )
+
+    separaciones = (
+        separaciones_query
+        .order_by(Separacion.fecha.desc(), Separacion.id.desc())
+        .all()
+    )
+
+    titulo_fecha = (
+        " - " + fecha.strftime("%d/%m/%Y")
+        if fecha else " - Todas"
+    )
+
+    campos_cliente = [
+        ("Nombres", "nombre"),
+        ("Apellidos", "apellidos"),
+        ("DNI", "dni"),
+        ("Teléfono", "telefono"),
+        ("Correo", "correo"),
+        ("Dirección", "direccion"),
+        ("Ciudad", "ciudad"),
+        ("Provincia", "provincia"),
+        ("Departamento", "departamento"),
+        ("Estado Civil", "estado_civil"),
+        ("Ocupación", "ocupacion")
     ]
 
-    for col, header in enumerate(headers, 1):
-        cell = ws.cell(row=3, column=col, value=header)
-        cell.fill = header_fill
-        cell.font = header_font
-        cell.border = border
-        cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+    encabezados_cliente = [
+        etiqueta for etiqueta, campo in campos_cliente
+    ]
 
-    # Datos de ventas
-    for row_idx, compra in enumerate(compras, 4):
-        col = 1
-        
-        # ✨ INFORMACIÓN DEL CLIENTE
-        ws.cell(row=row_idx, column=col, value=compra.cliente.nombre or "").border = border
-        col += 1
-        ws.cell(row=row_idx, column=col, value=compra.cliente.apellidos or "").border = border
-        col += 1
-        ws.cell(row=row_idx, column=col, value=compra.cliente.dni or "").border = border
-        col += 1
-        ws.cell(row=row_idx, column=col, value=compra.cliente.telefono or "").border = border
-        col += 1
-        ws.cell(row=row_idx, column=col, value=compra.cliente.correo or "").border = border
-        col += 1
-        ws.cell(row=row_idx, column=col, value=compra.cliente.direccion or "").border = border
-        col += 1
-        ws.cell(row=row_idx, column=col, value=compra.cliente.ciudad or "").border = border
-        col += 1
-        ws.cell(row=row_idx, column=col, value=compra.cliente.estado_civil or "").border = border
-        col += 1
-        ws.cell(row=row_idx, column=col, value=compra.cliente.ocupacion or "").border = border
-        col += 1
-        
-        # ✨ INFORMACIÓN DE LA COMPRA
-        ws.cell(row=row_idx, column=col, value=f"Mz {compra.lote.manzana} - Lt {compra.lote.numero}").border = border
-        col += 1
-        ws.cell(row=row_idx, column=col, value=compra.forma_pago.upper()).border = border
-        col += 1
-        ws.cell(row=row_idx, column=col, value=compra.precio).border = border
-        col += 1
-        ws.cell(row=row_idx, column=col, value=compra.inicial if compra.forma_pago == "credito" else compra.precio).border = border
-        col += 1
-        ws.cell(row=row_idx, column=col, value=compra.cuota_monto if compra.forma_pago == "credito" else 0).border = border
-        col += 1
-        ws.cell(row=row_idx, column=col, value=compra.cuotas_total if compra.forma_pago == "credito" else 0).border = border
-        col += 1
-        
-        # Contar cuotas pagadas
-        cuotas_pagadas = len([c for c in compra.cuotas if c.pagada]) if compra.cuotas else 0
-        ws.cell(row=row_idx, column=col, value=cuotas_pagadas).border = border
-        col += 1
-        
-        # ✨ FECHAS Y VENDEDOR
-        ws.cell(row=row_idx, column=col, value=compra.fecha_compra.strftime('%d/%m/%Y %H:%M')).border = border
-        col += 1
-        ws.cell(row=row_idx, column=col, value=compra.usuario.username if compra.usuario else "").border = border
+    encabezados_ventas = encabezados_cliente + [
+        "Lote",
+        "Forma Pago",
+        "Precio Total",
+        "Inicial",
+        "Cuota Monto",
+        "Cuotas Total",
+        "Cuotas Pagadas",
+        "Fecha Compra",
+        "Vendedor",
+        "Estado Venta",
+        "Interés (%)",
+        "Compra Pagada",
+        "Fecha Pago Total",
+        "Lote Entregado",
+        "Comentario"
+    ]
 
-    # Añadir fila de totales
-    if compras:
-        total_row = len(compras) + 4
-        
-        total_precio = sum([c.precio for c in compras])
-        total_inicial = sum([c.inicial if c.forma_pago == "credito" else c.precio for c in compras])
-        total_cuota_monto = sum([c.cuota_monto if c.forma_pago == "credito" else 0 for c in compras])
-        
-        ws.cell(row=total_row, column=1, value="TOTAL").font = Font(bold=True, size=11)
-        ws.cell(row=total_row, column=12, value=total_precio).font = Font(bold=True, size=11)
-        ws.cell(row=total_row, column=13, value=total_inicial).font = Font(bold=True, size=11)
-        ws.cell(row=total_row, column=14, value=total_cuota_monto).font = Font(bold=True, size=11)
-        
-        for col in range(1, len(headers) + 1):
-            ws.cell(row=total_row, column=col).border = border
-            ws.cell(row=total_row, column=col).fill = PatternFill(start_color="e8f0ff", end_color="e8f0ff", fill_type="solid")
+    encabezados_separaciones = encabezados_cliente + [
+        "Lote",
+        "Monto Separación",
+        "Fecha Separación",
+        "Vendedor",
+        "Estado Separación"
+    ]
 
-    # Ajustar ancho de columnas
-    for col in range(1, len(headers) + 1):
-        max_length = 0
-        column_letter = get_column_letter(col)
-        for cell in ws[column_letter]:
-            try:
-                if len(str(cell.value)) > max_length:
-                    max_length = len(str(cell.value))
-            except:
-                pass
-        adjusted_width = min(max_length + 2, 50)
-        ws.column_dimensions[column_letter].width = adjusted_width
+    borde = Border(**{
+        lado: Side(style="thin")
+        for lado in ("left", "right", "top", "bottom")
+    })
 
-    # Guardar en memoria
+    fondo_cabecera = PatternFill(
+        "solid", fgColor="1a5f3a"
+    )
+    fondo_total = PatternFill(
+        "solid", fgColor="e8f0ff"
+    )
+
+    wb = openpyxl.Workbook()
+
+    ws_ventas = wb.active
+    ws_ventas.title = "Ventas"
+
+    ws_separaciones = wb.create_sheet("Separaciones")
+
+    def escribir_fila(ws, numero, valores):
+        for columna, valor in enumerate(valores, 1):
+            celda = ws.cell(
+                row=numero,
+                column=columna,
+                value=valor
+            )
+            celda.border = borde
+
+            # Conservar los textos tal como están registrados.
+            if isinstance(valor, str):
+                celda.data_type = "s"
+
+    def preparar_hoja(ws, titulo, encabezados):
+        ws.cell(
+            1, 1, titulo + titulo_fecha
+        ).font = Font(
+            bold=True,
+            size=14,
+            color="1a5f3a"
+        )
+
+        ws.merge_cells(
+            start_row=1,
+            start_column=1,
+            end_row=1,
+            end_column=len(encabezados)
+        )
+
+        ws.row_dimensions[2].height = 5
+        escribir_fila(ws, 3, encabezados)
+
+        for celda in ws[3]:
+            celda.fill = fondo_cabecera
+            celda.font = Font(
+                bold=True,
+                color="FFFFFF",
+                size=10
+            )
+            celda.alignment = Alignment(
+                horizontal="center",
+                vertical="center",
+                wrap_text=True
+            )
+
+    def datos_cliente(cliente):
+        return [
+            getattr(cliente, campo, None) or ""
+            for etiqueta, campo in campos_cliente
+        ]
+
+    def fecha_texto(valor):
+        return (
+            valor.strftime("%d/%m/%Y %H:%M")
+            if valor else ""
+        )
+
+    def finalizar_hoja(ws, encabezados, totales):
+        ultima_fila = ws.max_row
+        ultima_columna = get_column_letter(
+            len(encabezados)
+        )
+
+        ws.freeze_panes = "A4"
+        ws.auto_filter.ref = (
+            f"A3:{ultima_columna}{ultima_fila}"
+        )
+
+        if ultima_fila >= 4:
+            fila_total = ultima_fila + 1
+
+            escribir_fila(
+                ws,
+                fila_total,
+                ["TOTAL"] + [None] * (len(encabezados) - 1)
+            )
+
+            for etiqueta, monto in totales.items():
+                columna = encabezados.index(etiqueta) + 1
+                ws.cell(fila_total, columna, monto)
+
+            for celda in ws[fila_total]:
+                celda.fill = fondo_total
+                celda.font = Font(
+                    bold=True,
+                    size=11
+                )
+
+        for columna, etiqueta in enumerate(encabezados, 1):
+            letra = get_column_letter(columna)
+
+            longitud = max(
+                len(str(ws.cell(fila, columna).value or ""))
+                for fila in range(3, ws.max_row + 1)
+            )
+
+            ws.column_dimensions[letra].width = min(
+                max(longitud + 2, 12),
+                50
+            )
+
+            if etiqueta in ("DNI", "Teléfono"):
+                for fila in range(4, ultima_fila + 1):
+                    ws.cell(
+                        fila, columna
+                    ).number_format = "@"
+
+            if etiqueta in (
+                "Precio Total",
+                "Inicial",
+                "Cuota Monto",
+                "Monto Separación"
+            ):
+                for fila in range(4, ws.max_row + 1):
+                    ws.cell(
+                        fila, columna
+                    ).number_format = "#,##0.00"
+
+    # ---------------- VENTAS ----------------
+    preparar_hoja(
+        ws_ventas,
+        "REPORTE DE VENTAS",
+        encabezados_ventas
+    )
+
+    for fila, compra in enumerate(compras, 4):
+        credito = compra.forma_pago == "credito"
+
+        escribir_fila(
+            ws_ventas,
+            fila,
+            datos_cliente(compra.cliente) + [
+                f"Mz {compra.lote.manzana} - Lt {compra.lote.numero}",
+                (compra.forma_pago or "").upper(),
+                compra.precio,
+                compra.inicial if credito else compra.precio,
+                compra.cuota_monto if credito else 0,
+                compra.cuotas_total if credito else 0,
+                sum(
+                    1 for cuota in compra.cuotas
+                    if cuota.pagada
+                ),
+                fecha_texto(compra.fecha_compra),
+                (
+                    compra.usuario.username
+                    if compra.usuario else ""
+                ),
+                "Anulada" if compra.anulada else "Vigente",
+                compra.interes or 0,
+                "Sí" if compra.cancelado else "No",
+                fecha_texto(compra.fecha_cancelacion),
+                "Sí" if compra.entregado else "No",
+                compra.comentario or ""
+            ]
+        )
+
+    finalizar_hoja(
+        ws_ventas,
+        encabezados_ventas,
+        {
+            "Precio Total": sum(
+                c.precio or 0 for c in compras
+            ),
+            "Inicial": sum(
+                (c.inicial or 0)
+                if c.forma_pago == "credito"
+                else (c.precio or 0)
+                for c in compras
+            ),
+            "Cuota Monto": sum(
+                (c.cuota_monto or 0)
+                if c.forma_pago == "credito"
+                else 0
+                for c in compras
+            )
+        }
+    )
+
+    # ---------------- SEPARACIONES ----------------
+    preparar_hoja(
+        ws_separaciones,
+        "REPORTE DE SEPARACIONES",
+        encabezados_separaciones
+    )
+
+    for fila, separacion in enumerate(separaciones, 4):
+        escribir_fila(
+            ws_separaciones,
+            fila,
+            datos_cliente(separacion.cliente) + [
+                f"Mz {separacion.lote.manzana} - Lt {separacion.lote.numero}",
+                separacion.monto,
+                fecha_texto(separacion.fecha),
+                (
+                    separacion.usuario.username
+                    if separacion.usuario else ""
+                ),
+                "Activa" if separacion.activa else "Inactiva"
+            ]
+        )
+
+    finalizar_hoja(
+        ws_separaciones,
+        encabezados_separaciones,
+        {
+            "Monto Separación": sum(
+                s.monto or 0 for s in separaciones
+            )
+        }
+    )
+
+    # Preparar el archivo para descargar.
     excel_buffer = BytesIO()
     wb.save(excel_buffer)
     excel_buffer.seek(0)
 
-    # Descargar
-    from flask import send_file
-    
-    if fecha_str:
-        nombre_archivo = f'ventas_{fecha_str}.xlsx'
-    else:
-        nombre_archivo = f'ventas_todas_{datetime.now().strftime("%d%m%Y")}.xlsx'
-    
+    sufijo = (
+        fecha.isoformat()
+        if fecha
+        else "todas_" + datetime.now().strftime("%d%m%Y")
+    )
+
     return send_file(
         excel_buffer,
-        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        mimetype=(
+            "application/vnd.openxmlformats-officedocument."
+            "spreadsheetml.sheet"
+        ),
         as_attachment=True,
-        download_name=nombre_archivo
+        download_name=f"ventas_y_separaciones_{sufijo}.xlsx"
     )
 
 @app.route("/vouchers", methods=["GET", "POST"])
