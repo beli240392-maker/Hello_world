@@ -332,6 +332,20 @@
         </div>
       </div>
 
+      {% if current_user.rol == 'superadmin'
+            and compra.forma_pago == 'credito'
+            and not compra.anulada and not compra.cancelado
+            and cuotas_ordenadas and cuotas_pagadas == 0
+            and not compra.pagos
+            and (cuotas_ordenadas|selectattr('pago_id', 'ne', none)|list|length == 0) %}
+
+        <a href="{{ url_for('editar_cronograma', compra_id=compra.id) }}"
+           class="btn btn-outline-primary btn-sm">
+          ✏️ Modificar cronograma
+        </a>
+
+      {% endif %}
+
       {% if cuotas_vencidas %}
         <span class="badge text-bg-danger">{{ cuotas_vencidas|length }} vencida(s)</span>
       {% endif %}
@@ -400,6 +414,9 @@
                         class="d-flex flex-column gap-1 payment-form">
 
                     <input type="hidden" name="cuota_id" value="{{ cuota.id }}">
+                    <input type="hidden"
+                           name="monto_cuota_esperado"
+                           value="{{ cuota.monto }}">
 
                     <input type="file"
                            name="boucher_cuota"

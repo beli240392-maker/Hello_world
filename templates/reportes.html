@@ -1,207 +1,1044 @@
 {% extends "base.html" %}
 {% block content %}
-<h2>📊 Reportes</h2>
 
-<!-- Filtro por fecha -->
-<form method="get" class="mb-3 d-flex align-items-center gap-2">
-  <input type="date" name="fecha" class="form-control w-auto" value="{{ fecha }}">
-  <button type="submit" class="btn btn-primary">Filtrar</button>
-</form>
-<a href="{{ url_for('exportar_ventas') }}" class="btn btn-success float-end mb-3">
-  📤 Exportar Ventas
-</a>
+<style>
+  .reportes-page {
+    --rp-blue: #1763eb;
+    --rp-ink: #172b4d;
+    --rp-muted: #65758d;
+    color: var(--rp-ink);
+    padding-bottom: 24px;
+  }
 
-<div class="row mb-4 text-center">
-  <div class="col-md-3">
-    <div class="card border-danger">
-      <div class="card-body">
-        <h6 class="card-title">Separaciones activas</h6>
-        <h3 class="text-danger">{{ separaciones|length }}</h3>
-      </div>
+  .reportes-page * {
+    box-sizing: border-box;
+  }
+
+    .reportes-page .rp-hero {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 20px;
+    padding: 28px;
+    border: 1px solid #e5eaf1;
+    border-radius: 22px;
+    background: linear-gradient(110deg, #fff, #f7f9fc);
+    color: #172b4d;
+    box-shadow: 0 12px 30px #172b4d06;
+  }
+
+  .reportes-page .rp-hero-main {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    min-width: 0;
+  }
+
+  .reportes-page .rp-hero-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 60px;
+    width: 60px;
+    height: 60px;
+    border-radius: 19px;
+    background: #0d6efd;
+    font-size: 28px;
+  }
+
+  .reportes-page .rp-kicker {
+    margin-bottom: 5px;
+    color: #0d6efd;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: .7px;
+    text-transform: uppercase;
+  }
+
+  .reportes-page .rp-hero h2 {
+    margin: 0 0 6px;
+    color: #182230;
+    font-size: clamp(26px, 3vw, 36px);
+    font-weight: 800;
+    line-height: 1.2;
+  }
+
+  .reportes-page .rp-hero p {
+    margin: 0;
+    color: #65758d;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  .reportes-page .rp-export {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 11px 17px;
+    border: 1px solid #0d6efd;
+    border-radius: 12px;
+    background: #0d6efd;
+    color: #fff;
+    text-decoration: none;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  .reportes-page .rp-export:hover {
+    border-color: #0b5ed7;
+    background: #0b5ed7;
+    color: #fff;
+  }
+
+  .reportes-page .rp-filter {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: end;
+    gap: 14px;
+    margin: 20px 0;
+    padding: 18px 22px;
+    border: 1px solid #e3eaf4;
+    border-radius: 16px;
+    background: #fff;
+  }
+
+  .reportes-page .rp-filter label {
+    display: block;
+    margin-bottom: 6px;
+    color: var(--rp-ink);
+    font-size: 12px;
+    font-weight: 800;
+  }
+
+  .reportes-page .rp-filter input {
+    min-height: 42px;
+    padding: 8px 12px;
+    border: 1px solid #ccd7e8;
+    border-radius: 10px;
+    background: #fff;
+    color: var(--rp-ink);
+    font: inherit;
+  }
+
+  .reportes-page .rp-filter button {
+    min-height: 42px;
+    padding: 9px 20px;
+    border: 0;
+    border-radius: 10px;
+    background: var(--rp-blue);
+    color: #fff;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .reportes-page .rp-filter button:hover {
+    background: #104ec0;
+  }
+
+  .reportes-page .rp-filter-note {
+    flex: 1 1 280px;
+    margin: 0 0 2px auto;
+    color: var(--rp-muted);
+    font-size: 12px;
+    line-height: 1.6;
+  }
+
+  .reportes-page .rp-stats {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+    margin-bottom: 22px;
+  }
+
+  .reportes-page .rp-stat {
+    position: relative;
+    overflow: hidden;
+    padding: 20px;
+    border: 1px solid #e3eaf4;
+    border-radius: 17px;
+    background: #fff;
+    box-shadow: 0 6px 18px #172b4d05;
+  }
+
+  .reportes-page .rp-stat::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 4px;
+    background: var(--rp-accent);
+  }
+
+  .reportes-page .rp-stat-label {
+    color: var(--rp-muted);
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .reportes-page .rp-stat-value {
+    display: block;
+    margin: 8px 0 3px;
+    color: var(--rp-accent);
+    font-size: 33px;
+    line-height: 1.1;
+    font-weight: 800;
+  }
+
+  .reportes-page .rp-stat small {
+    color: var(--rp-muted);
+    font-size: 11px;
+  }
+
+  .reportes-page .rp-tabs {
+    display: flex;
+    gap: 7px;
+    overflow-x: auto;
+    margin-bottom: 16px;
+    padding: 6px;
+    border: 1px solid #e3eaf4;
+    border-radius: 14px;
+    background: #eef3fa;
+  }
+
+  .reportes-page .rp-tab {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 1 0 auto;
+    gap: 8px;
+    min-height: 43px;
+    padding: 10px 14px;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: #536681;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  .reportes-page .rp-tab:hover {
+    background: #e0eafa;
+  }
+
+  .reportes-page .rp-tab[aria-selected="true"] {
+    background: var(--rp-blue);
+    color: #fff;
+    box-shadow: 0 4px 10px #1763eb25;
+  }
+
+  .reportes-page .rp-count {
+    padding: 2px 7px;
+    border-radius: 7px;
+    background: #ffffff80;
+    color: #23466f;
+    font-size: 11px;
+  }
+
+  .reportes-page .rp-tab[aria-selected="true"] .rp-count {
+    background: #ffffff26;
+    color: #fff;
+  }
+
+  .reportes-page .rp-panel {
+    margin-bottom: 18px;
+    overflow: hidden;
+    border: 1px solid #e3eaf4;
+    border-radius: 18px;
+    background: #fff;
+    box-shadow: 0 7px 24px #172b4d06;
+  }
+
+  .reportes-page .rp-panel[hidden] {
+    display: none !important;
+  }
+
+  .reportes-page .rp-panel-head {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 22px 24px;
+    border-bottom: 1px solid #e9eef6;
+  }
+
+  .reportes-page .rp-panel h3 {
+    margin: 0 0 5px;
+    color: var(--rp-ink);
+    font-size: 18px;
+    font-weight: 800;
+  }
+
+  .reportes-page .rp-panel-head p {
+    margin: 0;
+    color: var(--rp-muted);
+    font-size: 12px;
+  }
+
+  .reportes-page .rp-tag {
+    padding: 7px 11px;
+    border-radius: 9px;
+    background: #edf4ff;
+    color: #1c5ac1;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .reportes-page .rp-table-wrap {
+    overflow-x: auto;
+  }
+
+  .reportes-page .rp-table {
+    width: 100%;
+    margin: 0;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+
+  .reportes-page .rp-table th {
+    padding: 13px 18px;
+    background: #f3f6fb;
+    color: #536681;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: .6px;
+    text-transform: uppercase;
+    white-space: nowrap;
+    text-align: left;
+  }
+
+  .reportes-page .rp-table td {
+    padding: 16px 18px;
+    border-top: 1px solid #edf1f7;
+    vertical-align: middle;
+  }
+
+  .reportes-page .rp-table tbody tr:hover {
+    background: #f7faff;
+  }
+
+  .reportes-page .rp-client {
+    min-width: 190px;
+    font-weight: 700;
+  }
+
+  .reportes-page .rp-phone {
+    white-space: nowrap;
+    color: #536681;
+  }
+
+  .reportes-page .rp-lot {
+    display: inline-block;
+    padding: 5px 8px;
+    border: 1px solid #dce7f8;
+    border-radius: 7px;
+    background: #f1f6ff;
+    color: #245ba7;
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  .reportes-page .rp-money {
+    font-weight: 800;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .reportes-page .rp-date {
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .reportes-page .rp-badge {
+    display: inline-block;
+    padding: 5px 9px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  .reportes-page .rp-blue {
+    background: #eaf2ff;
+    color: #1c5ac1;
+  }
+
+  .reportes-page .rp-red {
+    background: #fff0f1;
+    color: #c12e43;
+  }
+
+  .reportes-page .rp-amber {
+    background: #fff6d7;
+    color: #8c6000;
+  }
+
+  .reportes-page .rp-table .rp-empty {
+    padding: 42px 20px;
+    color: var(--rp-muted);
+    text-align: center;
+  }
+
+  .reportes-page button:focus-visible,
+  .reportes-page a:focus-visible,
+  .reportes-page input:focus-visible {
+    outline: 3px solid #62a1ff;
+    outline-offset: 3px;
+  }
+
+  @media (max-width: 900px) {
+    .reportes-page .rp-stats {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 575px) {
+    .reportes-page .rp-hero {
+      align-items: flex-start;
+      flex-direction: column;
+      padding: 22px 20px;
+    }
+
+    .reportes-page .rp-export {
+      width: 100%;
+    }
+
+    .reportes-page .rp-filter {
+      padding: 16px;
+      gap: 12px;
+    }
+
+    .reportes-page .rp-filter-field {
+      flex: 1 1 160px;
+    }
+
+    .reportes-page .rp-filter input {
+      width: 100%;
+    }
+
+    .reportes-page .rp-stats {
+      gap: 10px;
+    }
+
+    .reportes-page .rp-stat {
+      padding: 16px 13px;
+    }
+
+    .reportes-page .rp-stat-value {
+      font-size: 28px;
+    }
+
+    .reportes-page .rp-panel-head {
+      padding: 18px;
+    }
+  }
+</style>
+
+<div class="reportes-page" id="reportes-page">
+
+  <!-- ENCABEZADO -->
+  <header class="rp-hero">
+    <div>
+      <div class="rp-kicker">Control de Ventas</div>
+
+      <h2>Reportes y cobranza</h2>
+
+      <p>
+        Consulta las ventas, las separaciones y los vencimientos
+        del proyecto activo.
+      </p>
     </div>
-  </div>
-  <div class="col-md-3">
-    <div class="card border-success">
-      <div class="card-body">
-        <h6 class="card-title">Ventas al contado</h6>
-        <h3 class="text-success">{{ compras_contado|length }}</h3>
-      </div>
+
+    <a class="rp-export"
+       href="{{ url_for('exportar_ventas') }}">
+      ↗ Exportar Excel
+    </a>
+  </header>
+
+  <!-- FILTRO -->
+  <form method="get" class="rp-filter">
+
+    <div class="rp-filter-field">
+      <label for="rp-fecha">Fecha de consulta</label>
+
+      <input type="date"
+             id="rp-fecha"
+             name="fecha"
+             value="{{ fecha }}">
     </div>
-  </div>
-  <div class="col-md-3">
-    <div class="card border-warning">
-      <div class="card-body">
-        <h6 class="card-title">Ventas a crédito</h6>
-        <h3 class="text-warning">{{ compras_credito|length }}</h3>
-      </div>
+
+    <button type="submit">Consultar</button>
+
+    <p class="rp-filter-note">
+      Ventas del día seleccionado y cuotas según esa fecha.<br>
+      Las separaciones muestran su estado activo actual.
+    </p>
+
+  </form>
+
+  <!-- RESUMEN -->
+  <div class="rp-stats">
+
+    <div class="rp-stat" style="--rp-accent: #dc3754;">
+      <div class="rp-stat-label">Separaciones activas</div>
+      <strong class="rp-stat-value">
+        {{ separaciones|length }}
+      </strong>
+      <small>Estado actual del proyecto</small>
     </div>
-  </div>
-  <div class="col-md-3">
-    <div class="card border-dark">
-      <div class="card-body">
-        <h6 class="card-title">Cuotas vencidas</h6>
-        <h3 class="text-dark">{{ cuotas_vencidas|length }}</h3>
-      </div>
+
+    <div class="rp-stat" style="--rp-accent: #14845b;">
+      <div class="rp-stat-label">Ventas al contado</div>
+      <strong class="rp-stat-value">
+        {{ compras_contado|length }}
+      </strong>
+      <small>Del día seleccionado</small>
     </div>
+
+    <div class="rp-stat" style="--rp-accent: #a97400;">
+      <div class="rp-stat-label">Ventas a crédito</div>
+      <strong class="rp-stat-value">
+        {{ compras_credito|length }}
+      </strong>
+      <small>Del día seleccionado</small>
+    </div>
+
+    <div class="rp-stat" style="--rp-accent: #1763eb;">
+      <div class="rp-stat-label">Cuotas vencidas</div>
+      <strong class="rp-stat-value">
+        {{ cuotas_vencidas|length }}
+      </strong>
+      <small>Pendientes según fecha consultada</small>
+    </div>
+
   </div>
+
+  <!-- PESTAÑAS -->
+  <div class="rp-tabs" aria-label="Secciones de reportes">
+
+    <button type="button"
+            class="rp-tab"
+            id="rp-tab-separaciones"
+            aria-controls="rp-separaciones">
+      Separaciones
+      <span class="rp-count">{{ separaciones|length }}</span>
+    </button>
+
+    <button type="button"
+            class="rp-tab"
+            id="rp-tab-contado"
+            aria-controls="rp-contado">
+      Al contado
+      <span class="rp-count">{{ compras_contado|length }}</span>
+    </button>
+
+    <button type="button"
+            class="rp-tab"
+            id="rp-tab-credito"
+            aria-controls="rp-credito">
+      A crédito
+      <span class="rp-count">{{ compras_credito|length }}</span>
+    </button>
+
+    <button type="button"
+            class="rp-tab"
+            id="rp-tab-vencidas"
+            aria-controls="rp-vencidas">
+      Vencidas
+      <span class="rp-count">{{ cuotas_vencidas|length }}</span>
+    </button>
+
+    <button type="button"
+            class="rp-tab"
+            id="rp-tab-proximas"
+            aria-controls="rp-proximas">
+      Por vencer
+      <span class="rp-count">{{ cuotas_por_vencer|length }}</span>
+    </button>
+
+  </div>
+
+  <!-- SEPARACIONES -->
+  <section class="rp-panel"
+           id="rp-separaciones"
+           aria-labelledby="rp-tab-separaciones">
+
+    <div class="rp-panel-head">
+      <div>
+        <h3>Separaciones activas</h3>
+        <p>Clientes con una separación activa en el proyecto.</p>
+      </div>
+      <span class="rp-tag">{{ separaciones|length }} registros</span>
+    </div>
+
+    <div class="rp-table-wrap">
+      <table id="tabla-separaciones"
+             class="rp-table"
+             aria-label="Separaciones activas">
+
+        <thead>
+          <tr>
+            <th scope="col">Cliente</th>
+            <th scope="col">Teléfono</th>
+            <th scope="col">Lote</th>
+            <th scope="col">Monto</th>
+            <th scope="col">Fecha</th>
+            <th scope="col">Días activos</th>
+            <th scope="col">Vendedor</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {% for s in separaciones %}
+          <tr>
+            <td class="rp-client">
+              {{ s.cliente.nombre }} {{ s.cliente.apellidos }}
+            </td>
+
+            <td class="rp-phone">
+              {{ s.cliente.telefono or 'Sin teléfono' }}
+            </td>
+
+            <td>
+              <span class="rp-lot">
+                Mz {{ s.lote.manzana }} · Lt {{ s.lote.numero }}
+              </span>
+            </td>
+
+            <td class="rp-money">
+              S/ {{ "%.2f"|format(s.monto) }}
+            </td>
+
+            <td class="rp-date">
+              {{ s.fecha.strftime("%d/%m/%Y") }}
+            </td>
+
+            <td>
+              {% set dias = (fecha_datetime.date() - s.fecha.date()).days %}
+              <span class="rp-badge rp-blue">
+                {{ dias if dias >= 0 else 0 }} días
+              </span>
+            </td>
+
+            <td>
+              {{ s.usuario.username if s.usuario else "No registrado" }}
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="7" class="rp-empty">
+              No hay separaciones activas en este proyecto.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+
+      </table>
+    </div>
+  </section>
+
+  <!-- VENTAS AL CONTADO -->
+  <section class="rp-panel"
+           id="rp-contado"
+           aria-labelledby="rp-tab-contado">
+
+    <div class="rp-panel-head">
+      <div>
+        <h3>Ventas al contado</h3>
+        <p>
+          Ventas registradas el
+          {{ fecha_datetime.strftime("%d/%m/%Y") }}.
+        </p>
+      </div>
+      <span class="rp-tag">
+        {{ compras_contado|length }} registros
+      </span>
+    </div>
+
+    <div class="rp-table-wrap">
+      <table id="tabla-contado"
+             class="rp-table"
+             aria-label="Ventas al contado">
+
+        <thead>
+          <tr>
+            <th scope="col">Cliente</th>
+            <th scope="col">DNI</th>
+            <th scope="col">Teléfono</th>
+            <th scope="col">Lote</th>
+            <th scope="col">Precio</th>
+            <th scope="col">Fecha</th>
+            <th scope="col">Vendedor</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {% for c in compras_contado %}
+          <tr>
+            <td class="rp-client">
+              {{ c.cliente.nombre }} {{ c.cliente.apellidos }}
+            </td>
+
+            <td>{{ c.cliente.dni }}</td>
+
+            <td class="rp-phone">
+              {{ c.cliente.telefono or 'Sin teléfono' }}
+            </td>
+
+            <td>
+              <span class="rp-lot">
+                Mz {{ c.lote.manzana }} · Lt {{ c.lote.numero }}
+              </span>
+            </td>
+
+            <td class="rp-money">
+              S/ {{ "%.2f"|format(c.precio) }}
+            </td>
+
+            <td class="rp-date">
+              {{ c.fecha_compra.strftime("%d/%m/%Y") }}
+            </td>
+
+            <td>
+              {{ c.usuario.username if c.usuario else "No registrado" }}
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="7" class="rp-empty">
+              No hay ventas al contado para la fecha seleccionada.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+
+      </table>
+    </div>
+  </section>
+
+  <!-- VENTAS A CRÉDITO -->
+  <section class="rp-panel"
+           id="rp-credito"
+           aria-labelledby="rp-tab-credito">
+
+    <div class="rp-panel-head">
+      <div>
+        <h3>Ventas a crédito</h3>
+        <p>
+          Ventas registradas el
+          {{ fecha_datetime.strftime("%d/%m/%Y") }}.
+        </p>
+      </div>
+      <span class="rp-tag">
+        {{ compras_credito|length }} registros
+      </span>
+    </div>
+
+    <div class="rp-table-wrap">
+      <table id="tabla-credito"
+             class="rp-table"
+             aria-label="Ventas a crédito">
+
+        <thead>
+          <tr>
+            <th scope="col">Cliente</th>
+            <th scope="col">Teléfono</th>
+            <th scope="col">Lote</th>
+            <th scope="col">Inicial</th>
+            <th scope="col">Cuotas pagadas</th>
+            <th scope="col">Fecha</th>
+            <th scope="col">Vendedor</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {% for c in compras_credito %}
+          <tr>
+            <td class="rp-client">
+              {{ c.cliente.nombre }} {{ c.cliente.apellidos }}
+            </td>
+
+            <td class="rp-phone">
+              {{ c.cliente.telefono or 'Sin teléfono' }}
+            </td>
+
+            <td>
+              <span class="rp-lot">
+                Mz {{ c.lote.manzana }} · Lt {{ c.lote.numero }}
+              </span>
+            </td>
+
+            <td class="rp-money">
+              S/ {{ "%.2f"|format(c.inicial) }}
+            </td>
+
+            <td>
+              <span class="rp-badge rp-amber">
+                {{ c.cuotas|selectattr("pagada", "equalto", True)|list|length }}
+                / {{ c.cuotas_total }}
+              </span>
+            </td>
+
+            <td class="rp-date">
+              {{ c.fecha_compra.strftime("%d/%m/%Y") }}
+            </td>
+
+            <td>
+              {{ c.usuario.username if c.usuario else "No registrado" }}
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="7" class="rp-empty">
+              No hay ventas a crédito para la fecha seleccionada.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+
+      </table>
+    </div>
+  </section>
+
+  <!-- CUOTAS VENCIDAS -->
+  <section class="rp-panel"
+           id="rp-vencidas"
+           aria-labelledby="rp-tab-vencidas">
+
+    <div class="rp-panel-head">
+      <div>
+        <h3>Cuotas vencidas</h3>
+        <p>
+          Cuotas pendientes con vencimiento anterior
+          a la fecha consultada.
+        </p>
+      </div>
+      <span class="rp-badge rp-red">
+        {{ cuotas_vencidas|length }} vencidas
+      </span>
+    </div>
+
+    <div class="rp-table-wrap">
+      <table id="tabla-vencidas"
+             class="rp-table"
+             aria-label="Cuotas vencidas">
+
+        <thead>
+          <tr>
+            <th scope="col">Cliente</th>
+            <th scope="col">Teléfono</th>
+            <th scope="col">Lote</th>
+            <th scope="col">N.º cuota</th>
+            <th scope="col">Monto</th>
+            <th scope="col">Vencimiento</th>
+            <th scope="col">Días vencidos</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {% for q in cuotas_vencidas %}
+          <tr>
+            <td class="rp-client">
+              {{ q.compra.cliente.nombre }}
+              {{ q.compra.cliente.apellidos }}
+            </td>
+
+            <td class="rp-phone">
+              {{ q.compra.cliente.telefono or 'Sin teléfono' }}
+            </td>
+
+            <td>
+              <span class="rp-lot">
+                Mz {{ q.compra.lote.manzana }}
+                · Lt {{ q.compra.lote.numero }}
+              </span>
+            </td>
+
+            <td>{{ q.numero }}</td>
+
+            <td class="rp-money">
+              S/ {{ "%.2f"|format(q.monto) }}
+            </td>
+
+            <td class="rp-date">
+              {{ q.fecha_vencimiento.strftime("%d/%m/%Y") }}
+            </td>
+
+            <td>
+              <span class="rp-badge rp-red">
+                {{ (fecha_datetime - q.fecha_vencimiento).days }} días
+              </span>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="7" class="rp-empty">
+              No hay cuotas vencidas para la fecha consultada.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+
+      </table>
+    </div>
+  </section>
+
+  <!-- CUOTAS POR VENCER -->
+  <section class="rp-panel"
+           id="rp-proximas"
+           aria-labelledby="rp-tab-proximas">
+
+    <div class="rp-panel-head">
+      <div>
+        <h3>Cuotas por vencer</h3>
+        <p>
+          Vencimientos desde la fecha consultada hasta
+          los próximos siete días.
+        </p>
+      </div>
+      <span class="rp-badge rp-blue">
+        {{ cuotas_por_vencer|length }} por vencer
+      </span>
+    </div>
+
+    <div class="rp-table-wrap">
+      <table id="tabla-por-vencer"
+             class="rp-table"
+             aria-label="Cuotas por vencer">
+
+        <thead>
+          <tr>
+            <th scope="col">Cliente</th>
+            <th scope="col">Teléfono</th>
+            <th scope="col">Lote</th>
+            <th scope="col">N.º cuota</th>
+            <th scope="col">Monto</th>
+            <th scope="col">Vencimiento</th>
+            <th scope="col">Días restantes</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {% for q in cuotas_por_vencer %}
+          <tr>
+            <td class="rp-client">
+              {{ q.compra.cliente.nombre }}
+              {{ q.compra.cliente.apellidos }}
+            </td>
+
+            <td class="rp-phone">
+              {{ q.compra.cliente.telefono or 'Sin teléfono' }}
+            </td>
+
+            <td>
+              <span class="rp-lot">
+                Mz {{ q.compra.lote.manzana }}
+                · Lt {{ q.compra.lote.numero }}
+              </span>
+            </td>
+
+            <td>{{ q.numero }}</td>
+
+            <td class="rp-money">
+              S/ {{ "%.2f"|format(q.monto) }}
+            </td>
+
+            <td class="rp-date">
+              {{ q.fecha_vencimiento.strftime("%d/%m/%Y") }}
+            </td>
+
+            <td>
+              <span class="rp-badge rp-blue">
+                {{ (q.fecha_vencimiento - fecha_datetime).days }} días
+              </span>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="7" class="rp-empty">
+              No hay cuotas por vencer dentro de este período.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+
+      </table>
+    </div>
+  </section>
+
 </div>
 
-<!-- Separaciones activas -->
-<h4>🔴 Separaciones Activas</h4>
-<table id="tabla-separaciones" class="table table-striped table-hover">
-  <thead class="table-dark">
-    <tr>
-      <th>Cliente</th>
-      <th>Teléfono</th>
-      <th>Lote</th>
-      <th>Monto</th>
-      <th>Fecha</th>
-      <th>Días activos</th>
-      <th>Vendedor</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for s in separaciones %}
-    <tr>
-      <td>{{ s.cliente.nombre }} {{ s.cliente.apellidos }}</td>
-      <td>📞 {{ s.cliente.telefono or 'Sin teléfono' }}</td>
-      <td>Mz {{ s.lote.manzana }} - Lt {{ s.lote.numero }}</td>
-      <td>S/ {{ "%.2f"|format(s.monto) }}</td>
-      <td>{{ s.fecha.strftime("%d/%m/%Y") }}</td>
-      <td>
-        {% set dias = (fecha_datetime.date() - s.fecha.date()).days %}
-        {{ dias if dias >= 0 else 0 }}
-      </td>
-      <td>{{ s.usuario.username if s.usuario else "No registrado" }}</td>
-    </tr>
-    {% else %}
-    <tr><td colspan="7" class="text-center">No hay separaciones activas</td></tr>
-    {% endfor %}
-  </tbody>
-</table>
+<script>
+  (() => {
+    const root = document.getElementById('reportes-page');
 
-<!-- Compras al contado -->
-<h4>🟢 Ventas al contado</h4>
-<table id="tabla-contado" class="table table-striped table-hover">
-  <thead class="table-dark">
-    <tr>
-      <th>Cliente</th>
-      <th>DNI</th>
-      <th>Teléfono</th>
-      <th>Lote</th>
-      <th>Precio</th>
-      <th>Fecha</th>
-      <th>Vendedor</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for c in compras_contado %}
-    <tr>
-      <td>{{ c.cliente.nombre }} {{ c.cliente.apellidos }}</td>
-      <td>{{ c.cliente.dni }}</td>
-      <td>📞 {{ c.cliente.telefono or 'Sin teléfono' }}</td>
-      <td>Mz {{ c.lote.manzana }} - Lt {{ c.lote.numero }}</td>
-      <td class="text-start">S/ {{ "%.2f"|format(c.precio) }}</td>
-      <td>{{ c.fecha_compra.strftime("%d/%m/%Y") }}</td>
-      <td>{{ c.usuario.username if c.usuario else "No registrado" }}</td>
-    </tr>
-    {% else %}
-    <tr><td colspan="7" class="text-center">No hay compras al contado</td></tr>
-    {% endfor %}
-  </tbody>
-</table>
+    if (!root) return;
 
-<!-- Compras a crédito -->
-<h4>🟡 Ventas a crédito</h4>
-<table id="tabla-credito" class="table table-striped table-hover">
-  <thead class="table-dark">
-    <tr>
-      <th>Cliente</th>
-      <th>Teléfono</th>
-      <th>Lote</th>
-      <th>Inicial</th>
-      <th>Cuotas</th>
-      <th>Fecha</th>
-      <th>Vendedor</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for c in compras_credito %}
-    <tr>
-      <td>{{ c.cliente.nombre }} {{ c.cliente.apellidos }}</td>
-      <td>📞 {{ c.cliente.telefono or 'Sin teléfono' }}</td>
-      <td>Mz {{ c.lote.manzana }} - Lt {{ c.lote.numero }}</td>
-      <td>S/ {{ "%.2f"|format(c.inicial) }}</td>
-      <td>{{ c.cuotas|selectattr("pagada", "equalto", True)|list|length }} / {{ c.cuotas_total }}</td>
-      <td>{{ c.fecha_compra.strftime("%d/%m/%Y") }}</td>
-      <td>{{ c.usuario.username if c.usuario else "No registrado" }}</td>
-    </tr>
-    {% else %}
-    <tr><td colspan="7" class="text-center">No hay compras a crédito</td></tr>
-    {% endfor %}
-  </tbody>
-</table>
+    const tablist = root.querySelector('.rp-tabs');
 
-<!-- Cuotas vencidas -->
-<h4>⚫ Cuotas vencidas</h4>
-<table id="tabla-vencidas" class="table table-striped table-hover">
-  <thead class="table-dark">
-    <tr>
-      <th>Cliente</th>
-      <th>Teléfono</th>
-      <th>Lote</th>
-      <th>N° Cuota</th>
-      <th>Monto</th>
-      <th>Vencimiento</th>
-      <th>Días vencidos</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for q in cuotas_vencidas %}
-    <tr>
-      <td>{{ q.compra.cliente.nombre }} {{ q.compra.cliente.apellidos }}</td>
-      <td>📞 {{ q.compra.cliente.telefono or 'Sin teléfono' }}</td>
-      <td>Mz {{ q.compra.lote.manzana }} - Lt {{ q.compra.lote.numero }}</td>
-      <td>{{ q.numero }}</td>
-      <td>S/ {{ "%.2f"|format(q.monto) }}</td>
-      <td>{{ q.fecha_vencimiento.strftime("%d/%m/%Y") }}</td>
-      <td>{{ (fecha_datetime - q.fecha_vencimiento).days }}</td>
-    </tr>
-    {% else %}
-    <tr><td colspan="7" class="text-center">No hay cuotas vencidas</td></tr>
-    {% endfor %}
-  </tbody>
-</table>
+    const tabs = Array.from(
+      tablist.querySelectorAll('.rp-tab')
+    );
 
-<!-- Cuotas por vencer -->
-<h4>🔵 Cuotas por vencer (7 días)</h4>
-<table id="tabla-por-vencer" class="table table-striped table-hover">
-  <thead class="table-dark">
-    <tr>
-      <th>Cliente</th>
-      <th>Teléfono</th>
-      <th>Lote</th>
-      <th>N° Cuota</th>
-      <th>Monto</th>
-      <th>Vencimiento</th>
-      <th>Días restantes</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for q in cuotas_por_vencer %}
-    <tr>
-      <td>{{ q.compra.cliente.nombre }} {{ q.compra.cliente.apellidos }}</td>
-      <td>📞 {{ q.compra.cliente.telefono or 'Sin teléfono' }}</td>
-      <td>Mz {{ q.compra.lote.manzana }} - Lt {{ q.compra.lote.numero }}</td>
-      <td>{{ q.numero }}</td>
-      <td>S/ {{ "%.2f"|format(q.monto) }}</td>
-      <td>{{ q.fecha_vencimiento.strftime("%d/%m/%Y") }}</td>
-      <td>{{ (q.fecha_vencimiento - fecha_datetime).days }}</td>
-    </tr>
-    {% else %}
-    <tr><td colspan="7" class="text-center">No hay cuotas próximas a vencer</td></tr>
-    {% endfor %}
-  </tbody>
-</table>
+    const panels = tabs.map(tab =>
+      document.getElementById(
+        tab.getAttribute('aria-controls')
+      )
+    );
+
+    if (panels.some(panel => !panel)) return;
+
+    function activate(index) {
+      tabs.forEach((tab, i) => {
+        const selected = i === index;
+
+        tab.setAttribute(
+          'aria-selected',
+          String(selected)
+        );
+
+        tab.tabIndex = selected ? 0 : -1;
+        panels[i].hidden = !selected;
+      });
+    }
+
+    tablist.setAttribute('role', 'tablist');
+
+    tabs.forEach((tab, index) => {
+      tab.setAttribute('role', 'tab');
+      panels[index].setAttribute('role', 'tabpanel');
+      panels[index].tabIndex = 0;
+
+      tab.addEventListener('click', () => {
+        activate(index);
+      });
+
+      tab.addEventListener('keydown', event => {
+        let next = index;
+
+        if (event.key === 'ArrowRight') {
+          next = (index + 1) % tabs.length;
+        } else if (event.key === 'ArrowLeft') {
+          next = (index - 1 + tabs.length) % tabs.length;
+        } else if (event.key === 'Home') {
+          next = 0;
+        } else if (event.key === 'End') {
+          next = tabs.length - 1;
+        } else {
+          return;
+        }
+
+        event.preventDefault();
+        activate(next);
+        tabs[next].focus();
+      });
+    });
+
+    activate(0);
+  })();
+</script>
 
 {% endblock %}

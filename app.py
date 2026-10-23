@@ -1694,11 +1694,36 @@ def detalle_cuotas(compra_id):
 def pagar_cuota():
     cuota_id = request.form["cuota_id"]
     cuota = Cuota.query.get_or_404(cuota_id)
-    compra = cuota.compra
+
+    compra = (
+        Compra.query
+        .filter_by(id=cuota.compra_id)
+        .populate_existing()
+        .with_for_update()
+        .first_or_404()
+    )
+
+    cuota = (
+        Cuota.query
+        .filter_by(id=cuota_id, compra_id=compra.id)
+        .populate_existing()
+        .with_for_update()
+        .first_or_404()
+    )
 
     bloqueo = bloquear_si_no_es_lotizacion_activa(compra.lote.lotizacion_id)
     if bloqueo:
         return bloqueo
+    if request.form.get("monto_cuota_esperado") != str(cuota.monto):
+        flash(
+            "El monto de la cuota cambió. Recarga la página "
+            "y revisa el cronograma antes de pagar.",
+            "warning"
+        )
+
+        return redirect(
+            url_for("detalle_cuotas", compra_id=compra.id)
+        )
     
     # ✅ NUEVA VALIDACIÓN: Verificar que no haya cuotas anteriores sin pagar
     cuotas_anteriores_pendientes = Cuota.query.filter(
@@ -1748,7 +1773,12 @@ def pagar_cuota():
 @login_required
 @lotizacion_required
 def pagar_todas_cuotas(compra_id):
-    compra = Compra.query.get_or_404(compra_id)
+    consulta = Compra.query.filter_by(id=compra_id)
+
+    if request.method == "POST":
+        consulta = consulta.populate_existing().with_for_update()
+
+    compra = consulta.first_or_404()
 
     bloqueo = bloquear_si_no_es_lotizacion_activa(compra.lote.lotizacion_id)
     if bloqueo:
@@ -2026,21 +2056,19 @@ def subir_acta(compra_id):
 def reportes():
     lotizacion_id = session.get("lotizacion_id")
 
-    # Obtener fecha desde query params, si no → hoy
-    # Obtener fecha desde query params, si no → hoy en hora de Perú
+    # Obtener fecha seleccionada o fecha actual de Perú
     fecha_str = request.args.get("fecha")
     try:
         if fecha_str:
             fecha = datetime.strptime(fecha_str, "%Y-%m-%d").date()
         else:
-            fecha = hora_local_peru().date()  # ✅ Fecha actual de Perú
+            fecha = hora_local_peru().date()
     except ValueError:
         fecha = hora_local_peru().date()
 
-    # Convertir fecha a datetime SIN zona horaria (para mantener compatibilidad)
+    # Fecha sin zona horaria para mantener compatibilidad
     fecha_datetime = datetime.combine(fecha, datetime.min.time())
 
-    # === Consultas ===
     separaciones = (
         Separacion.query.filter_by(activa=True)
         .join(Lote)
@@ -2050,6 +2078,7 @@ def reportes():
 
     compras_contado = (
         Compra.query.filter_by(forma_pago="contado")
+        .filter(Compra.anulada.isnot(True))
         .filter(db.func.date(Compra.fecha_compra) == fecha)
         .join(Lote)
         .filter(Lote.lotizacion_id == lotizacion_id)
@@ -2058,6 +2087,7 @@ def reportes():
 
     compras_credito = (
         Compra.query.filter_by(forma_pago="credito")
+        .filter(Compra.anulada.isnot(True))
         .filter(db.func.date(Compra.fecha_compra) == fecha)
         .join(Lote)
         .filter(Lote.lotizacion_id == lotizacion_id)
@@ -2071,11 +2101,15 @@ def reportes():
         )
         .join(Compra)
         .join(Lote)
-        .filter(Lote.lotizacion_id == lotizacion_id)
+        .filter(
+            Lote.lotizacion_id == lotizacion_id,
+            Compra.anulada.isnot(True)
+        )
         .all()
     )
 
     fecha_limite = fecha_datetime + timedelta(days=7)
+
     cuotas_por_vencer = (
         Cuota.query.filter(
             Cuota.fecha_vencimiento >= fecha_datetime,
@@ -2084,14 +2118,17 @@ def reportes():
         )
         .join(Compra)
         .join(Lote)
-        .filter(Lote.lotizacion_id == lotizacion_id)
+        .filter(
+            Lote.lotizacion_id == lotizacion_id,
+            Compra.anulada.isnot(True)
+        )
         .all()
     )
 
     return render_template(
         "reportes.html",
         fecha=fecha,
-        fecha_datetime=fecha_datetime,  # ✅ Pasar también como datetime
+        fecha_datetime=fecha_datetime,
         separaciones=separaciones,
         compras_contado=compras_contado,
         compras_credito=compras_credito,
@@ -7554,6 +7591,393 @@ def _guardar_dni_titular(archivo, archivos_creados):
         raise ValueError(
             "No se pudo leer una de las fotos del DNI."
         )
+
+# ------------------- MODIFICAR CRONOGRAMA -------------------
+
+def _huella_cronograma(compra, cuotas):
+    datos = [
+        compra.id, compra.cliente_id, compra.lote_id,
+        compra.forma_pago, compra.precio, compra.inicial,
+        compra.interes, compra.cuotas_total, compra.cuota_monto,
+        compra.anulada, compra.cancelado,
+        compra.lote.lotizacion_id, compra.lote.estado,
+        [
+            [
+                c.id, c.numero, c.monto, c.pagada, c.pago_id,
+                c.fecha_vencimiento.isoformat()
+            ]
+            for c in cuotas
+        ]
+    ]
+
+    return hashlib.sha256(
+        json.dumps(datos, ensure_ascii=True).encode("utf-8")
+    ).hexdigest()
+
+
+def _fechas_cronograma(cuotas, cantidad):
+    from calendar import monthrange
+
+    fechas = [
+        c.fecha_vencimiento
+        for c in cuotas[:cantidad]
+    ]
+
+    base = cuotas[-1].fecha_vencimiento
+
+    for adicional in range(1, cantidad - len(cuotas) + 1):
+        anio, mes = divmod(
+            base.year * 12 + base.month - 1 + adicional,
+            12
+        )
+
+        mes += 1
+        dia = min(base.day, monthrange(anio, mes)[1])
+
+        fechas.append(
+            base.replace(year=anio, month=mes, day=dia)
+        )
+
+    return fechas
+
+
+@app.route(
+    "/editar_cronograma/<int:compra_id>",
+    methods=["GET", "POST"]
+)
+@login_required
+@lotizacion_required
+@superadmin_required
+def editar_cronograma(compra_id):
+    if current_user.rol != "superadmin":
+        return "No tienes permiso para modificar el cronograma.", 403
+
+    consulta = Compra.query.filter_by(id=compra_id)
+
+    if request.method == "POST":
+        consulta = consulta.populate_existing().with_for_update()
+
+    compra = consulta.first_or_404()
+
+    if (
+        str(session.get("lotizacion_id"))
+        != str(compra.lote.lotizacion_id)
+        or not usuario_puede_acceder_lotizacion(
+            current_user,
+            compra.lote.lotizacion_id
+        )
+    ):
+        flash(
+            "Selecciona el proyecto de esta compra.",
+            "warning"
+        )
+        return redirect(url_for("lotes_disponibles"))
+
+    consulta_cuotas = (
+        Cuota.query
+        .filter_by(compra_id=compra.id)
+        .order_by(Cuota.numero, Cuota.id)
+    )
+
+    if request.method == "POST":
+        consulta_cuotas = (
+            consulta_cuotas
+            .populate_existing()
+            .with_for_update()
+        )
+
+    cuotas = consulta_cuotas.all()
+
+    motivo = None
+
+    if (
+        compra.forma_pago != "credito"
+        or compra.anulada
+        or compra.cancelado
+        or compra.lote.estado != "vendido"
+    ):
+        motivo = (
+            "Solo puedes modificar una compra a crédito "
+            "vigente y pendiente."
+        )
+
+    elif (
+        any(c.pagada or c.pago_id is not None for c in cuotas)
+        or Pago.query.filter_by(
+            compra_id=compra.id
+        ).first() is not None
+    ):
+        motivo = (
+            "No puedes modificar el cronograma: esta compra "
+            "ya tiene pagos de cuotas registrados."
+        )
+
+    elif (
+        not cuotas
+        or len(cuotas) > 360
+        or compra.cuotas_total != len(cuotas)
+        or [c.numero for c in cuotas]
+        != list(range(1, len(cuotas) + 1))
+    ):
+        motivo = (
+            "Primero debe revisarse la cantidad o numeración "
+            "del cronograma actual."
+        )
+
+    if motivo:
+        db.session.rollback()
+        flash(motivo, "warning")
+
+        return redirect(
+            url_for("detalle_cuotas", compra_id=compra_id)
+        )
+
+    centimo = Decimal("0.01")
+
+    total = (
+        Decimal(str(compra.precio))
+        - Decimal(str(compra.inicial or 0))
+    ).quantize(
+        centimo,
+        rounding="ROUND_HALF_UP"
+    )
+
+    total_anterior = sum(
+        (Decimal(str(c.monto)) for c in cuotas),
+        Decimal("0")
+    ).quantize(
+        centimo,
+        rounding="ROUND_HALF_UP"
+    )
+
+    if (
+        not total.is_finite()
+        or total <= 0
+        or abs(total_anterior - total) > centimo
+    ):
+        db.session.rollback()
+
+        flash(
+            "El total de las cuotas no coincide con el saldo "
+            "de la compra. Debe revisarse antes de editar.",
+            "warning"
+        )
+
+        return redirect(
+            url_for("detalle_cuotas", compra_id=compra_id)
+        )
+
+    csrf = session.setdefault(
+        "csrf_cronograma",
+        secrets.token_urlsafe(32)
+    )
+
+    firmador = URLSafeTimedSerializer(
+        app.config["SECRET_KEY"],
+        salt="editar-cronograma-v1"
+    )
+
+    base = {
+        "compra": compra.id,
+        "usuario": current_user.id,
+        "proyecto": str(session.get("lotizacion_id")),
+        "csrf": csrf,
+        "estado": _huella_cronograma(compra, cuotas)
+    }
+
+    cantidad = len(cuotas)
+
+    montos = [
+        format(Decimal(str(c.monto)), ".2f")
+        for c in cuotas
+    ]
+
+    error = None
+
+    if request.method == "POST":
+        try:
+            datos = firmador.loads(
+                request.form.get("token_cronograma", ""),
+                max_age=1800
+            )
+
+            if datos != base:
+                raise ValueError(
+                    "La compra o el cronograma cambió. "
+                    "Revisa nuevamente los datos antes de guardar."
+                )
+
+            montos = request.form.getlist("monto_cuota")
+
+            texto = request.form.get(
+                "cantidad_cuotas", ""
+            ).strip()
+
+            if (
+                not re.fullmatch(r"[0-9]{1,3}", texto)
+                or not 1 <= int(texto) <= 360
+            ):
+                raise ValueError(
+                    "Indica una cantidad de 1 a 360 cuotas."
+                )
+
+            cantidad = int(texto)
+            accion = request.form.get("accion")
+
+            if accion == "guardar":
+                if len(montos) != cantidad:
+                    raise ValueError(
+                        "Pulsa Actualizar cantidad antes de guardar."
+                    )
+
+                if request.form.get("confirmacion") != "si":
+                    raise ValueError(
+                        "Marca la casilla para confirmar "
+                        "el nuevo cronograma."
+                    )
+
+                importes = []
+
+                for numero, texto_monto in enumerate(montos, 1):
+                    texto_monto = texto_monto.strip()
+
+                    if not re.fullmatch(
+                        r"[0-9]{1,9}(?:[.,][0-9]{1,2})?",
+                        texto_monto
+                    ):
+                        raise ValueError(
+                            f"Revisa el monto de la cuota {numero}: "
+                            "usa como máximo dos decimales."
+                        )
+
+                    importe = Decimal(
+                        texto_monto.replace(",", ".")
+                    )
+
+                    if importe <= 0:
+                        raise ValueError(
+                            f"La cuota {numero} debe ser mayor que cero."
+                        )
+
+                    importes.append(importe)
+
+                if sum(importes, Decimal("0")) != total:
+                    raise ValueError(
+                        "Las cuotas deben sumar exactamente "
+                        f"S/ {total:.2f}."
+                    )
+
+                fechas = _fechas_cronograma(
+                    cuotas,
+                    cantidad
+                )
+
+                # Mantener los registros y fechas que se conservan.
+                for cuota, importe in zip(cuotas, importes):
+                    cuota.monto = float(importe)
+
+                # Quitar únicamente las últimas cuotas sin pagos.
+                for cuota in cuotas[cantidad:]:
+                    db.session.delete(cuota)
+
+                # Agregar las cuotas nuevas.
+                for indice in range(len(cuotas), cantidad):
+                    db.session.add(
+                        Cuota(
+                            compra_id=compra.id,
+                            numero=indice + 1,
+                            monto=float(importes[indice]),
+                            fecha_vencimiento=fechas[indice],
+                            pagada=False
+                        )
+                    )
+
+                compra.cuotas_total = cantidad
+
+                # Resumen compatible con el campo existente.
+                # Cada cuota conserva su monto real en Cuota.monto.
+                compra.cuota_monto = float(total / cantidad)
+
+                db.session.commit()
+
+                flash(
+                    "Cronograma actualizado. La inicial y las "
+                    "fechas conservadas no cambiaron.",
+                    "success"
+                )
+
+                return redirect(
+                    url_for(
+                        "detalle_cuotas",
+                        compra_id=compra_id
+                    )
+                )
+
+            if accion != "preparar":
+                raise ValueError(
+                    "La acción recibida no es válida."
+                )
+
+        except (BadSignature, SignatureExpired):
+            db.session.rollback()
+
+            flash(
+                "El formulario venció o no es válido. "
+                "Abre nuevamente la edición.",
+                "warning"
+            )
+
+            return redirect(
+                url_for(
+                    "editar_cronograma",
+                    compra_id=compra_id
+                )
+            )
+
+        except (ValueError, InvalidOperation) as exc:
+            db.session.rollback()
+            error = str(exc)
+
+        except Exception:
+            db.session.rollback()
+
+            current_app.logger.exception(
+                "Error al modificar el cronograma %s",
+                compra_id
+            )
+
+            flash(
+                "No se pudo guardar. "
+                "No se modificó el cronograma.",
+                "danger"
+            )
+
+            return redirect(
+                url_for(
+                    "detalle_cuotas",
+                    compra_id=compra_id
+                )
+            )
+
+    montos = (
+        montos[:cantidad] + [""] * cantidad
+    )[:cantidad]
+
+    fechas = _fechas_cronograma(cuotas, cantidad)
+    base["estado"] = _huella_cronograma(compra, cuotas)
+
+    return render_template(
+        "editar_cronograma.html",
+        compra=compra,
+        cantidad=cantidad,
+        montos=montos,
+        fechas=fechas,
+        total=total,
+        error_cronograma=error,
+        token_cronograma=firmador.dumps(base),
+        lotizacion=compra.lote.lotizacion
+    )
+
 # ------------------- MAIN -------------------
 if __name__ == "__main__":
     app.run(debug=True)

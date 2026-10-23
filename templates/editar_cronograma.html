@@ -1,0 +1,272 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="container py-3" style="max-width: 1000px;">
+
+  <div class="card border-0 shadow-sm rounded-4 mb-4">
+    <div class="card-body p-4">
+
+      <div class="small text-primary fw-bold mb-2">
+        VENTA A CRÉDITO
+      </div>
+
+      <h2 class="fw-bold mb-2">Modificar cronograma</h2>
+
+      <p class="text-muted mb-0">
+        Mz {{ compra.lote.manzana }}
+        · Lt {{ compra.lote.numero }} —
+        {{ compra.cliente.nombre }}
+        {{ compra.cliente.apellidos }}
+      </p>
+
+    </div>
+  </div>
+
+  <div class="row g-3 mb-4">
+
+    <div class="col-sm-6">
+      <div class="card border-0 shadow-sm rounded-4 h-100">
+        <div class="card-body px-4 py-3">
+          <div class="small text-muted">
+            Inicial · se conserva
+          </div>
+
+          <div class="fs-4 fw-bold">
+            S/ {{ "%.2f"|format(compra.inicial) }}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-sm-6">
+      <div class="card border-0 shadow-sm rounded-4 h-100">
+        <div class="card-body px-4 py-3">
+          <div class="small text-muted">
+            Total que deben sumar las cuotas
+          </div>
+
+          <div class="fs-4 fw-bold text-primary">
+            S/ {{ "%.2f"|format(total) }}
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  {% if error_cronograma %}
+    <div class="alert alert-danger" role="alert">
+      {{ error_cronograma }}
+    </div>
+  {% endif %}
+
+  <form method="POST"
+        action="{{ url_for('editar_cronograma', compra_id=compra.id) }}">
+
+    <input type="hidden"
+           name="token_cronograma"
+           value="{{ token_cronograma }}">
+
+    <div class="card border-0 shadow-sm rounded-4">
+      <div class="card-body p-4">
+
+        <div class="d-flex flex-wrap align-items-end gap-3 mb-3">
+
+          <div>
+            <label for="cantidad-cuotas"
+                   class="form-label fw-semibold">
+              Cantidad de cuotas
+            </label>
+
+            <input type="number"
+                   name="cantidad_cuotas"
+                   id="cantidad-cuotas"
+                   class="form-control"
+                   min="1"
+                   max="360"
+                   step="1"
+                   value="{{ cantidad }}"
+                   required
+                   style="max-width: 180px;">
+          </div>
+
+          <button type="submit"
+                  name="accion"
+                  value="preparar"
+                  class="btn btn-outline-primary"
+                  formnovalidate>
+            Actualizar cantidad
+          </button>
+
+        </div>
+
+        <p class="small text-muted">
+          Actualizar cantidad solo prepara la tabla.
+          Las fechas existentes se conservan; las nuevas
+          continúan mensualmente. Si reduces la cantidad,
+          se quitan las últimas.
+        </p>
+
+        <div class="table-responsive">
+          <table class="table align-middle">
+
+            <thead class="table-light">
+              <tr>
+                <th>Cuota</th>
+                <th>Vencimiento</th>
+                <th>Monto (S/)</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {% for monto in montos %}
+              <tr>
+
+                <td class="fw-bold">
+                  {{ loop.index }}
+                </td>
+
+                <td class="text-nowrap">
+                  {{ fechas[loop.index0].strftime('%d/%m/%Y') }}
+                </td>
+
+                <td>
+                  <label for="monto-{{ loop.index }}"
+                         class="visually-hidden">
+                    Monto de la cuota {{ loop.index }}
+                  </label>
+
+                  <input type="text"
+                         inputmode="decimal"
+                         name="monto_cuota"
+                         id="monto-{{ loop.index }}"
+                         class="form-control monto-cronograma"
+                         pattern="[0-9]{1,9}([.,][0-9]{1,2})?"
+                         maxlength="12"
+                         value="{{ monto }}"
+                         placeholder="Ejemplo: 1000.00"
+                         required>
+                </td>
+
+              </tr>
+              {% endfor %}
+            </tbody>
+
+          </table>
+        </div>
+
+        <div id="resumen-cronograma"
+             class="alert alert-light border mt-3"
+             aria-live="polite">
+          Comprueba que la suma sea
+          S/ {{ "%.2f"|format(total) }} antes de guardar.
+        </div>
+
+        <div class="form-check mb-4">
+
+          <input class="form-check-input"
+                 type="checkbox"
+                 id="confirmar-cronograma"
+                 name="confirmacion"
+                 value="si"
+                 required>
+
+          <label class="form-check-label"
+                 for="confirmar-cronograma">
+            Revisé los montos y las fechas.
+            Confirmo reemplazar el cronograma sin guardar
+            un historial anterior.
+          </label>
+
+        </div>
+
+        <div class="d-flex flex-wrap gap-2">
+
+          <button type="submit"
+                  name="accion"
+                  value="guardar"
+                  class="btn btn-primary">
+            Guardar cronograma
+          </button>
+
+          <a href="{{ url_for('detalle_cuotas', compra_id=compra.id) }}"
+             class="btn btn-outline-secondary">
+            Cancelar
+          </a>
+
+        </div>
+
+      </div>
+    </div>
+
+  </form>
+
+</div>
+
+<script>
+  (() => {
+    const campos = Array.from(
+      document.querySelectorAll('.monto-cronograma')
+    );
+
+    const resumen = document.getElementById(
+      'resumen-cronograma'
+    );
+
+    const total = {{ (total * 100)|int }};
+
+    const formato = new Intl.NumberFormat('es-PE', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    });
+
+    function actualizar() {
+      let suma = 0;
+      let completos = true;
+
+      campos.forEach(campo => {
+        const texto = campo.value.trim().replace(',', '.');
+
+        if (!/^[0-9]{1,9}(\.[0-9]{1,2})?$/.test(texto)) {
+          completos = false;
+          return;
+        }
+
+        const [entero, decimal = ''] = texto.split('.');
+
+        const centimos =
+          Number(entero) * 100
+          + Number(decimal.padEnd(2, '0'));
+
+        if (centimos <= 0) completos = false;
+
+        suma += centimos;
+      });
+
+      const coincide = completos && suma === total;
+
+      resumen.className =
+        'alert mt-3 '
+        + (coincide ? 'alert-success' : 'alert-warning');
+
+      resumen.textContent =
+        'Nuevo total: S/ '
+        + formato.format(suma / 100)
+        + (
+          coincide
+            ? ' · El total coincide.'
+            : ' · Debe sumar S/ '
+              + formato.format(total / 100)
+              + '. Completa o ajusta los montos.'
+        );
+    }
+
+    campos.forEach(campo => {
+      campo.addEventListener('input', actualizar);
+    });
+
+    actualizar();
+  })();
+</script>
+
+{% endblock %}
