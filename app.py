@@ -129,6 +129,265 @@ def guardar_boucher(file):
     # Guardar en BD la ruta relativa
     return f"bouchers/{filename}".replace("\\", "/")
 
+def _guardar_vouchers_cuota(archivos):
+    from io import BytesIO
+    from PIL import Image, ImageOps, UnidentifiedImageError
+    from pypdf import PdfReader, PdfWriter
+    from pypdf.errors import PyPdfError
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.utils import ImageReader
+
+    archivos = [
+        archivo for archivo in archivos
+        if archivo and archivo.filename
+    ]
+
+    if not 1 <= len(archivos) <= 10:
+        raise ValueError(
+            "Selecciona de 1 a 10 comprobantes."
+        )
+
+    limite = 20 * 1024 * 1024
+    total_bytes = 0
+    total_paginas = 0
+    preparados = []
+
+    extensiones = {
+        "JPEG": "jpg",
+        "PNG": "png",
+        "WEBP": "webp"
+    }
+
+    for numero, archivo in enumerate(archivos, 1):
+        contenido = archivo.read(
+            limite - total_bytes + 1
+        )
+
+        total_bytes += len(contenido)
+
+        if total_bytes > limite:
+            raise ValueError(
+                "Los comprobantes juntos no deben superar 20 MB."
+            )
+
+        if not contenido:
+            raise ValueError(
+                f"El comprobante {numero} está vacío."
+            )
+
+        try:
+            if contenido.lstrip().startswith(b"%PDF-"):
+                lector = PdfReader(
+                    BytesIO(contenido),
+                    strict=False
+                )
+
+                if lector.is_encrypted:
+                    raise ValueError(
+                        f"El PDF {numero} está protegido. "
+                        "Sube una copia sin contraseña."
+                    )
+
+                paginas = len(lector.pages)
+
+                if paginas == 0:
+                    raise ValueError(
+                        f"El PDF {numero} no tiene páginas."
+                    )
+
+                if len(archivos) > 1 and any(
+                    campo.get("/FT") == "/Sig"
+                    and campo.get("/V")
+                    for campo in (
+                        lector.get_fields() or {}
+                    ).values()
+                ):
+                    raise ValueError(
+                        "Un PDF con firma digital debe subirse "
+                        "solo para conservar su firma."
+                    )
+
+                preparados.append(
+                    ("pdf", contenido, lector)
+                )
+
+            else:
+                with Image.open(BytesIO(contenido)) as imagen:
+                    formato = imagen.format
+
+                    if formato not in extensiones:
+                        raise ValueError(
+                            "Usa comprobantes PDF, JPG, PNG o WEBP."
+                        )
+
+                    if imagen.width * imagen.height > 40000000:
+                        raise ValueError(
+                            f"La imagen {numero} es demasiado grande. "
+                            "Reduce su resolución."
+                        )
+
+                    imagen.load()
+
+                paginas = 1
+
+                preparados.append(
+                    (formato, contenido, None)
+                )
+
+        except (
+            PyPdfError,
+            UnidentifiedImageError,
+            OSError,
+            Image.DecompressionBombError,
+            OverflowError,
+            RecursionError
+        ) as exc:
+            raise ValueError(
+                f"No se pudo leer el comprobante {numero}. "
+                "Revisa el archivo."
+            ) from exc
+
+        total_paginas += paginas
+
+        if total_paginas > 50:
+            raise ValueError(
+                "Los comprobantes no deben superar "
+                "50 páginas en total."
+            )
+
+    # Un archivo conserva su formato y contenido.
+    if len(preparados) == 1:
+        tipo, resultado, lector = preparados[0]
+
+        extension = (
+            "pdf" if tipo == "pdf"
+            else extensiones[tipo]
+        )
+
+    # Varios archivos se unen en un PDF.
+    else:
+        escritor = PdfWriter()
+
+        try:
+            for numero, datos in enumerate(preparados, 1):
+                tipo, contenido, lector = datos
+
+                if tipo == "pdf":
+                    if lector.get_fields():
+                        lector.add_form_topname(
+                            f"comprobante_{numero}"
+                        )
+
+                    escritor.append(
+                        lector,
+                        import_outline=False
+                    )
+                    continue
+
+                with Image.open(BytesIO(contenido)) as original:
+                    original.thumbnail((3000, 3000))
+                    imagen = ImageOps.exif_transpose(original)
+
+                    if (
+                        "A" in imagen.getbands()
+                        or "transparency" in imagen.info
+                    ):
+                        imagen = imagen.convert("RGBA")
+
+                        fondo = Image.new(
+                            "RGBA",
+                            imagen.size,
+                            "white"
+                        )
+
+                        fondo.alpha_composite(imagen)
+                        imagen = fondo.convert("RGB")
+
+                    else:
+                        imagen = imagen.convert("RGB")
+
+                    tamano = (
+                        landscape(A4)
+                        if imagen.width > imagen.height
+                        else A4
+                    )
+
+                    ancho, alto = tamano
+
+                    escala = min(
+                        (ancho - 36) / imagen.width,
+                        (alto - 36) / imagen.height
+                    )
+
+                    ancho_imagen = imagen.width * escala
+                    alto_imagen = imagen.height * escala
+
+                    pagina = BytesIO()
+
+                    lienzo = canvas.Canvas(
+                        pagina,
+                        pagesize=tamano
+                    )
+
+                    lienzo.drawImage(
+                        ImageReader(imagen),
+                        (ancho - ancho_imagen) / 2,
+                        (alto - alto_imagen) / 2,
+                        width=ancho_imagen,
+                        height=alto_imagen
+                    )
+
+                    lienzo.save()
+
+                pagina.seek(0)
+
+                escritor.append(
+                    PdfReader(pagina),
+                    import_outline=False
+                )
+
+            salida = BytesIO()
+            escritor.write(salida)
+            resultado = salida.getvalue()
+
+        finally:
+            escritor.close()
+
+        extension = "pdf"
+
+        if len(resultado) > limite:
+            raise ValueError(
+                "El PDF final supera 20 MB. "
+                "Reduce el tamaño de las imágenes."
+            )
+
+    nombre = f"cuota_{uuid.uuid4().hex}.{extension}"
+
+    carpeta = app.config["UPLOAD_FOLDER"]
+    os.makedirs(carpeta, exist_ok=True)
+
+    ruta = os.path.join(carpeta, nombre)
+    creado = False
+
+    try:
+        with open(ruta, "xb") as destino:
+            creado = True
+            destino.write(resultado)
+
+    except Exception:
+        if creado:
+            try:
+                os.remove(ruta)
+            except OSError:
+                current_app.logger.exception(
+                    "No se pudo limpiar el archivo incompleto %s",
+                    nombre
+                )
+        raise
+
+    return f"bouchers/{nombre}"
+
 def generar_cuotas_para_compra(compra):
     if compra.forma_pago == "credito" and compra.cuotas_total > 0 and not compra.cuotas:
         fecha_base = datetime.utcnow()
@@ -1705,15 +1964,24 @@ def pagar_cuota():
 
     cuota = (
         Cuota.query
-        .filter_by(id=cuota_id, compra_id=compra.id)
+        .filter_by(
+            id=cuota_id,
+            compra_id=compra.id
+        )
         .populate_existing()
         .with_for_update()
         .first_or_404()
     )
 
-    bloqueo = bloquear_si_no_es_lotizacion_activa(compra.lote.lotizacion_id)
+    compra_id = compra.id
+
+    bloqueo = bloquear_si_no_es_lotizacion_activa(
+        compra.lote.lotizacion_id
+    )
+
     if bloqueo:
         return bloqueo
+
     if request.form.get("monto_cuota_esperado") != str(cuota.monto):
         flash(
             "El monto de la cuota cambió. Recarga la página "
@@ -1724,50 +1992,127 @@ def pagar_cuota():
         return redirect(
             url_for("detalle_cuotas", compra_id=compra.id)
         )
-    
-    # ✅ NUEVA VALIDACIÓN: Verificar que no haya cuotas anteriores sin pagar
+
     cuotas_anteriores_pendientes = Cuota.query.filter(
         Cuota.compra_id == cuota.compra_id,
         Cuota.numero < cuota.numero,
         Cuota.pagada == False
     ).first()
-    
-    # Si hay cuotas pendientes anteriores y no se autorizó el pago forzado
-    if cuotas_anteriores_pendientes and not request.form.get('forzar_pago'):
+
+    if (
+        cuotas_anteriores_pendientes
+        and not request.form.get("forzar_pago")
+    ):
         flash(
             f"❌ No puedes pagar la cuota #{cuota.numero}. "
-            f"Primero debes pagar la cuota #{cuotas_anteriores_pendientes.numero}.", 
+            "Primero debes pagar la cuota "
+            f"#{cuotas_anteriores_pendientes.numero}.",
             "danger"
         )
-        return redirect(url_for("detalle_cuotas", compra_id=cuota.compra_id))
-    
-    # Si ya está pagada
+
+        return redirect(
+            url_for("detalle_cuotas", compra_id=compra.id)
+        )
+
     if cuota.pagada:
-        flash("⚠️ Esta cuota ya ha sido pagada.", "warning")
-        return redirect(url_for("detalle_cuotas", compra_id=cuota.compra_id))
-    
-    # Guardar boucher
-    boucher_file = request.files.get("boucher_cuota")
-    boucher_path = guardar_boucher(boucher_file)
-    
-    # Registrar pago
-    pago = Pago(compra_id=cuota.compra_id, monto=cuota.monto, boucher=boucher_path)
-    db.session.add(pago)
-    db.session.flush()  # ✅ CRÍTICO: Hacer flush para obtener pago.id
-    
-    # Marcar cuota como pagada
-    cuota.pagada = True
-    cuota.pago_id = pago.id  # ✅ Ahora pago.id ya tiene valor
-    
-    # Verificar si se completó el pago total
-    if compra.verificar_cancelacion():
+        flash(
+            "⚠️ Esta cuota ya ha sido pagada.",
+            "warning"
+        )
+
+        return redirect(
+            url_for("detalle_cuotas", compra_id=compra.id)
+        )
+
+    boucher_path = None
+    error = None
+
+    try:
+        boucher_path = _guardar_vouchers_cuota(
+            request.files.getlist("boucher_cuota")
+        )
+
+        pago = Pago(
+            compra_id=compra.id,
+            monto=cuota.monto,
+            boucher=boucher_path
+        )
+
+        db.session.add(pago)
+        db.session.flush()
+
+        cuota.pagada = True
+        cuota.pago_id = pago.id
+
+        cancelada = compra.verificar_cancelacion()
+
         db.session.commit()
-        flash("🎉 ¡Felicidades! Cuota pagada y compra TOTALMENTE CANCELADA.", "success")
+
+    except ValueError as exc:
+        db.session.rollback()
+
+        error = (
+            str(exc)
+            or "No se pudo validar el comprobante."
+        )
+
+    except Exception:
+        db.session.rollback()
+
+        current_app.logger.exception(
+            "Error al pagar la cuota %s",
+            cuota_id
+        )
+
+        error = (
+            "No se pudo confirmar el pago. Revisa la cuota "
+            "antes de volver a intentarlo."
+        )
+
+    if error:
+        if boucher_path:
+            try:
+                # Limpiar solo el archivo nuevo si ningún pago lo usa.
+                existe_pago = Pago.query.filter_by(
+                    boucher=boucher_path
+                ).first()
+
+                if existe_pago is None:
+                    os.remove(
+                        os.path.join(
+                            app.config["UPLOAD_FOLDER"],
+                            os.path.basename(boucher_path)
+                        )
+                    )
+
+            except Exception:
+                current_app.logger.exception(
+                    "No se pudo comprobar o limpiar "
+                    "el voucher nuevo"
+                )
+
+        flash(error, "danger")
+
+        return redirect(
+            url_for("detalle_cuotas", compra_id=compra_id)
+        )
+
+    if cancelada:
+        flash(
+            "🎉 ¡Felicidades! Cuota pagada y compra "
+            "TOTALMENTE CANCELADA.",
+            "success"
+        )
+
     else:
-        db.session.commit()
-        flash("✅ Cuota pagada correctamente.", "success")
-    
-    return redirect(url_for("detalle_cuotas", compra_id=cuota.compra_id))
+        flash(
+            "✅ Cuota pagada correctamente.",
+            "success"
+        )
+
+    return redirect(
+        url_for("detalle_cuotas", compra_id=compra_id)
+    )
 
 @app.route("/pagar_todas_cuotas/<int:compra_id>", methods=["GET", "POST"])
 @login_required
@@ -2552,7 +2897,16 @@ def exportar_ventas():
                 (compra.forma_pago or "").upper(),
                 compra.precio,
                 compra.inicial if credito else compra.precio,
-                compra.cuota_monto if credito else 0,
+                (
+                    "\n".join(
+                        f"Cuota {cuota.numero}: S/ {cuota.monto:.2f}"
+                        for cuota in sorted(
+                            compra.cuotas,
+                            key=lambda cuota: cuota.numero
+                        )
+                    ) or "Sin cuotas registradas"
+                    if credito else ""
+                ),
                 compra.cuotas_total if credito else 0,
                 sum(
                     1 for cuota in compra.cuotas
@@ -2572,7 +2926,7 @@ def exportar_ventas():
             ]
         )
 
-    finalizar_hoja(
+        finalizar_hoja(
         ws_ventas,
         encabezados_ventas,
         {
@@ -2584,15 +2938,31 @@ def exportar_ventas():
                 if c.forma_pago == "credito"
                 else (c.precio or 0)
                 for c in compras
-            ),
-            "Cuota Monto": sum(
-                (c.cuota_monto or 0)
-                if c.forma_pago == "credito"
-                else 0
-                for c in compras
             )
         }
     )
+
+    # Mostrar cada cuota en una línea dentro de la celda.
+    columna_cuotas = encabezados_ventas.index("Cuota Monto") + 1
+
+    for fila, compra in enumerate(compras, 4):
+        celda = ws_ventas.cell(fila, columna_cuotas)
+
+        celda.alignment = Alignment(
+            vertical="top",
+            wrap_text=True
+        )
+
+        lineas = max(
+            1,
+            len(str(celda.value or "").splitlines())
+        )
+
+        ws_ventas.row_dimensions[fila].height = min(
+            409,
+            max(18, lineas * 15)
+        )
+
 
     # ---------------- SEPARACIONES ----------------
     preparar_hoja(
