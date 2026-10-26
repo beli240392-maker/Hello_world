@@ -1881,6 +1881,8 @@ def ver_cliente():
             .all()
         )
 
+        historial = _historial_para_mostrar(historial)
+
         transferencias_titular = (
             TransferenciaTitular.query
             .join(
@@ -8347,6 +8349,416 @@ def editar_cronograma(compra_id):
         token_cronograma=firmador.dumps(base),
         lotizacion=compra.lote.lotizacion
     )
+
+@app.route("/cambiar_lote_separacion/<int:sep_id>", methods=["GET", "POST"])
+@login_required
+@lotizacion_required
+@superadmin_required
+def cambiar_lote_separacion(sep_id):
+    if current_user.rol != "superadmin":
+        return "No tienes permiso para cambiar el lote.", 403
+
+    separacion = Separacion.query.get_or_404(sep_id)
+    origen = separacion.lote
+
+    if str(session.get("lotizacion_id")) != str(origen.lotizacion_id):
+        flash("Selecciona el proyecto de esta separación.", "warning")
+        return redirect(url_for("lotes_disponibles"))
+
+    if not separacion.activa or origen.estado != "separado":
+        flash("Solo puedes trasladar una separación activa.", "warning")
+        return redirect(url_for("detalle_lote", lote_id=origen.id))
+
+    session.setdefault("csrf_cambio_lote_sep", secrets.token_urlsafe(32))
+
+    firmador = URLSafeTimedSerializer(
+        app.config["SECRET_KEY"],
+        salt="cambio-lote-separacion-v1"
+    )
+
+    def huella(registro):
+        valores = [
+            registro.id,
+            registro.lote_id,
+            registro.cliente_id,
+            registro.usuario_id,
+            registro.monto,
+            str(registro.fecha),
+            registro.boucher,
+            registro.activa
+        ]
+
+        return hashlib.sha256(
+            json.dumps(valores).encode("utf-8")
+        ).hexdigest()
+
+    base = {
+        "sep_id": separacion.id,
+        "origen_id": origen.id,
+        "proyecto_id": origen.lotizacion_id,
+        "usuario_id": current_user.id,
+        "csrf": session["csrf_cambio_lote_sep"],
+        "huella": huella(separacion)
+    }
+
+    error = None
+    motivo = request.form.get("motivo", "").strip()
+    destino_elegido = request.form.get("destino_id", "")
+
+    if request.method == "POST":
+        try:
+            datos = firmador.loads(
+                request.form.get("token_cambio_lote", ""),
+                max_age=1800
+            )
+
+            if datos != base:
+                raise ValueError(
+                    "La separación o la sesión cambió. Recarga la página."
+                )
+
+            try:
+                destino_id = int(destino_elegido)
+            except (TypeError, ValueError):
+                raise ValueError("Selecciona el nuevo lote.")
+
+            if destino_id == origen.id:
+                raise ValueError(
+                    "Debes seleccionar un lote diferente al actual."
+                )
+
+            if not motivo or len(motivo) > 60:
+                raise ValueError(
+                    "Escribe un motivo de hasta 60 caracteres."
+                )
+
+            if request.form.get("confirmacion") != "si":
+                raise ValueError(
+                    "Marca la casilla para confirmar el cambio."
+                )
+
+            # Bloquear ambos lotes antes de comprobar y guardar.
+            lotes = (
+                Lote.query
+                .filter(Lote.id.in_([base["origen_id"], destino_id]))
+                .order_by(Lote.id)
+                .populate_existing()
+                .with_for_update()
+                .all()
+            )
+
+            por_id = {lote.id: lote for lote in lotes}
+            origen = por_id.get(base["origen_id"])
+            destino = por_id.get(destino_id)
+
+            separacion = (
+                Separacion.query
+                .filter_by(id=sep_id)
+                .populate_existing()
+                .with_for_update()
+                .first()
+            )
+
+            if (
+                origen is None
+                or separacion is None
+                or huella(separacion) != base["huella"]
+                or not separacion.activa
+                or origen.estado != "separado"
+                or origen.lotizacion_id != base["proyecto_id"]
+                or str(session.get("lotizacion_id"))
+                    != str(origen.lotizacion_id)
+            ):
+                raise ValueError(
+                    "La separación cambió. "
+                    "Recarga la página antes de continuar."
+                )
+
+            if (
+                destino is None
+                or destino.lotizacion_id != origen.lotizacion_id
+            ):
+                raise ValueError(
+                    "El nuevo lote debe pertenecer al mismo proyecto."
+                )
+
+            # Comprobar también las operaciones del lote de destino.
+            if (
+                destino.estado != "disponible"
+                or Compra.query.filter_by(
+                    lote_id=destino.id
+                ).first() is not None
+                or Separacion.query.filter_by(
+                    lote_id=destino.id,
+                    activa=True
+                ).first() is not None
+            ):
+                raise ValueError(
+                    "El nuevo lote ya no está disponible. Selecciona otro."
+                )
+
+            if (
+                Compra.query.filter_by(
+                    lote_id=origen.id
+                ).first() is not None
+                or Separacion.query.filter_by(
+                    lote_id=origen.id,
+                    activa=True
+                ).count() != 1
+            ):
+                raise ValueError(
+                    "El lote actual tiene operaciones incompatibles. "
+                    "Revisa sus datos."
+                )
+
+            detalle = (
+                f"Sep #{separacion.id}: "
+                f"Mz {origen.manzana} Lt {origen.numero}"
+                f" -> Mz {destino.manzana} Lt {destino.numero}. "
+                f"Usuario #{current_user.id}. {motivo}"
+            )
+
+            if len(detalle) > 200:
+                raise ValueError(
+                    "Acorta el motivo para poder guardar "
+                    "el historial completo."
+                )
+
+            fecha = hora_local_peru()
+
+            for lote_historial in (origen, destino):
+                db.session.add(Historial(
+                    cliente_id=separacion.cliente_id,
+                    lote_id=lote_historial.id,
+                    tipo="Cambio de lote de separación",
+                    detalle=detalle,
+                    fecha=fecha
+                ))
+
+            # Cambiar únicamente el lote de la misma separación.
+            separacion.lote_id = destino.id
+            origen.estado = "disponible"
+            destino.estado = "separado"
+
+            destino_guardado = destino.id
+
+            # Traslado, estados e historial se guardan juntos.
+            db.session.commit()
+
+            flash(
+                "Separación trasladada. Se conservaron "
+                "el abono, el voucher y la fecha.",
+                "success"
+            )
+
+            return redirect(
+                url_for("detalle_lote", lote_id=destino_guardado)
+            )
+
+        except (BadSignature, SignatureExpired):
+            db.session.rollback()
+            error = (
+                "El formulario venció o no es válido. "
+                "Revisa los datos e inténtalo nuevamente."
+            )
+
+        except ValueError as exc:
+            db.session.rollback()
+            error = str(exc)
+
+        except Exception:
+            db.session.rollback()
+
+            current_app.logger.exception(
+                "Error al cambiar el lote de la separación %s",
+                sep_id
+            )
+
+            error = (
+                "No se pudo completar el cambio. "
+                "Recarga la ficha y revisa el lote antes de reintentar."
+            )
+
+    # Consultar nuevamente después de cualquier error.
+    separacion = db.session.get(
+        Separacion, sep_id, populate_existing=True
+    )
+
+    if separacion is None:
+        flash("La separación ya no existe.", "warning")
+        return redirect(url_for("lotes_disponibles"))
+
+    origen = db.session.get(
+        Lote, separacion.lote_id, populate_existing=True
+    )
+
+    if (
+        origen is None
+        or not separacion.activa
+        or origen.estado != "separado"
+        or str(session.get("lotizacion_id"))
+            != str(origen.lotizacion_id)
+    ):
+        flash("La separación cambió. Revisa su ficha.", "warning")
+        return redirect(url_for("lotes_disponibles"))
+
+    disponibles = (
+        Lote.query
+        .filter_by(
+            lotizacion_id=origen.lotizacion_id,
+            estado="disponible"
+        )
+        .filter(
+            ~Lote.compra.has(),
+            ~Lote.separaciones.any(activa=True)
+        )
+        .all()
+    )
+
+    disponibles.sort(key=lambda lote: (
+        lote.manzana,
+        (0, int(lote.numero))
+        if lote.numero.isdigit()
+        else (1, lote.numero)
+    ))
+
+    base.update(
+        origen_id=origen.id,
+        proyecto_id=origen.lotizacion_id,
+        huella=huella(separacion)
+    )
+
+    return render_template(
+        "cambiar_lote_separacion.html",
+        separacion=separacion,
+        lote=origen,
+        lotizacion=origen.lotizacion,
+        disponibles=disponibles,
+        token_cambio_lote=firmador.dumps(base),
+        error=error,
+        motivo=motivo,
+        destino_elegido=destino_elegido
+    )
+
+def _historial_para_mostrar(registros):
+    """Preparar las filas de pantalla sin modificar registros guardados."""
+    patron = re.compile(
+        r"Sep #(?P<separacion>\d+): Mz (?P<mz_anterior>.+?) "
+        r"Lt (?P<lt_anterior>.+?) -> Mz (?P<mz_nuevo>.+?) "
+        r"Lt (?P<lt_nuevo>.+?)\. Usuario #(?P<usuario>\d+)\. (?P<motivo>.*)",
+        re.DOTALL
+    )
+
+    grupos = {}
+
+    for registro in registros:
+        if (
+            registro.tipo == "Cambio de lote de separación"
+            and registro.fecha
+        ):
+            coincidencia = patron.fullmatch(registro.detalle or "")
+
+            if coincidencia:
+                clave = (
+                    registro.cliente_id,
+                    registro.fecha,
+                    registro.detalle
+                )
+
+                grupos.setdefault(clave, []).append(
+                    (registro, coincidencia.groupdict())
+                )
+
+    cambios = {}
+    ocultos = set()
+    usuarios_ids = set()
+
+    for grupo in grupos.values():
+        # Agrupar únicamente la pareja correspondiente a ambos lotes.
+        if len(grupo) != 2:
+            continue
+
+        datos = grupo[0][1]
+
+        anterior = (
+            datos["mz_anterior"],
+            datos["lt_anterior"]
+        )
+
+        nuevo = (
+            datos["mz_nuevo"],
+            datos["lt_nuevo"]
+        )
+
+        lotes = [registro.lote for registro, _ in grupo]
+
+        if (
+            any(lote is None for lote in lotes)
+            or lotes[0].id == lotes[1].id
+            or lotes[0].lotizacion_id != lotes[1].lotizacion_id
+            or anterior == nuevo
+            or {
+                (lote.manzana, lote.numero)
+                for lote in lotes
+            } != {anterior, nuevo}
+        ):
+            continue
+
+        ids = sorted(registro.id for registro, _ in grupo)
+
+        cambios[ids[-1]] = datos
+        ocultos.add(ids[0])
+        usuarios_ids.add(int(datos["usuario"]))
+
+    nombres = {}
+
+    if usuarios_ids:
+        nombres = {
+            usuario.id: usuario.username
+            for usuario in Usuario.query.filter(
+                Usuario.id.in_(usuarios_ids)
+            ).all()
+        }
+
+    filas = []
+
+    for registro in registros:
+        if registro.id in ocultos:
+            continue
+
+        cambio = None
+
+        if registro.id in cambios:
+            datos = cambios[registro.id]
+            usuario_id = int(datos["usuario"])
+
+            cambio = {
+                "anterior": (
+                    f"Mz {datos['mz_anterior']} · "
+                    f"Lt {datos['lt_anterior']}"
+                ),
+                "nuevo": (
+                    f"Mz {datos['mz_nuevo']} · "
+                    f"Lt {datos['lt_nuevo']}"
+                ),
+                "responsable": (
+                    nombres.get(usuario_id)
+                    or f"Usuario #{usuario_id}"
+                ),
+                "motivo": datos["motivo"],
+                "separacion_id": datos["separacion"]
+            }
+
+        filas.append({
+            "id": registro.id,
+            "lote": registro.lote,
+            "fecha": registro.fecha,
+            "tipo": registro.tipo,
+            "detalle": registro.detalle,
+            "cambio_lote": cambio
+        })
+
+    return filas
 
 # ------------------- MAIN -------------------
 if __name__ == "__main__":

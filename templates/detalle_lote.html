@@ -938,6 +938,17 @@
 
         </div>
 
+        {% if current_user.rol == 'superadmin' and separacion.activa and lote.estado == 'separado' %}
+          <div class="action-bar operacion-actions">
+            <a
+              href="{{ url_for('cambiar_lote_separacion', sep_id=separacion.id) }}"
+              class="btn btn-outline-primary">
+              {{ icono_lote('derecha') }}
+              Cambiar lote
+            </a>
+          </div>
+        {% endif %}
+
       </div>
     </div>
   {% endif %}

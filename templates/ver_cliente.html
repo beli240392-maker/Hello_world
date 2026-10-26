@@ -1351,7 +1351,7 @@
 
       {% endif %}
 
-            <!-- HISTORIAL DE OPERACIONES -->
+                 <!-- HISTORIAL DE OPERACIONES -->
       {% if historial %}
         <div class="card section-card mb-4" id="historial-operaciones">
 
@@ -1365,6 +1365,7 @@
 
           <div class="table-responsive">
             <table class="table table-hover align-middle mb-0">
+
               <thead>
                 <tr>
                   <th>Lote</th>
@@ -1376,13 +1377,33 @@
 
               <tbody>
                 {% for movimiento in historial|sort(attribute='id', reverse=true) %}
+                  {% set cambio = movimiento.cambio_lote|default(none) %}
+
                   <tr>
-                    <td class="text-nowrap">
-                      {% if movimiento.lote %}
-                        <span class="lot-pill">
+                    <td>
+                      {% if cambio %}
+                        <div class="d-flex flex-wrap align-items-center gap-2">
+
+                          <span class="lot-pill text-nowrap">
+                            {{ cambio.anterior }}
+                          </span>
+
+                          <span class="text-muted" aria-label="cambia a">
+                            →
+                          </span>
+
+                          <span class="lot-pill text-nowrap">
+                            {{ cambio.nuevo }}
+                          </span>
+
+                        </div>
+
+                      {% elif movimiento.lote %}
+                        <span class="lot-pill text-nowrap">
                           Mz {{ movimiento.lote.manzana }} ·
                           Lt {{ movimiento.lote.numero }}
                         </span>
+
                       {% else %}
                         Sin referencia
                       {% endif %}
@@ -1405,16 +1426,30 @@
                     </td>
 
                     <td class="text-break">
-                      {{ movimiento.detalle or 'Sin detalle' }}
+                      {% if cambio %}
+                        <div>
+                          <span class="fw-semibold">Motivo:</span>
+                          {{ cambio.motivo }}
+                        </div>
+
+                        <div class="small text-muted mt-1">
+                          Cambiado por: {{ cambio.responsable }}
+                        </div>
+
+                      {% else %}
+                        {{ movimiento.detalle or 'Sin detalle' }}
+                      {% endif %}
                     </td>
                   </tr>
                 {% endfor %}
               </tbody>
+
             </table>
           </div>
 
         </div>
       {% endif %}
+
 
             <!-- HISTORIAL DE TITULARIDAD -->
       {% if transferencias_titular %}

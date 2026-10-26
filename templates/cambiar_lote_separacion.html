@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="container py-4" style="max-width: 850px;">
+  <div class="card border-0 shadow-sm rounded-4">
+    <div class="card-body p-4">
+
+      <div class="text-primary small fw-bold mb-1">
+        SEPARACIÓN · {{ lotizacion.nombre }}
+      </div>
+
+      <h2 class="fw-bold mb-2">Cambiar lote</h2>
+
+      <p class="text-muted mb-4">
+        El abono, el voucher y la fecha original se conservan.
+      </p>
+
+      <div class="bg-light border rounded-3 p-3 mb-4">
+        <div class="row g-3">
+
+          <div class="col-sm-8">
+            <div class="text-muted small">Cliente</div>
+            <div class="fw-semibold">
+              {{ separacion.cliente.nombre }}
+              {{ separacion.cliente.apellidos }}
+            </div>
+            <div class="small text-muted">
+              DNI {{ separacion.cliente.dni }}
+            </div>
+          </div>
+
+          <div class="col-sm-4">
+            <div class="text-muted small">Lote actual</div>
+            <div class="fw-bold">
+              Mz {{ lote.manzana }} · Lt {{ lote.numero }}
+            </div>
+          </div>
+
+          <div class="col-sm-8">
+            <div class="text-muted small">Abono de separación</div>
+            <div class="text-success fw-bold">
+              S/ {{ '%.2f'|format(separacion.monto) }}
+            </div>
+          </div>
+
+          <div class="col-sm-4">
+            <div class="text-muted small">Fecha original</div>
+            <div>
+              {{ separacion.fecha.strftime('%d/%m/%Y')
+                 if separacion.fecha else 'Sin registrar' }}
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      {% if error %}
+        <div class="alert alert-danger" role="alert">
+          {{ error }}
+        </div>
+      {% endif %}
+
+      {% if disponibles %}
+        <form
+          method="POST"
+          action="{{ url_for('cambiar_lote_separacion', sep_id=separacion.id) }}">
+
+          {% if csrf_token is defined %}
+            <input type="hidden"
+                   name="csrf_token"
+                   value="{{ csrf_token() }}">
+          {% endif %}
+
+          <input type="hidden"
+                 name="token_cambio_lote"
+                 value="{{ token_cambio_lote }}">
+
+          <label for="destino_id" class="form-label fw-semibold">
+            Nuevo lote disponible
+          </label>
+
+          <select id="destino_id"
+                  name="destino_id"
+                  class="form-select mb-3"
+                  required>
+
+            <option value="">Selecciona un lote</option>
+
+            {% for disponible in disponibles %}
+              <option
+                value="{{ disponible.id }}"
+                {% if destino_elegido == disponible.id|string %}selected{% endif %}>
+                Mz {{ disponible.manzana }} · Lt {{ disponible.numero }}
+                · {{ disponible.area }} m²
+              </option>
+            {% endfor %}
+
+          </select>
+
+          <label for="motivo" class="form-label fw-semibold">
+            Motivo del cambio
+          </label>
+
+          <textarea
+            id="motivo"
+            name="motivo"
+            class="form-control mb-3"
+            rows="2"
+            maxlength="60"
+            required
+            placeholder="Ejemplo: cambio solicitado por el cliente">{{ motivo }}</textarea>
+
+          <div class="alert alert-primary small">
+            El lote actual quedará disponible y el nuevo quedará
+            separado para este cliente.
+            El cambio quedará registrado en el historial.
+          </div>
+
+          <div class="form-check mb-4">
+            <input class="form-check-input"
+                   type="checkbox"
+                   id="confirmacion"
+                   name="confirmacion"
+                   value="si"
+                   required>
+
+            <label class="form-check-label" for="confirmacion">
+              He revisado el nuevo lote y confirmo el cambio.
+            </label>
+          </div>
+
+          <div class="d-flex flex-wrap gap-2">
+            <button type="submit" class="btn btn-primary">
+              Confirmar cambio de lote
+            </button>
+
+            <a class="btn btn-outline-secondary"
+               href="{{ url_for('detalle_lote', lote_id=lote.id) }}">
+              Cancelar
+            </a>
+          </div>
+
+        </form>
+
+      {% else %}
+        <div class="alert alert-warning">
+          No hay otros lotes disponibles en este proyecto.
+        </div>
+
+        <a class="btn btn-outline-secondary"
+           href="{{ url_for('detalle_lote', lote_id=lote.id) }}">
+          Volver al lote
+        </a>
+      {% endif %}
+
+    </div>
+  </div>
+</div>
+
+{% endblock %}
