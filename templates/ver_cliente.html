@@ -1439,6 +1439,16 @@
                       {% else %}
                         {{ movimiento.detalle or 'Sin detalle' }}
                       {% endif %}
+
+                      {% if movimiento.tiene_expediente|default(false) %}
+                        <div class="mt-2">
+                          <a
+                            class="btn btn-outline-primary btn-sm"
+                            href="{{ url_for('historial_operacion', historial_id=movimiento.id) }}">
+                            Ver detalle
+                          </a>
+                        </div>
+                      {% endif %}
                     </td>
                   </tr>
                 {% endfor %}
@@ -1608,13 +1618,37 @@
                     </a>
 
                     {% if current_user.rol in ('admin', 'superadmin') %}
-                    <form action="{{ url_for('liberar_separacion', sep_id=s.id) }}"
-                          method="POST"
-                          class="d-inline">
+                    <form
+                      action="{{ url_for('liberar_separacion', sep_id=s.id) }}"
+                      method="POST"
+                      class="d-inline"
+                      onsubmit="return confirmarLiberacionConHistorial(this, '¿Deseas liberar esta separación y conservar su expediente?');">
+
+                      <input type="hidden"
+                             name="operacion_id"
+                             value="{{ s.id }}">
+
+                      <input type="hidden"
+                             name="cliente_operacion_id"
+                             value="{{ s.cliente_id }}">
+
+                      <input type="hidden"
+                             name="csrf_liberacion"
+                             value="{{ session.get('csrf_liberacion', '') }}">
+
+                      <input type="hidden"
+                             name="motivo_liberacion"
+                             value="">
+
+                      {% if csrf_token is defined %}
+                        <input type="hidden"
+                               name="csrf_token"
+                               value="{{ csrf_token() }}">
+                      {% endif %}
+
                       <button type="submit"
-                              class="btn btn-outline-danger btn-sm"
-                              onclick="return confirm('¿Eliminar esta separación?');">
-                        🗑️ Eliminar
+                              class="btn btn-outline-danger btn-sm">
+                        Liberar
                       </button>
                     </form>
                     {% endif %}
@@ -1699,12 +1733,36 @@
                     </a>
 
                     {% if current_user.rol in ('admin', 'superadmin') %}
-                    <form action="{{ url_for('liberar_lote', id=c.lote_id, tipo='compra') }}"
-                          method="POST"
-                          class="mt-1">
+                    <form
+                      action="{{ url_for('liberar_lote', id=c.lote_id, tipo='compra') }}"
+                      method="POST"
+                      class="mt-1"
+                      onsubmit="return confirmarLiberacionConHistorial(this, '¿Deseas liberar esta compra y conservar su expediente?');">
+
+                      <input type="hidden"
+                             name="operacion_id"
+                             value="{{ c.id }}">
+
+                      <input type="hidden"
+                             name="cliente_operacion_id"
+                             value="{{ c.cliente_id }}">
+
+                      <input type="hidden"
+                             name="csrf_liberacion"
+                             value="{{ session.get('csrf_liberacion', '') }}">
+
+                      <input type="hidden"
+                             name="motivo_liberacion"
+                             value="">
+
+                      {% if csrf_token is defined %}
+                        <input type="hidden"
+                               name="csrf_token"
+                               value="{{ csrf_token() }}">
+                      {% endif %}
+
                       <button type="submit"
-                              class="btn btn-outline-danger btn-sm"
-                              onclick="return confirm('¿Seguro que deseas liberar esta compra?');">
+                              class="btn btn-outline-danger btn-sm">
                         Liberar
                       </button>
                     </form>
@@ -2133,11 +2191,35 @@
                     </a>
 
                     {% if current_user.rol in ('admin', 'superadmin') %}
-                    <form action="{{ url_for('liberar_lote', id=c.lote_id, tipo='compra') }}"
-                          method="POST">
+                    <form
+                      action="{{ url_for('liberar_lote', id=c.lote_id, tipo='compra') }}"
+                      method="POST"
+                      onsubmit="return confirmarLiberacionConHistorial(this, '¿Deseas liberar esta compra y conservar su expediente?');">
+
+                      <input type="hidden"
+                             name="operacion_id"
+                             value="{{ c.id }}">
+
+                      <input type="hidden"
+                             name="cliente_operacion_id"
+                             value="{{ c.cliente_id }}">
+
+                      <input type="hidden"
+                             name="csrf_liberacion"
+                             value="{{ session.get('csrf_liberacion', '') }}">
+
+                      <input type="hidden"
+                             name="motivo_liberacion"
+                             value="">
+
+                      {% if csrf_token is defined %}
+                        <input type="hidden"
+                               name="csrf_token"
+                               value="{{ csrf_token() }}">
+                      {% endif %}
+
                       <button type="submit"
-                              class="btn btn-outline-danger btn-sm w-100"
-                              onclick="return confirm('¿Seguro que deseas liberar esta compra a crédito?');">
+                              class="btn btn-outline-danger btn-sm w-100">
                         Liberar
                       </button>
                     </form>
@@ -2560,5 +2642,30 @@ $(function() {
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+function confirmarLiberacionConHistorial(formulario, pregunta) {
+  const motivo = window.prompt(
+    pregunta +
+    "\n\nEscribe el motivo de la liberación (máximo 200 caracteres):"
+  );
+
+  if (motivo === null) {
+    return false;
+  }
+
+  const texto = motivo.trim();
+
+  if (!texto || texto.length > 200) {
+    window.alert(
+      "Escribe un motivo de entre 1 y 200 caracteres."
+    );
+    return false;
+  }
+
+  formulario.elements["motivo_liberacion"].value = texto;
+  return true;
+}
+</script>
 
 {% endblock %}

@@ -199,6 +199,7 @@ class Historial(db.Model):
 
     tipo = db.Column(db.String(50), nullable=False)
     detalle = db.Column(db.String(200))
+    datos_operacion = db.Column(db.JSON, nullable=True)
     fecha = db.Column(db.DateTime, default=lambda: datetime.now(pytz.timezone("America/Lima")))
 
 class Lotizacion(db.Model):

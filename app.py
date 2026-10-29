@@ -487,7 +487,10 @@ def lotes_disponibles():
         lotes = (
             Lote.query
             .filter_by(lotizacion_id=lotizacion.id)
-            .order_by(cast(Lote.numero, Integer))
+            .order_by(
+                Lote.manzana.asc(),
+                cast(Lote.numero, Integer).asc()
+            )
             .all()
         )
 
@@ -1471,6 +1474,14 @@ def registrar_compra():
                         detalle=(
                             f"Separación de S/ {separacion.monto} "
                             "convertida en compra"
+                        ),
+                        datos_operacion=_expediente_operacion(
+                            separacion,
+                            "separacion",
+                            "convertida",
+                            "Separación convertida en compra",
+                            hora_local_peru(),
+                            compra_destino_id=compra.id
                         )
                     )
                 )
@@ -1798,6 +1809,7 @@ def registrar_separacion():
 @lotizacion_required
 @login_required
 def ver_cliente():
+    session.setdefault("csrf_liberacion", secrets.token_urlsafe(32))
     cliente = None
     separaciones = []
     compras_contado = []
@@ -2230,49 +2242,90 @@ def liberar_lote(id, tipo):
     bloqueo = bloquear_si_no_es_lotizacion_activa(lote.lotizacion_id)
     if bloqueo:
         return bloqueo
-    cliente_id = None  # para redireccionar luego
 
-    if tipo == "separacion":
-        sep = Separacion.query.filter_by(lote_id=lote.id, activa=True).first()
-        if sep:
-            sep.activa = False
-            lote.estado = "disponible"
-            cliente_id = sep.cliente_id
+    cliente_id = None
 
-            historial = Historial(
-                cliente_id=sep.cliente_id,
-                lote_id=sep.lote_id,
-                tipo="Separación liberada",
-                detalle=f"Separación de S/ {sep.monto:.2f} liberada",
-                fecha=hora_local_peru()
+    try:
+        operacion_id, cliente_esperado, motivo = (
+            _validar_formulario_liberacion()
+        )
+
+        if tipo not in ("compra", "separacion"):
+            raise ValueError("El tipo de operación no es válido.")
+
+        lote = (
+            Lote.query.filter_by(id=id)
+            .populate_existing()
+            .with_for_update()
+            .first()
+        )
+
+        if lote is None:
+            raise ValueError("El lote ya no existe.")
+
+        bloqueo = bloquear_si_no_es_lotizacion_activa(lote.lotizacion_id)
+        if bloqueo:
+            db.session.rollback()
+            return bloqueo
+
+        modelo = Compra if tipo == "compra" else Separacion
+
+        registro = (
+            modelo.query
+            .filter_by(id=operacion_id, lote_id=lote.id)
+            .populate_existing()
+            .with_for_update()
+            .first()
+        )
+
+        if registro is None:
+            raise ValueError(
+                "La operación cambió. Recarga la ficha antes de continuar."
             )
-            db.session.add(historial)
 
-    elif tipo == "compra":
-        compra = Compra.query.filter_by(lote_id=lote.id).first()
-        if compra:
-            cliente_id = compra.cliente_id
-
-            # Si era a crédito → eliminar cuotas
-            if compra.forma_pago == "credito":
-                Cuota.query.filter_by(compra_id=compra.id).delete()
-
-            db.session.delete(compra)
-            lote.estado = "disponible"
-
-            historial = Historial(
-                cliente_id=compra.cliente_id,
-                lote_id=compra.lote_id,
-                tipo="Compra liberada",
-                detalle=f"Compra de S/ {compra.precio:.2f} liberada",
-                fecha=hora_local_peru()
+        if registro.cliente_id != cliente_esperado:
+            raise ValueError(
+                "El titular cambió. "
+                "Recarga la ficha antes de liberar la operación."
             )
-            db.session.add(historial)
 
-    db.session.commit()
-    flash("Lote liberado correctamente.", "success")
-    return redirect(url_for("ver_cliente", cliente_id=cliente_id))
+        cliente_id = registro.cliente_id
 
+        cliente_id = _liberar_operacion_archivada(
+            lote, registro, tipo, motivo
+        )
+
+        db.session.commit()
+
+        flash(
+            "Lote liberado. El expediente se conservó "
+            "en el historial del cliente.",
+            "success"
+        )
+
+    except ValueError as error:
+        db.session.rollback()
+        flash(str(error), "warning")
+
+    except Exception:
+        db.session.rollback()
+
+        current_app.logger.exception(
+            "Error al archivar y liberar el lote %s", id
+        )
+
+        flash(
+            "No se pudo completar la liberación. "
+            "Revisa la ficha antes de reintentar.",
+            "danger"
+        )
+
+    if cliente_id:
+        return redirect(
+            url_for("ver_cliente", cliente_id=cliente_id)
+        )
+
+    return redirect(url_for("detalle_lote", lote_id=id))
 
 
 @app.route("/liberar_separacion/<int:sep_id>", methods=["POST"])
@@ -2280,20 +2333,95 @@ def liberar_lote(id, tipo):
 @lotizacion_required
 @admin_required
 def liberar_separacion(sep_id):
-    sep = Separacion.query.get_or_404(sep_id)
+    separacion = Separacion.query.get_or_404(sep_id)
 
-    bloqueo = bloquear_si_no_es_lotizacion_activa(sep.lote.lotizacion_id)
+    bloqueo = bloquear_si_no_es_lotizacion_activa(
+        separacion.lote.lotizacion_id
+    )
+
     if bloqueo:
         return bloqueo
-    lote = sep.lote
-    lote.estado = "disponible"
-    historial = Historial(cliente_id=sep.cliente_id, lote_id=sep.lote_id, tipo="Separación liberada",
-                          detalle=f"Separación de S/ {sep.monto:.2f} liberada", fecha=hora_local_peru())
-    db.session.add(historial)
-    db.session.delete(sep)
-    db.session.commit()
-    flash("Separación liberada correctamente.", "success")
-    return redirect(url_for("ver_cliente", cliente_id=sep.cliente_id))
+
+    cliente_id = separacion.cliente_id
+    lote_id = separacion.lote_id
+
+    try:
+        operacion_id, cliente_esperado, motivo = (
+            _validar_formulario_liberacion()
+        )
+
+        if operacion_id != sep_id:
+            raise ValueError(
+                "La separación recibida no coincide con el formulario."
+            )
+
+        lote = (
+            Lote.query.filter_by(id=lote_id)
+            .populate_existing()
+            .with_for_update()
+            .first()
+        )
+
+        separacion = (
+            Separacion.query
+            .filter_by(id=sep_id, lote_id=lote_id)
+            .populate_existing()
+            .with_for_update()
+            .first()
+        )
+
+        if lote is None or separacion is None:
+            raise ValueError(
+                "La separación cambió. Recarga la ficha antes de continuar."
+            )
+
+        if separacion.cliente_id != cliente_esperado:
+            raise ValueError(
+                "El cliente cambió. "
+                "Recarga la ficha antes de liberar la separación."
+            )
+
+        bloqueo = bloquear_si_no_es_lotizacion_activa(lote.lotizacion_id)
+        if bloqueo:
+            db.session.rollback()
+            return bloqueo
+
+        cliente_id = _liberar_operacion_archivada(
+            lote,
+            separacion,
+            "separacion",
+            motivo,
+            eliminar_separacion=True
+        )
+
+        db.session.commit()
+
+        flash(
+            "Separación liberada. "
+            "Su expediente se conservó en el historial.",
+            "success"
+        )
+
+    except ValueError as error:
+        db.session.rollback()
+        flash(str(error), "warning")
+
+    except Exception:
+        db.session.rollback()
+
+        current_app.logger.exception(
+            "Error al archivar la separación %s", sep_id
+        )
+
+        flash(
+            "No se pudo completar la liberación. "
+            "Revisa la ficha antes de reintentar.",
+            "danger"
+        )
+
+    return redirect(
+        url_for("ver_cliente", cliente_id=cliente_id)
+    )
 
 
 
@@ -8674,7 +8802,6 @@ def _historial_para_mostrar(registros):
     usuarios_ids = set()
 
     for grupo in grupos.values():
-        # Agrupar únicamente la pareja correspondiente a ambos lotes.
         if len(grupo) != 2:
             continue
 
@@ -8749,16 +8876,356 @@ def _historial_para_mostrar(registros):
                 "separacion_id": datos["separacion"]
             }
 
+        # Esta parte debe ejecutarse para todos los movimientos.
+        # Por eso está fuera del bloque anterior.
         filas.append({
             "id": registro.id,
             "lote": registro.lote,
             "fecha": registro.fecha,
             "tipo": registro.tipo,
             "detalle": registro.detalle,
-            "cambio_lote": cambio
+            "cambio_lote": cambio,
+            "tiene_expediente": (
+                isinstance(registro.datos_operacion, dict)
+                and registro.datos_operacion.get("version") == 1
+            )
         })
 
     return filas
+
+def _expediente_operacion(
+    registro,
+    tipo,
+    estado,
+    motivo,
+    fecha,
+    compra_destino_id=None
+):
+    """Copiar datos y referencias de archivos sin modificar la operación."""
+    lote = registro.lote
+    documentos = []
+
+    def adjuntar(nombre, ruta):
+        if isinstance(ruta, str) and ruta.strip():
+            documentos.append({
+                "nombre": nombre,
+                "ruta": ruta
+            })
+
+    datos = {
+        "version": 1,
+        "tipo": tipo,
+        "estado": estado,
+        "motivo": motivo,
+        "fecha_archivo": fecha.isoformat(),
+        "responsable": {
+            "id": current_user.id,
+            "nombre": current_user.username
+        },
+        "cliente": _copia_para_transferencia(registro.cliente),
+        "lote": _copia_para_transferencia(lote),
+        "proyecto": {
+            "id": lote.lotizacion_id,
+            "nombre": lote.lotizacion.nombre
+        },
+        "operacion": _copia_para_transferencia(registro),
+        "registrado_por": (
+            registro.usuario.username
+            if registro.usuario else "Sin registrar"
+        ),
+        "cuotas": [],
+        "pagos": [],
+        "documentos": documentos
+    }
+
+    adjuntar(
+        "DNI frontal del cliente",
+        registro.cliente.dni_frontal
+    )
+    adjuntar(
+        "DNI reverso del cliente",
+        registro.cliente.dni_reverso
+    )
+
+    if tipo == "compra":
+        cuotas = (
+            Cuota.query.filter_by(compra_id=registro.id)
+            .order_by(Cuota.numero, Cuota.id)
+            .populate_existing()
+            .with_for_update()
+            .all()
+        )
+
+        pagos = (
+            Pago.query.filter_by(compra_id=registro.id)
+            .order_by(Pago.fecha_pago, Pago.id)
+            .populate_existing()
+            .with_for_update()
+            .all()
+        )
+
+        datos["cuotas"] = [
+            _copia_para_transferencia(cuota)
+            for cuota in cuotas
+        ]
+
+        datos["pagos"] = [
+            _copia_para_transferencia(pago)
+            for pago in pagos
+        ]
+
+        datos["transferencias"] = [
+            _copia_para_transferencia(cambio)
+            for cambio in (
+                TransferenciaTitular.query
+                .filter_by(compra_id=registro.id)
+                .order_by(TransferenciaTitular.id)
+                .all()
+            )
+        ]
+
+        separacion_original = _separacion_original_compra(registro)
+
+        datos["separacion_original"] = (
+            _copia_para_transferencia(separacion_original)
+            if separacion_original else None
+        )
+
+        if separacion_original:
+            adjuntar(
+                "Voucher de la separación original",
+                separacion_original.boucher
+            )
+
+        adjuntar(
+            "Voucher de la compra o inicial",
+            registro.boucher_inicial
+        )
+
+        for numero, pago in enumerate(pagos, 1):
+            adjuntar(
+                f"Voucher del pago {numero} · S/ {pago.monto:.2f}",
+                pago.boucher
+            )
+
+        adjuntar("Acta de entrega", registro.acta_entrega)
+        adjuntar("Escritura / minuta", registro.escritura)
+
+        try:
+            otros = json.loads(registro.otros_documentos or "[]")
+        except (TypeError, ValueError):
+            otros = []
+
+        if isinstance(otros, list):
+            for documento in otros:
+                if isinstance(documento, dict):
+                    adjuntar(
+                        documento.get("nombre") or "Documento adicional",
+                        documento.get("ruta")
+                    )
+
+    else:
+        adjuntar(
+            "Voucher de la separación",
+            registro.boucher
+        )
+
+        datos["compra_destino_id"] = compra_destino_id
+
+    # Verificar que la copia se puede guardar antes de liberar.
+    return json.loads(
+        json.dumps(
+            datos,
+            ensure_ascii=False,
+            allow_nan=False
+        )
+    )
+
+
+def _validar_formulario_liberacion():
+    esperado = session.get("csrf_liberacion", "")
+    recibido = request.form.get("csrf_liberacion", "")
+
+    if not esperado or not secrets.compare_digest(esperado, recibido):
+        raise ValueError(
+            "El formulario no es válido. Recarga la ficha del cliente."
+        )
+
+    motivo = request.form.get("motivo_liberacion", "").strip()
+
+    if not motivo or len(motivo) > 200:
+        raise ValueError(
+            "Indica un motivo de liberación de hasta 200 caracteres."
+        )
+
+    try:
+        operacion_id = int(request.form.get("operacion_id", ""))
+        cliente_id = int(request.form.get("cliente_operacion_id", ""))
+    except (TypeError, ValueError):
+        raise ValueError(
+            "Recarga la ficha antes de liberar la operación."
+        )
+
+    return operacion_id, cliente_id, motivo
+
+
+def _liberar_operacion_archivada(
+    lote,
+    registro,
+    tipo,
+    motivo,
+    eliminar_separacion=False
+):
+    """El llamador bloquea los registros y confirma la transacción."""
+    if tipo == "compra":
+        if lote.estado != "vendido":
+            raise ValueError(
+                "El lote ya no tiene esa compra vigente."
+            )
+
+        if Compra.query.filter_by(lote_id=lote.id).count() != 1:
+            raise ValueError(
+                "El lote tiene más de una compra. Revisa sus registros."
+            )
+
+        if Separacion.query.filter_by(
+            lote_id=lote.id,
+            activa=True
+        ).first():
+            raise ValueError(
+                "El lote tiene una separación activa incompatible."
+            )
+
+        titulo = "Compra liberada"
+        detalle = f"Compra de S/ {registro.precio:.2f} liberada"
+
+    else:
+        if not registro.activa or lote.estado != "separado":
+            raise ValueError(
+                "La separación ya no está activa en este lote."
+            )
+
+        if Compra.query.filter_by(lote_id=lote.id).first():
+            raise ValueError(
+                "El lote tiene una compra registrada. Revisa su estado."
+            )
+
+        if Separacion.query.filter_by(
+            lote_id=lote.id,
+            activa=True
+        ).count() != 1:
+            raise ValueError(
+                "El lote tiene más de una separación activa."
+            )
+
+        titulo = "Separación liberada"
+        detalle = f"Separación de S/ {registro.monto:.2f} liberada"
+
+    fecha = hora_local_peru()
+
+    copia = _expediente_operacion(
+        registro,
+        tipo,
+        "liberada",
+        motivo,
+        fecha
+    )
+
+    evento = Historial(
+        cliente_id=registro.cliente_id,
+        lote_id=lote.id,
+        tipo=titulo,
+        detalle=detalle,
+        fecha=fecha,
+        datos_operacion=copia
+    )
+
+    db.session.add(evento)
+
+    # Guardar la copia dentro de la misma transacción.
+    # Si falla, no se continúa con la liberación.
+    db.session.flush()
+
+    if tipo == "compra":
+        pagos_ids = [
+            pago["id"]
+            for pago in copia["pagos"]
+        ]
+
+        if pagos_ids and Cuota.query.filter(
+            Cuota.pago_id.in_(pagos_ids),
+            Cuota.compra_id != registro.id
+        ).first():
+            raise ValueError(
+                "Hay pagos vinculados a otra compra. "
+                "Revisa los datos antes de liberar."
+            )
+
+        # La compra deja de ser operativa, como en la liberación actual.
+        # Su información completa queda en el expediente histórico.
+        Cuota.query.filter_by(
+            compra_id=registro.id
+        ).delete(synchronize_session="fetch")
+
+        Pago.query.filter_by(
+            compra_id=registro.id
+        ).delete(synchronize_session="fetch")
+
+        db.session.expire(registro, ["cuotas", "pagos"])
+        db.session.delete(registro)
+
+    elif eliminar_separacion:
+        db.session.delete(registro)
+
+    else:
+        registro.activa = False
+
+    lote.estado = "disponible"
+
+    return evento.cliente_id
+
+
+@app.route("/historial_operacion/<int:historial_id>")
+@login_required
+@lotizacion_required
+def historial_operacion(historial_id):
+    evento = Historial.query.get_or_404(historial_id)
+    lote = evento.lote
+
+    if str(session.get("lotizacion_id")) != str(lote.lotizacion_id):
+        flash(
+            "Selecciona el proyecto de esta operación.",
+            "warning"
+        )
+        return redirect(url_for("lotes_disponibles"))
+
+    datos = evento.datos_operacion
+
+    if not isinstance(datos, dict) or datos.get("version") != 1:
+        flash(
+            "Este registro anterior solo conserva su resumen.",
+            "info"
+        )
+        return redirect(
+            url_for("ver_cliente", cliente_id=evento.cliente_id)
+        )
+
+    if (
+        not isinstance(datos.get("cliente"), dict)
+        or not isinstance(datos.get("lote"), dict)
+        or not isinstance(datos.get("proyecto"), dict)
+        or datos["cliente"].get("id") != evento.cliente_id
+        or datos["lote"].get("id") != evento.lote_id
+        or datos["proyecto"].get("id") != lote.lotizacion_id
+    ):
+        return "El expediente no corresponde a este registro.", 409
+
+    return render_template(
+        "detalle_operacion_historial.html",
+        evento=evento,
+        expediente=datos,
+        lotizacion=lote.lotizacion
+    )
 
 # ------------------- MAIN -------------------
 if __name__ == "__main__":

@@ -1,0 +1,285 @@
+{% extends "base.html" %}
+{% block content %}
+
+{% macro fecha_guardada(valor) -%}
+  {% if valor and valor is string and valor|length >= 10 %}
+    {{ valor[8:10] }}/{{ valor[5:7] }}/{{ valor[:4] }}
+  {% else %}
+    Sin registrar
+  {% endif %}
+{%- endmacro %}
+
+{% set op = expediente.operacion %}
+{% set es_compra = expediente.tipo == 'compra' %}
+
+<div class="container py-4" style="max-width: 1100px;">
+
+  <div class="card border-0 shadow-sm rounded-4 mb-4">
+    <div class="card-body p-4">
+
+      <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+        <div>
+          <div class="small text-primary fw-bold mb-1">
+            EXPEDIENTE HISTÓRICO · {{ expediente.proyecto.nombre }}
+          </div>
+
+          <h2 class="fw-bold mb-1">{{ evento.tipo }}</h2>
+
+          <div class="text-muted">
+            Mz {{ expediente.lote.manzana }} ·
+            Lt {{ expediente.lote.numero }}
+          </div>
+        </div>
+
+        <span class="badge text-bg-secondary">Solo consulta</span>
+      </div>
+
+      <div class="bg-light border rounded-3 p-3 mb-4">
+        <div class="fw-semibold">
+          {{ expediente.cliente.nombre }}
+          {{ expediente.cliente.apellidos }}
+        </div>
+
+        <div class="small text-muted">
+          DNI {{ expediente.cliente.dni }}
+        </div>
+
+        <div class="small mt-2">
+          Estos datos corresponden a esta operación histórica
+          y no forman parte de los saldos vigentes.
+        </div>
+      </div>
+
+      <div class="row g-4">
+
+        {% if es_compra %}
+          <div class="col-6 col-md-3">
+            <div class="small text-muted">Precio registrado</div>
+            <div class="fw-bold">
+              S/ {{ '%.2f'|format(op.precio) }}
+            </div>
+          </div>
+
+          <div class="col-6 col-md-3">
+            <div class="small text-muted">Inicial registrada</div>
+            <div class="fw-bold">
+              S/ {{ '%.2f'|format(op.inicial or 0) }}
+            </div>
+          </div>
+
+          <div class="col-6 col-md-3">
+            <div class="small text-muted">Forma de pago</div>
+            <div class="fw-semibold">
+              {{ 'Crédito' if op.forma_pago == 'credito' else 'Contado' }}
+            </div>
+          </div>
+
+          <div class="col-6 col-md-3">
+            <div class="small text-muted">Fecha de compra</div>
+            <div>{{ fecha_guardada(op.fecha_compra) }}</div>
+          </div>
+
+          <div class="col-6 col-md-3">
+            <div class="small text-muted">Cuotas registradas</div>
+            <div>{{ op.cuotas_total or 0 }}</div>
+          </div>
+
+          <div class="col-6 col-md-3">
+            <div class="small text-muted">Interés registrado</div>
+            <div>{{ op.interes or 0 }} %</div>
+          </div>
+
+        {% else %}
+          <div class="col-sm-6">
+            <div class="small text-muted">Monto abonado</div>
+            <div class="fw-bold text-primary">
+              S/ {{ '%.2f'|format(op.monto) }}
+            </div>
+          </div>
+
+          <div class="col-sm-6">
+            <div class="small text-muted">Fecha de separación</div>
+            <div>{{ fecha_guardada(op.fecha) }}</div>
+          </div>
+        {% endif %}
+
+        <div class="col-sm-6">
+          <div class="small text-muted">
+            Registrado originalmente por
+          </div>
+          <div>{{ expediente.registrado_por }}</div>
+        </div>
+
+        <div class="col-sm-6">
+          <div class="small text-muted">
+            {{ 'Conversión registrada'
+               if expediente.estado == 'convertida'
+               else 'Liberación registrada' }}
+          </div>
+          <div>
+            {{ evento.fecha.strftime('%d/%m/%Y %H:%M')
+               if evento.fecha
+               else fecha_guardada(expediente.fecha_archivo) }}
+          </div>
+        </div>
+
+        <div class="col-sm-6">
+          <div class="small text-muted">Responsable</div>
+          <div>{{ expediente.responsable.nombre }}</div>
+        </div>
+
+        <div class="col-sm-6">
+          <div class="small text-muted">Motivo</div>
+          <div class="text-break">{{ expediente.motivo }}</div>
+        </div>
+
+      </div>
+
+      {% if es_compra and op.comentario %}
+        <div class="border-top mt-4 pt-3">
+          <div class="small text-muted mb-1">
+            Comentario de la compra
+          </div>
+          <div class="text-break"
+               style="white-space: pre-line;">{{ op.comentario }}</div>
+        </div>
+      {% endif %}
+
+    </div>
+  </div>
+
+  {% if expediente.cuotas %}
+    <div class="card border-0 shadow-sm rounded-4 mb-4">
+      <div class="card-body p-4">
+
+        <h3 class="h5 fw-bold mb-3">Cronograma guardado</h3>
+
+        <div class="table-responsive">
+          <table class="table align-middle mb-0">
+            <thead>
+              <tr>
+                <th>Cuota</th>
+                <th>Monto</th>
+                <th>Vencimiento</th>
+                <th>Estado al archivar</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {% for cuota in expediente.cuotas %}
+                <tr>
+                  <td>{{ cuota.numero }}</td>
+                  <td class="text-nowrap">
+                    S/ {{ '%.2f'|format(cuota.monto) }}
+                  </td>
+                  <td>
+                    {{ fecha_guardada(cuota.fecha_vencimiento) }}
+                  </td>
+                  <td>
+                    {{ 'Pagada' if cuota.pagada
+                       else 'Pendiente en ese momento' }}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+    </div>
+  {% endif %}
+
+  {% if expediente.pagos %}
+    <div class="card border-0 shadow-sm rounded-4 mb-4">
+      <div class="card-body p-4">
+
+        <h3 class="h5 fw-bold mb-3">Pagos registrados</h3>
+
+        <div class="table-responsive">
+          <table class="table align-middle mb-0">
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Monto</th>
+                <th>Comprobante</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {% for pago in expediente.pagos %}
+                <tr>
+                  <td>{{ fecha_guardada(pago.fecha_pago) }}</td>
+                  <td class="text-nowrap">
+                    S/ {{ '%.2f'|format(pago.monto) }}
+                  </td>
+                  <td>
+                    {% if pago.boucher %}
+                      <a
+                        class="btn btn-outline-primary btn-sm"
+                        href="{{ url_for('static', filename=pago.boucher) }}"
+                        target="_blank"
+                        rel="noopener">
+                        Ver voucher
+                      </a>
+                    {% else %}
+                      <span class="text-muted">
+                        Sin archivo registrado
+                      </span>
+                    {% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+    </div>
+  {% endif %}
+
+  <div class="card border-0 shadow-sm rounded-4 mb-4">
+    <div class="card-body p-4">
+
+      <h3 class="h5 fw-bold mb-3">
+        Vouchers y documentos asociados
+      </h3>
+
+      {% if expediente.documentos %}
+        <div class="list-group list-group-flush">
+          {% for documento in expediente.documentos %}
+            <div class="list-group-item px-0 d-flex flex-wrap justify-content-between align-items-center gap-2">
+
+              <span class="text-break">
+                {{ documento.nombre }}
+              </span>
+
+              <a
+                class="btn btn-outline-primary btn-sm"
+                href="{{ url_for('static', filename=documento.ruta) }}"
+                target="_blank"
+                rel="noopener">
+                Abrir archivo
+              </a>
+
+            </div>
+          {% endfor %}
+        </div>
+
+      {% else %}
+        <p class="text-muted mb-0">
+          No había archivos asociados a esta operación.
+        </p>
+      {% endif %}
+
+    </div>
+  </div>
+
+  <a
+    class="btn btn-outline-secondary"
+    href="{{ url_for('ver_cliente', cliente_id=evento.cliente_id) }}#historial-operaciones">
+    Volver a la ficha del cliente
+  </a>
+
+</div>
+
+{% endblock %}
