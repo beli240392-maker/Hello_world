@@ -494,8 +494,8 @@ def lotes_disponibles():
             .all()
         )
 
-    # Identificar los lotes vendidos mediante una compra al crédito.
     lotes_credito = set()
+    lotes_contado = set()
 
     if lotizacion:
         lotes_credito = {
@@ -507,6 +507,22 @@ def lotes_disponibles():
                     Lote.lotizacion_id == lotizacion.id,
                     Lote.estado == "vendido",
                     Compra.forma_pago == "credito",
+                    Compra.anulada.is_(False)
+                )
+                .distinct()
+                .all()
+            )
+        }
+
+        lotes_contado = {
+            fila[0]
+            for fila in (
+                db.session.query(Compra.lote_id)
+                .join(Lote, Compra.lote_id == Lote.id)
+                .filter(
+                    Lote.lotizacion_id == lotizacion.id,
+                    Lote.estado == "vendido",
+                    Compra.forma_pago == "contado",
                     Compra.anulada.is_(False)
                 )
                 .distinct()
@@ -550,8 +566,10 @@ def lotes_disponibles():
         total_separados=total_separados,
         total_vendidos=total_vendidos,
         lotizacion=lotizacion,
-        lotes_credito=lotes_credito
+        lotes_credito=lotes_credito,
+        lotes_contado=lotes_contado
     )
+
 
 @app.route("/editar_cliente/<int:cliente_id>", methods=["GET", "POST"])
 @login_required
@@ -2708,11 +2726,11 @@ def autocomplete_clientes():
 def get_cliente_por_dni():
     dni = request.args.get("dni", "").strip()
     lotizacion_id = session.get("lotizacion_id")
-    
-    if not dni:
+
+    if not dni or not lotizacion_id:
         return jsonify(None)
-    
-    # Buscar cliente que tenga compra o separación en la lotización actual
+
+    # Buscar por compras y separaciones del proyecto activo.
     cliente = (
         Cliente.query
         .filter_by(dni=dni)
@@ -2726,9 +2744,22 @@ def get_cliente_por_dni():
         .first()
     )
 
-    if not cliente:
+    # Si solo conserva historial, buscarlo en el mismo proyecto.
+    if cliente is None:
+        cliente = (
+            Cliente.query
+            .join(Historial, Historial.cliente_id == Cliente.id)
+            .join(Lote, Lote.id == Historial.lote_id)
+            .filter(
+                Cliente.dni == dni,
+                Lote.lotizacion_id == lotizacion_id
+            )
+            .first()
+        )
+
+    if cliente is None:
         return jsonify(None)
-    
+
     return jsonify({
         "id": cliente.id,
         "nombre": cliente.nombre,
@@ -9226,6 +9257,603 @@ def historial_operacion(historial_id):
         expediente=datos,
         lotizacion=lote.lotizacion
     )
+
+def _filtros_descarga_plano(argumentos):
+    import math
+
+    def area(nombre):
+        valor = argumentos.get(nombre, "").strip()
+
+        if len(valor) > 24 or not re.fullmatch(r"\d+(?:[.,]\d+)?", valor):
+            raise ValueError("Escribe un área válida mayor que cero.")
+
+        numero = float(valor.replace(",", "."))
+
+        if not math.isfinite(numero) or numero <= 0:
+            raise ValueError("Escribe un área válida mayor que cero.")
+
+        return numero
+
+    estado = argumentos.get("estado", "todos")
+    modo_area = argumentos.get("area_modo", "todas")
+
+    if estado not in (
+        "todos", "disponible", "separado",
+        "vendido", "contado", "credito"
+    ):
+        raise ValueError("El estado seleccionado no es válido.")
+
+    if modo_area not in ("todas", "exacta", "rango"):
+        raise ValueError("El filtro de área no es válido.")
+
+    desde = hasta = None
+
+    if modo_area == "exacta":
+        desde = hasta = area("area_exacta")
+
+    elif modo_area == "rango":
+        desde = area("area_desde")
+        hasta = area("area_hasta")
+
+        if desde > hasta:
+            raise ValueError(
+                "El área Desde no puede ser mayor que el área Hasta."
+            )
+
+    return {
+        "manzana": argumentos.get("manzana", ""),
+        "estado": estado,
+        "area_modo": modo_area,
+        "desde": desde,
+        "hasta": hasta
+    }
+
+
+def _crear_pdf_plano(lotizacion, registros, filtros, modo, fecha):
+    import math
+    import reportlab
+    from xml.sax.saxutils import escape
+    from PIL import Image
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.pagesizes import A3, landscape
+    from reportlab.lib.utils import ImageReader
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.platypus import Paragraph
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+
+    etiquetas = {
+        "todos": "Todos los estados",
+        "disponible": "Disponibles",
+        "separado": "Separados",
+        "vendido": "Vendidos",
+        "contado": "Vendidos al contado",
+        "credito": "Vendidos al crédito"
+    }
+
+    def coincide(fila):
+        if (
+            filtros["manzana"]
+            and str(fila.manzana) != filtros["manzana"]
+        ):
+            return False
+
+        estado = filtros["estado"]
+
+        if estado in ("contado", "credito"):
+            if fila.estado != "vendido" or fila.forma_pago != estado:
+                return False
+
+        elif estado != "todos" and fila.estado != estado:
+            return False
+
+        if filtros["area_modo"] != "todas":
+            try:
+                area = float(fila.area)
+            except (TypeError, ValueError):
+                return False
+
+            if not math.isfinite(area) or area <= 0:
+                return False
+
+            if not (
+                filtros["desde"] - 1e-7
+                <= area
+                <= filtros["hasta"] + 1e-7
+            ):
+                return False
+
+        return True
+
+    def puntos_validos(puntos):
+        if not isinstance(puntos, list) or not 3 <= len(puntos) <= 80:
+            return None
+
+        resultado = []
+
+        for punto in puntos:
+            if not isinstance(punto, dict):
+                return None
+
+            try:
+                x = float(punto["x"])
+                y = float(punto["y"])
+            except (KeyError, TypeError, ValueError, OverflowError):
+                return None
+
+            if not (
+                math.isfinite(x)
+                and math.isfinite(y)
+                and 0 <= x <= 1
+                and 0 <= y <= 1
+            ):
+                return None
+
+            resultado.append((x, y))
+
+        return resultado
+
+    with Image.open(
+        io.BytesIO(bytes(lotizacion.plano_imagen))
+    ) as imagen:
+
+        if imagen.width * imagen.height > 40000000:
+            raise ValueError(
+                "La imagen del plano supera el tamaño permitido."
+            )
+
+        imagen.load()
+        lector_imagen = ImageReader(imagen)
+        ancho_imagen, alto_imagen = imagen.size
+        salida = io.BytesIO()
+
+        # Cuando el original fue una imagen, convertirla a PDF sin marcas.
+        if modo == "original":
+            pagina = (
+                ancho_imagen * .75,
+                alto_imagen * .75
+            )
+
+            pdf = canvas.Canvas(salida, pagesize=pagina)
+            pdf.setTitle("Plano original - " + lotizacion.nombre)
+
+            pdf.drawImage(
+                lector_imagen,
+                0,
+                0,
+                width=pagina[0],
+                height=pagina[1],
+                mask="auto"
+            )
+
+            pdf.showPage()
+            pdf.save()
+            salida.seek(0)
+
+            return salida
+
+        # Fuentes incluidas en ReportLab.
+        carpeta_fuentes = os.path.join(
+            os.path.dirname(reportlab.__file__),
+            "fonts"
+        )
+
+        for nombre, archivo in (
+            ("PlanoRegular", "Vera.ttf"),
+            ("PlanoNegrita", "VeraBd.ttf")
+        ):
+            if nombre not in pdfmetrics.getRegisteredFontNames():
+                pdfmetrics.registerFont(
+                    TTFont(
+                        nombre,
+                        os.path.join(carpeta_fuentes, archivo)
+                    )
+                )
+
+        pagina = landscape(A3) if ancho_imagen >= alto_imagen else A3
+        ancho, alto = pagina
+        margen = 28
+
+        pdf = canvas.Canvas(salida, pagesize=pagina)
+        pdf.setTitle("Plano - " + lotizacion.nombre)
+
+        pdf.setFillColorRGB(.05, .24, .48)
+        pdf.setFont("PlanoNegrita", 9)
+        pdf.drawString(
+            margen,
+            alto - 34,
+            "PLANO DE DISPONIBILIDAD"
+        )
+
+        pdf.setFillColorRGB(.35, .40, .47)
+        pdf.setFont("PlanoRegular", 8)
+        pdf.drawRightString(
+            ancho - margen,
+            alto - 34,
+            fecha.strftime("Consulta: %d/%m/%Y %H:%M - Perú")
+        )
+
+        estilo = ParagraphStyle(
+            "plano_nombre",
+            fontName="PlanoNegrita",
+            fontSize=16,
+            leading=20,
+            textColor="#172033"
+        )
+
+        titulo = Paragraph(
+            escape(lotizacion.nombre),
+            estilo
+        )
+
+        _, alto_titulo = titulo.wrap(
+            ancho - margen * 2,
+            alto
+        )
+
+        titulo.drawOn(
+            pdf,
+            margen,
+            alto - 49 - alto_titulo
+        )
+
+        estilo_sub = ParagraphStyle(
+            "plano_filtro",
+            fontName="PlanoRegular",
+            fontSize=9,
+            leading=13,
+            textColor="#475569"
+        )
+
+        descripcion = "Plano completo - todos los estados"
+
+        if modo == "seleccion":
+            partes = [
+                (
+                    "Manzana " + filtros["manzana"]
+                    if filtros["manzana"]
+                    else "Todas las manzanas"
+                ),
+                etiquetas[filtros["estado"]]
+            ]
+
+            if filtros["area_modo"] == "exacta":
+                partes.append(
+                    f"Área exacta: {filtros['desde']:g} m²"
+                )
+
+            elif filtros["area_modo"] == "rango":
+                partes.append(
+                    f"Área: {filtros['desde']:g} "
+                    f"a {filtros['hasta']:g} m²"
+                )
+
+            descripcion = " | ".join(partes)
+
+        subtitulo = Paragraph(
+            escape(descripcion),
+            estilo_sub
+        )
+
+        _, alto_subtitulo = subtitulo.wrap(
+            ancho - margen * 2,
+            alto
+        )
+
+        arriba = alto - 58 - alto_titulo
+
+        subtitulo.drawOn(
+            pdf,
+            margen,
+            arriba - alto_subtitulo
+        )
+
+        arriba -= alto_subtitulo + 16
+        abajo = 88
+
+        factor = min(
+            (ancho - margen * 2) / ancho_imagen,
+            (arriba - abajo) / alto_imagen
+        )
+
+        if factor <= 0:
+            raise ValueError(
+                "El nombre del proyecto es demasiado largo "
+                "para el encabezado."
+            )
+
+        w = ancho_imagen * factor
+        h = alto_imagen * factor
+
+        izquierda = (ancho - w) / 2
+        base = abajo + (arriba - abajo - h) / 2
+
+        pdf.drawImage(
+            lector_imagen,
+            izquierda,
+            base,
+            width=w,
+            height=h,
+            mask="auto"
+        )
+
+        configuracion = lotizacion.plano_config
+
+        zonas = (
+            configuracion.get("lotes", {})
+            if isinstance(configuracion, dict)
+            else {}
+        )
+
+        if not isinstance(zonas, dict):
+            zonas = {}
+
+        colores = {
+            "disponible": (
+                25 / 255,
+                135 / 255,
+                84 / 255
+            ),
+            "separado": (
+                1,
+                193 / 255,
+                7 / 255
+            ),
+            "vendido": (
+                220 / 255,
+                53 / 255,
+                69 / 255
+            )
+        }
+
+        azul = (
+            13 / 255,
+            110 / 255,
+            253 / 255
+        )
+
+        resaltados = 0
+        sin_zona = 0
+
+        for fila in registros:
+            elegido = coincide(fila)
+            puntos = puntos_validos(
+                zonas.get(str(fila.id))
+            )
+
+            if puntos is None:
+                sin_zona += int(elegido)
+                continue
+
+            if (
+                filtros["manzana"]
+                and str(fila.manzana) != filtros["manzana"]
+            ):
+                continue
+
+            if fila.estado not in colores:
+                continue
+
+            resaltados += int(elegido)
+
+            credito = (
+                fila.estado == "vendido"
+                and fila.forma_pago == "credito"
+            )
+
+            pdf.saveState()
+            pdf.setFillColorRGB(*colores[fila.estado])
+            pdf.setStrokeColorRGB(*colores[fila.estado])
+
+            pdf.setFillAlpha(.44 if elegido else .05)
+            pdf.setStrokeAlpha(1 if elegido else .10)
+            pdf.setLineWidth(.4)
+
+            trazo = pdf.beginPath()
+
+            for i, (x, y) in enumerate(puntos):
+                px = izquierda + x * w
+                py = base + (1 - y) * h
+
+                if i == 0:
+                    trazo.moveTo(px, py)
+                else:
+                    trazo.lineTo(px, py)
+
+            trazo.close()
+            pdf.drawPath(trazo, stroke=1, fill=1)
+            pdf.restoreState()
+
+        # Leyenda y resumen.
+        pdf.setStrokeColorRGB(.88, .90, .93)
+        pdf.line(
+            margen,
+            75,
+            ancho - margen,
+            75
+        )
+
+        x_leyenda = margen
+
+        for texto, color in [
+            ("Disponible", colores["disponible"]),
+            ("Separado", colores["separado"]),
+            ("Vendido", colores["vendido"])
+        ]:
+            pdf.setFillColorRGB(*color)
+            pdf.setStrokeColorRGB(*color)
+            pdf.setLineWidth(.5)
+
+            pdf.rect(
+                x_leyenda,
+                53,
+                10,
+                10,
+                stroke=1,
+                fill=1
+            )
+
+            pdf.setFillColorRGB(.25, .30, .37)
+            pdf.setFont("PlanoRegular", 9)
+            pdf.drawString(
+                x_leyenda + 16,
+                55,
+                texto
+            )
+
+            x_leyenda += (
+                pdf.stringWidth(texto, "PlanoRegular", 9)
+                + 42
+            )
+
+        pdf.setFont("PlanoRegular", 8)
+
+        pdf.drawString(
+            margen,
+            35,
+            f"Lotes resaltados en el plano: {resaltados}. "
+            f"Coincidencias sin zona configurada: {sin_zona}."
+        )
+
+        pdf.drawString(
+            margen,
+            22,
+            "La imagen original del plano se conserva como fondo."
+        )
+
+        pdf.showPage()
+        pdf.save()
+        salida.seek(0)
+
+        return salida
+
+
+@app.route(
+    "/descargar_plano/<int:lot_id>",
+    methods=["GET"]
+)
+@login_required
+@lotizacion_required
+def descargar_plano(lot_id):
+    from sqlalchemy import and_
+
+    if str(session.get("lotizacion_id")) != str(lot_id):
+        return jsonify(
+            error="Selecciona primero el proyecto de este plano."
+        ), 403
+
+    lotizacion = Lotizacion.query.get_or_404(lot_id)
+
+    if not lotizacion.plano_imagen:
+        return jsonify(
+            error="Este proyecto todavía no tiene un plano."
+        ), 404
+
+    modo = request.args.get("modo", "seleccion")
+
+    if modo not in ("original", "completo", "seleccion"):
+        return jsonify(
+            error="La opción de descarga no es válida."
+        ), 400
+
+    try:
+        fecha = hora_local_peru()
+
+        filtros = _filtros_descarga_plano(
+            request.args if modo == "seleccion" else {}
+        )
+
+        registros = []
+
+        # Si existe el PDF original, entregarlo sin modificar sus bytes.
+        if modo == "original" and lotizacion.plano_pdf:
+            archivo = io.BytesIO(
+                bytes(lotizacion.plano_pdf)
+            )
+
+        else:
+            if modo != "original":
+                registros = (
+                    db.session.query(
+                        Lote.id,
+                        Lote.manzana,
+                        Lote.numero,
+                        Lote.area,
+                        Lote.estado,
+                        Compra.forma_pago
+                    )
+                    .outerjoin(
+                        Compra,
+                        and_(
+                            Compra.lote_id == Lote.id,
+                            Compra.anulada.is_(False)
+                        )
+                    )
+                    .filter(
+                        Lote.lotizacion_id == lot_id
+                    )
+                    .order_by(Lote.id)
+                    .all()
+                )
+
+                if (
+                    len({fila.id for fila in registros})
+                    != len(registros)
+                ):
+                    raise ValueError(
+                        "Un lote tiene más de una compra vigente. "
+                        "Revisa sus operaciones antes de descargar."
+                    )
+
+                if (
+                    filtros["manzana"]
+                    and not any(
+                        str(f.manzana) == filtros["manzana"]
+                        for f in registros
+                    )
+                ):
+                    raise ValueError(
+                        "La manzana seleccionada no pertenece "
+                        "a este proyecto."
+                    )
+
+            archivo = _crear_pdf_plano(
+                lotizacion,
+                registros,
+                filtros,
+                modo,
+                fecha
+            )
+
+        nombre = (
+            f"plano_proyecto_{lot_id}_{modo}_"
+            f"{fecha.strftime('%Y%m%d_%H%M%S')}.pdf"
+        )
+
+        respuesta = send_file(
+            archivo,
+            mimetype="application/pdf",
+            as_attachment=True,
+            download_name=nombre
+        )
+
+        respuesta.headers["Cache-Control"] = "private, no-store"
+        respuesta.headers["X-Content-Type-Options"] = "nosniff"
+
+        return respuesta
+
+    except ValueError as error:
+        return jsonify(error=str(error)), 400
+
+    except Exception:
+        current_app.logger.exception(
+            "Error al descargar el plano del proyecto %s",
+            lot_id
+        )
+
+        return jsonify(
+            error="No se pudo generar el plano. Inténtalo nuevamente."
+        ), 500
 
 # ------------------- MAIN -------------------
 if __name__ == "__main__":

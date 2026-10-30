@@ -2,393 +2,91 @@
 {% block content %}
 
 <style>
-  .lotes-page {
-    max-width: 1180px;
-    margin: 0 auto;
-  }
-
-  .lotes-page .vista-tabs {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 18px;
-    border-bottom: 1px solid #dee2e6;
-  }
-
-  .lotes-page .vista-tab {
-    border: 0;
-    background: transparent;
-    color: #64748b;
-    font-weight: 700;
-    padding: 10px 18px;
-    border-bottom: 3px solid transparent;
-  }
-
-  .lotes-page .vista-tab.active {
-    color: #0d6efd;
-    border-bottom-color: #0d6efd;
-  }
-
-  .lotes-page .plano-toolbar {
-    background: #fff;
-    border: 1px solid #e9ecef;
-    border-radius: 16px;
-    padding: 14px;
-    margin-bottom: 16px;
-    box-shadow: 0 8px 22px rgba(15, 23, 42, .05);
-  }
-
-  .lotes-page .plano-lienzo {
-    position: relative;
-    width: 100%;
-    overflow: hidden;
-    border: 1px solid #dbe3ec;
-    border-radius: 16px;
-    background: #f8fafc;
-    touch-action: pan-y;
-  }
-
-  .lotes-page .plano-escena {
-    position: relative;
-    width: 100%;
-    transform-origin: 0 0;
-  }
-
-  .lotes-page .plano-lienzo img {
-    display: block;
-    width: 100%;
-    height: auto;
-    user-select: none;
-    -webkit-user-drag: none;
-  }
-
-  .lotes-page .plano-lienzo svg {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-  }
-
-  .lotes-page .plano-lienzo.acercado {
-    cursor: grab;
-    touch-action: none;
-  }
-
-  .lotes-page .plano-lienzo.arrastrando,
-  .lotes-page .plano-lienzo.arrastrando .plano-zona {
-    cursor: grabbing;
-  }
-
-  .lotes-page .plano-zona {
-    cursor: pointer;
-    stroke-width: .15;
-    transition: opacity .15s ease, stroke-width .15s ease;
-  }
-
-  .lotes-page .plano-zona.estado-disponible {
-    fill: rgba(25, 135, 84, .58);
-    stroke: #198754;
-  }
-
-  .lotes-page .plano-zona.estado-separado {
-    fill: rgba(255, 193, 7, .68);
-    stroke: #d39e00;
-  }
-
-  .lotes-page .plano-zona.estado-vendido {
-    fill: rgba(220, 53, 69, .62);
-    stroke: #dc3545;
-  }
-
-  .lotes-page .plano-zona:hover {
-    opacity: .78;
-    stroke-width: .7;
-  }
-
-  .lotes-page .plano-zona.oculta {
-    display: none;
-  }
-
-  .lotes-page .plano-controles {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 8px;
-    margin-top: 14px;
-  }
-
-  .lotes-page .plano-controles .btn {
-    min-height: 40px;
-  }
-
-  .lotes-page .plano-nivel {
-    min-width: 56px;
-    text-align: center;
-    font-weight: 700;
-    color: #334155;
-  }
-
-  .lotes-page .page-head {
-    background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-    border: 1px solid #e9ecef;
-    border-radius: 20px;
-    padding: 24px 26px;
-    box-shadow: 0 10px 30px rgba(15, 23, 42, .06);
-    margin-bottom: 22px;
-  }
-
-  .lotes-page .page-head-inner {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-  }
-
-  .lotes-page .page-icon {
-    width: 54px;
-    height: 54px;
-    border-radius: 16px;
-    display: grid;
-    place-items: center;
-    background: #0d6efd;
-    color: #fff;
-    font-size: 24px;
-    flex: 0 0 auto;
-  }
-
-  .lotes-page .page-kicker {
-    text-transform: uppercase;
-    color: #0d6efd;
-    font-weight: 700;
-    font-size: .78rem;
-    margin-bottom: 2px;
-  }
-
-  .lotes-page .page-title {
-    font-size: 1.9rem;
-    font-weight: 800;
-    letter-spacing: -.025em;
-    margin: 0;
-    color: #172033;
-  }
-
-  .lotes-page .page-subtitle {
-    color: #64748b;
-    margin: .25rem 0 0;
-    font-size: .95rem;
-  }
-
-  .lotes-page .summary-card {
-    border: 1px solid #e9ecef;
-    border-radius: 18px;
-    box-shadow: 0 10px 28px rgba(15, 23, 42, .06);
-    background: #fff;
-    padding: 18px 20px;
-    height: 100%;
-  }
-
-  .lotes-page .summary-top {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-  }
-
-  .lotes-page .summary-label {
-    color: #64748b;
-    font-size: .82rem;
-    text-transform: uppercase;
-    letter-spacing: .04em;
-    font-weight: 700;
-  }
-
-  .lotes-page .summary-number {
-    font-size: 2rem;
-    font-weight: 800;
-    line-height: 1;
-    margin-top: 6px;
-  }
-
-  .lotes-page .summary-icon {
-    width: 42px;
-    height: 42px;
-    border-radius: 12px;
-    display: grid;
-    place-items: center;
-    font-size: 18px;
-  }
-
+  .lotes-page { max-width: 1180px; margin: 0 auto; }
+  .lotes-page .vista-tabs { display: flex; gap: 8px; margin-bottom: 18px; border-bottom: 1px solid #dee2e6; }
+  .lotes-page .vista-tab { border: 0; background: transparent; color: #64748b; font-weight: 700; padding: 10px 18px; border-bottom: 3px solid transparent; }
+  .lotes-page .vista-tab.active { color: #0d6efd; border-bottom-color: #0d6efd; }
+  .lotes-page .plano-toolbar { background: #fff; border: 1px solid #e9ecef; border-radius: 16px; padding: 14px; margin-bottom: 16px; box-shadow: 0 8px 22px rgba(15, 23, 42, .05); }
+  .lotes-page .plano-lienzo { position: relative; width: 100%; overflow: hidden; border: 1px solid #dbe3ec; border-radius: 16px; background: #f8fafc; touch-action: pan-y; }
+  .lotes-page .plano-escena { position: relative; width: 100%; transform-origin: 0 0; }
+  .lotes-page .plano-lienzo img { display: block; width: 100%; height: auto; user-select: none; -webkit-user-drag: none; }
+  .lotes-page .plano-lienzo svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .lotes-page .plano-lienzo.acercado { cursor: grab; touch-action: none; }
+  .lotes-page .plano-lienzo.arrastrando, .lotes-page .plano-lienzo.arrastrando .plano-zona { cursor: grabbing; }
+  .lotes-page .plano-zona { cursor: pointer; stroke-width: .15; transition: opacity .15s ease, stroke-width .15s ease; }
+  .lotes-page .plano-zona.estado-disponible { fill: rgba(25, 135, 84, .58); stroke: #198754; }
+  .lotes-page .plano-zona.estado-separado { fill: rgba(255, 193, 7, .68); stroke: #d39e00; }
+  .lotes-page .plano-zona.estado-vendido { fill: rgba(220, 53, 69, .62); stroke: #dc3545; }
+  .lotes-page .plano-zona:hover { opacity: .78; stroke-width: .7; }
+  .lotes-page .plano-zona.oculta { display: none; }
+  .lotes-page .plano-controles { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 14px; }
+  .lotes-page .plano-controles .btn { min-height: 40px; }
+  .lotes-page .plano-nivel { min-width: 56px; text-align: center; font-weight: 700; color: #334155; }
+  .lotes-page .page-head { background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); border: 1px solid #e9ecef; border-radius: 20px; padding: 24px 26px; box-shadow: 0 10px 30px rgba(15, 23, 42, .06); margin-bottom: 22px; }
+  .lotes-page .page-head-inner { display: flex; align-items: center; gap: 16px; }
+  .lotes-page .page-icon { width: 54px; height: 54px; border-radius: 16px; display: grid; place-items: center; background: #0d6efd; color: #fff; font-size: 24px; flex: 0 0 auto; }
+  .lotes-page .page-kicker { text-transform: uppercase; color: #0d6efd; font-weight: 700; font-size: .78rem; margin-bottom: 2px; }
+  .lotes-page .page-title { font-size: 1.9rem; font-weight: 800; letter-spacing: -.025em; margin: 0; color: #172033; }
+  .lotes-page .page-subtitle { color: #64748b; margin: .25rem 0 0; font-size: .95rem; }
+  .lotes-page .summary-card { border: 1px solid #e9ecef; border-radius: 18px; box-shadow: 0 10px 28px rgba(15, 23, 42, .06); background: #fff; padding: 18px 20px; height: 100%; }
+  .lotes-page .summary-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .lotes-page .summary-label { color: #64748b; font-size: .82rem; text-transform: uppercase; letter-spacing: .04em; font-weight: 700; }
+  .lotes-page .summary-number { font-size: 2rem; font-weight: 800; line-height: 1; margin-top: 6px; }
+  .lotes-page .summary-icon { width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center; font-size: 18px; }
   .lotes-page .summary-icon.disponible { background: #eaf7ef; }
   .lotes-page .summary-icon.separado { background: #fff6db; }
   .lotes-page .summary-icon.vendido { background: #fdebec; }
-
-  .lotes-page .legend-box {
-    border: 1px solid #e9ecef;
-    border-radius: 16px;
-    padding: 13px 16px;
-    background: #fff;
-    box-shadow: 0 8px 22px rgba(15, 23, 42, .04);
-  }
-
-  .lotes-page .legend-title {
-    font-weight: 700;
-    color: #334155;
-    margin-right: 8px;
-  }
-
-  .lotes-page .legend-item {
-    display: inline-flex;
-    align-items: center;
-    font-size: .88rem;
-    font-weight: 600;
-    color: #475569;
-  }
-
-  .lotes-page .summary-dot {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    display: inline-block;
-    margin-right: .45rem;
-  }
-
+  .lotes-page .legend-box { border: 1px solid #e9ecef; border-radius: 16px; padding: 13px 16px; background: #fff; box-shadow: 0 8px 22px rgba(15, 23, 42, .04); }
+  .lotes-page .legend-title { font-weight: 700; color: #334155; margin-right: 8px; }
+  .lotes-page .legend-item { display: inline-flex; align-items: center; font-size: .88rem; font-weight: 600; color: #475569; }
+  .lotes-page .summary-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: .45rem; }
   .lotes-page .dot-disponible { background: #198754; }
   .lotes-page .dot-separado { background: #ffc107; }
   .lotes-page .dot-vendido { background: #dc3545; }
-
-  .lotes-page .manzana-card {
-    border: 1px solid #e9ecef;
-    border-radius: 20px;
-    box-shadow: 0 12px 32px rgba(15, 23, 42, .07);
-    overflow: hidden;
-    height: 100%;
-    background: #fff;
-    transition: transform .18s ease, box-shadow .18s ease;
-  }
-
-  .lotes-page .manzana-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 16px 36px rgba(15, 23, 42, .10);
-  }
-
-  .lotes-page .manzana-head {
-    padding: 16px 18px;
-    background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-    border-bottom: 1px solid #e9ecef;
-  }
-
-  .lotes-page .manzana-title {
-    margin: 0;
-    font-size: 1.05rem;
-    font-weight: 800;
-    color: #1e293b;
-  }
-
-  .lotes-page .manzana-subtitle {
-    margin-top: 2px;
-    color: #64748b;
-    font-size: .82rem;
-  }
-
-  .lotes-page .lotes-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(78px, 1fr));
-    gap: .7rem;
-  }
-
-  .lotes-page .lote-btn {
-    min-height: 48px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 12px;
-    font-weight: 750;
-    padding: .55rem .5rem;
-    box-shadow: none;
-    transition: transform .15s ease, box-shadow .15s ease;
-  }
-
-  .lotes-page .lote-btn:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 6px 14px rgba(15, 23, 42, .10);
-  }
-
-  .lotes-page .lote-item {
-    min-width: 0;
-    position: relative;
-  }
-
-  .lotes-page .lote-item .lote-btn {
-    width: 100%;
-    padding-right: 2rem;
-  }
-
-  .lotes-page .delete-lote-form {
-    position: absolute;
-    top: 5px;
-    right: 5px;
-    margin: 0;
-    z-index: 2;
-  }
-
-  .lotes-page .delete-lote-btn {
-    width: 24px;
-    height: 24px;
-    padding: 0;
-    border-radius: 50%;
-    display: grid;
-    place-items: center;
-    border: 1px solid rgba(220, 53, 69, .35);
-    background: rgba(255, 255, 255, .96);
-    color: #dc3545;
-    font-size: .72rem;
-    line-height: 1;
-    box-shadow: 0 2px 6px rgba(15, 23, 42, .12);
-  }
-
-  .lotes-page .delete-lote-btn:hover {
-    background: #dc3545;
-    color: #fff;
-    border-color: #dc3545;
-  }
+  .lotes-page .manzana-card { border: 1px solid #e9ecef; border-radius: 20px; box-shadow: 0 12px 32px rgba(15, 23, 42, .07); overflow: hidden; height: 100%; background: #fff; transition: transform .18s ease, box-shadow .18s ease; }
+  .lotes-page .manzana-card:hover { transform: translateY(-2px); box-shadow: 0 16px 36px rgba(15, 23, 42, .10); }
+  .lotes-page .manzana-head { padding: 16px 18px; background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); border-bottom: 1px solid #e9ecef; }
+  .lotes-page .manzana-title { margin: 0; font-size: 1.05rem; font-weight: 800; color: #1e293b; }
+  .lotes-page .manzana-subtitle { margin-top: 2px; color: #64748b; font-size: .82rem; }
+  .lotes-page .lotes-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: .7rem; }
+  .lotes-page .lote-btn { min-height: 48px; display: flex; align-items: center; justify-content: center; border-radius: 12px; font-weight: 750; padding: .55rem .5rem; box-shadow: none; transition: transform .15s ease, box-shadow .15s ease; }
+  .lotes-page .lote-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 14px rgba(15, 23, 42, .10); }
+  .lotes-page .lote-item { min-width: 0; position: relative; }
+  .lotes-page .lote-item .lote-btn { width: 100%; padding-right: 2rem; }
+  .lotes-page .delete-lote-form { position: absolute; top: 5px; right: 5px; margin: 0; z-index: 2; }
+  .lotes-page .delete-lote-btn { width: 24px; height: 24px; padding: 0; border-radius: 50%; display: grid; place-items: center; border: 1px solid rgba(220, 53, 69, .35); background: rgba(255, 255, 255, .96); color: #dc3545; font-size: .72rem; line-height: 1; box-shadow: 0 2px 6px rgba(15, 23, 42, .12); }
+  .lotes-page .delete-lote-btn:hover { background: #dc3545; color: #fff; border-color: #dc3545; }
 
   @media (max-width: 575.98px) {
     .lotes-page .page-head { padding: 20px; }
     .lotes-page .page-title { font-size: 1.55rem; }
     .lotes-page .summary-number { font-size: 1.7rem; }
-
-    .lotes-page .lotes-grid {
-      grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
-    }
-
-    .lotes-page .legend-box .d-flex {
-      gap: 10px !important;
-    }
+    .lotes-page .lotes-grid { grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); }
+    .lotes-page .legend-box .d-flex { gap: 10px !important; }
   }
 
-  .lotes-page .lote-btn.lote-credito {
-    position: relative;
-    overflow: hidden;
-  }
-
-  .lotes-page .lote-btn.lote-credito::after {
-    content: "";
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    height: 5px;
-    background: #0d6efd;
-    border-radius: 0 0 11px 11px;
-    pointer-events: none;
-  }
-
-  .lotes-page .credito-linea {
-    display: inline-block;
-    width: 20px;
-    height: 5px;
-    border-radius: 3px;
-    background: #0d6efd;
-    flex-shrink: 0;
-  }
+  .lotes-page .lote-btn.lote-credito { position: relative; overflow: hidden; }
+  .lotes-page .lote-btn.lote-credito::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 5px; background: #0d6efd; border-radius: 0 0 11px 11px; pointer-events: none; }
+  .lotes-page .credito-linea { display: inline-block; width: 20px; height: 5px; border-radius: 3px; background: #0d6efd; flex-shrink: 0; }
+  .lotes-page .busqueda-area { border-top: 1px solid #e9ecef; margin-top: 14px; padding-top: 14px; }
+  .lotes-page .filtro-area-campo[hidden] { display: none !important; }
+  .lotes-page .plano-zona.atenuada { opacity: .12; cursor: default; }
+  .lotes-page .plano-zona.atenuada:hover { opacity: .12; stroke-width: .15; }
+  .lotes-page .plano-zona.coincide { stroke-width: .45; }
+  .lotes-page .plano-zona.coincide:hover { stroke-width: .7; }
+  .lotes-page .plano-cabecera { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+  .lotes-page .plano-cabecera h3 { font-size: 1rem; font-weight: 800; color: #1e293b; margin: 0; }
+  .lotes-page .plano-descarga { position: relative; margin-left: auto; }
+  .lotes-page .plano-descarga summary { list-style: none; }
+  .lotes-page .plano-descarga summary::-webkit-details-marker { display: none; }
+  .lotes-page .plano-descarga summary::after { content: " ▾"; }
+  .lotes-page .plano-descarga-menu { position: absolute; right: 0; top: calc(100% + 8px); z-index: 20; width: 270px; max-width: calc(100vw - 64px); padding: 6px; background: white; border: 1px solid #dbe3ec; border-radius: 12px; box-shadow: 0 12px 32px rgba(15,23,42,.14); }
+  .lotes-page .plano-descarga-menu button { display: block; width: 100%; border: 0; border-radius: 8px; background: transparent; padding: 10px 12px; text-align: left; color: #334155; font-size: .9rem; }
+  .lotes-page .plano-descarga-menu button:hover, .lotes-page .plano-descarga-menu button:focus-visible { background: #eff6ff; }
+  .lotes-page .plano-descarga-menu button small { display: block; color: #64748b; margin-top: 3px; }
+  .lotes-page .plano-pie-controles { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; border-top: 1px solid #e9ecef; padding-top: 14px; margin-top: 14px; }
+  .lotes-page .plano-pie-controles .plano-controles { margin-top: 0; }
+ 
 </style>
 
 <div class="container-fluid lotes-page px-0 px-md-2">
@@ -518,68 +216,226 @@
              data-proyecto="{{ lotizacion.id }}"
              data-usuario="{{ current_user.id }}"
              data-plano="{{ lotizacion.plano_nombre or '' }}"
+             data-descarga="{{ url_for('descargar_plano', lot_id=lotizacion.id) }}"
              hidden>
 
       <div class="plano-toolbar">
-        <div class="row g-3 align-items-end">
 
-          <div class="col-12 col-md-5">
-            <label for="filtro-manzana"
-                   class="form-label fw-semibold">
-              Ver manzana
-            </label>
-
-            <select id="filtro-manzana" class="form-select">
-              <option value="">Ver todo el plano</option>
-
-              {% for manzana in manzanas.keys() | sort %}
-                <option value="{{ manzana }}">
-                  Manzana {{ manzana }}
-                </option>
-              {% endfor %}
-            </select>
-          </div>
-
-          <div class="col-12 col-md-7">
-            <div class="small text-muted">
-              Haz clic sobre un lote coloreado para abrir su detalle.
+        <div class="plano-cabecera">
+          <div>
+            <h3>Opciones del plano</h3>
+            <div class="small text-muted mt-1">
+              Selecciona los lotes que deseas consultar.
             </div>
           </div>
+
+          <details id="menu-descarga-plano"
+                   class="plano-descarga">
+
+            <summary id="boton-descarga-plano"
+                     class="btn btn-primary">
+              Descargar PDF
+            </summary>
+
+            <div class="plano-descarga-menu">
+              <button type="button" data-descargar="original">
+                Plano original
+                <small>Sin marcas añadidas por el sistema.</small>
+              </button>
+
+              <button type="button" data-descargar="completo">
+                Plano completo
+                <small>Todos los estados, sin aplicar filtros.</small>
+              </button>
+
+              <button type="button" data-descargar="seleccion">
+                Plano con la selección actual
+                <small>Respeta manzana, estado y área.</small>
+              </button>
+            </div>
+          </details>
         </div>
 
-        <div class="plano-controles" aria-label="Controles del plano">
-          <button type="button"
-                  id="plano-zoom-menos"
-                  class="btn btn-outline-secondary"
-                  aria-label="Alejar plano"
-                  title="Alejar">
-            −
-          </button>
+        <!-- FILTROS -->
+        <form id="filtros-area"
+              class="busqueda-area"
+              novalidate>
 
-          <span id="plano-zoom-nivel" class="plano-nivel">100%</span>
+          <div class="row g-3 align-items-end">
 
-          <button type="button"
-                  id="plano-zoom-mas"
-                  class="btn btn-outline-secondary"
-                  aria-label="Acercar plano"
-                  title="Acercar">
-            +
-          </button>
+            <div class="col-12 col-md-4">
+              <label for="filtro-manzana"
+                     class="form-label fw-semibold">
+                Manzana
+              </label>
 
-          <button type="button"
-                  id="plano-ver-todo"
-                  class="btn btn-outline-primary">
-            Ver todo el plano
-          </button>
+              <select id="filtro-manzana" class="form-select">
+                <option value="">Todas las manzanas</option>
+
+                {% for manzana in manzanas.keys() | sort %}
+                  <option value="{{ manzana }}">
+                    Manzana {{ manzana }}
+                  </option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div class="col-12 col-md-4">
+              <label for="filtro-estado"
+                     class="form-label fw-semibold">
+                Estado
+              </label>
+
+              <select id="filtro-estado" class="form-select">
+                <option value="todos">Todos los estados</option>
+                <option value="disponible">Disponibles</option>
+                <option value="separado">Separados</option>
+                <option value="vendido">Vendidos</option>
+                <option value="contado">Vendidos al contado</option>
+                <option value="credito">Vendidos al crédito</option>
+              </select>
+            </div>
+
+            <div class="col-12 col-md-4">
+              <label for="filtro-area-modo"
+                     class="form-label fw-semibold">
+                Buscar por área
+              </label>
+
+              <select id="filtro-area-modo" class="form-select">
+                <option value="todas">Todas las áreas</option>
+                <option value="exacta">Área exacta</option>
+                <option value="rango">Rango de áreas</option>
+              </select>
+            </div>
+
+          </div>
+
+          <div class="row g-3 align-items-end mt-0">
+
+            <div id="campo-area-exacta"
+                 class="col-12 col-md-4 filtro-area-campo"
+                 hidden>
+
+              <label for="filtro-area-exacta"
+                     class="form-label fw-semibold">
+                Área exacta (m²)
+              </label>
+
+              <input id="filtro-area-exacta"
+                     type="text"
+                     inputmode="decimal"
+                     maxlength="24"
+                     class="form-control"
+                     placeholder="Ejemplo: 90"
+                     aria-describedby="filtro-area-error">
+            </div>
+
+            <div id="campo-area-desde"
+                 class="col-6 col-md-3 filtro-area-campo"
+                 hidden>
+
+              <label for="filtro-area-desde"
+                     class="form-label fw-semibold">
+                Desde (m²)
+              </label>
+
+              <input id="filtro-area-desde"
+                     type="text"
+                     inputmode="decimal"
+                     maxlength="24"
+                     class="form-control"
+                     placeholder="90"
+                     aria-describedby="filtro-area-error">
+            </div>
+
+            <div id="campo-area-hasta"
+                 class="col-6 col-md-3 filtro-area-campo"
+                 hidden>
+
+              <label for="filtro-area-hasta"
+                     class="form-label fw-semibold">
+                Hasta (m²)
+              </label>
+
+              <input id="filtro-area-hasta"
+                     type="text"
+                     inputmode="decimal"
+                     maxlength="24"
+                     class="form-control"
+                     placeholder="100"
+                     aria-describedby="filtro-area-error">
+            </div>
+
+            <div class="col-12 col-md-auto ms-md-auto">
+              <div class="d-flex flex-wrap gap-2">
+                <button type="submit" class="btn btn-primary">
+                  Buscar
+                </button>
+
+                <button id="limpiar-filtros-area"
+                        type="button"
+                        class="btn btn-outline-secondary">
+                  Limpiar filtros
+                </button>
+              </div>
+            </div>
+
+          </div>
+
+          <div id="filtro-area-error"
+               class="small text-danger mt-2"
+               role="alert"
+               hidden></div>
+        </form>
+
+        <!-- ZOOM Y RESULTADOS -->
+        <div class="plano-pie-controles">
+
+          <div class="plano-controles"
+               aria-label="Controles del plano">
+
+            <button type="button"
+                    id="plano-zoom-menos"
+                    class="btn btn-outline-secondary"
+                    aria-label="Alejar plano"
+                    title="Alejar">
+              −
+            </button>
+
+            <span id="plano-zoom-nivel"
+                  class="plano-nivel">
+              100%
+            </span>
+
+            <button type="button"
+                    id="plano-zoom-mas"
+                    class="btn btn-outline-secondary"
+                    aria-label="Acercar plano"
+                    title="Acercar">
+              +
+            </button>
+
+            <button type="button"
+                    id="plano-ver-todo"
+                    class="btn btn-outline-primary">
+              Ver todo el plano
+            </button>
+          </div>
+
+          <div id="plano-aviso"
+               class="small text-muted"
+               role="status"></div>
         </div>
 
-        <div id="plano-aviso"
-             class="small text-muted mt-2"
-             role="status"></div>
+        <div id="descarga-plano-error"
+             class="small text-danger mt-2"
+             role="alert"
+             hidden></div>
 
-        <div class="small text-muted mt-1">
-          Usa la rueda del mouse para acercar.
-          Al ampliar, arrastra para mover el plano.
+        <div class="small text-muted mt-2">
+          Haz clic en un lote resaltado para abrir su detalle.
+          Usa la rueda para acercar y arrastra para moverte.
         </div>
       </div>
 
@@ -606,11 +462,17 @@
                   <polygon
                     class="plano-zona estado-{{ lote.estado }}"
                     data-manzana="{{ lote.manzana }}"
+                    data-area="{{ lote.area if lote.area is not none else '' }}"
+                    data-estado="{{ lote.estado }}"
+                    data-forma-pago="{{ 'credito' if lote.id in lotes_credito else ('contado' if lote.id in lotes_contado else '') }}"
                     points="{% for punto in puntos %}{{ (punto.x * 100)|round(4) }},{{ (punto.y * 100)|round(4) }}{% if not loop.last %} {% endif %}{% endfor %}">
 
                     <title>
                       Mz {{ lote.manzana }} - Lote {{ lote.numero }} -
                       {{ lote.estado|capitalize }}
+                      {% if lote.area is not none %}
+                        - {{ lote.area }} m²
+                      {% endif %}
                     </title>
                   </polygon>
                 </a>
@@ -622,7 +484,8 @@
       </div>
 
       <div class="alert alert-info mt-3 mb-0">
-        Los lotes sin una zona dibujada todavía no aparecen sobre el plano.
+        Los lotes sin una zona dibujada todavía no aparecen sobre el plano
+        ni se incluyen en el contador de esta búsqueda.
       </div>
     </section>
 
@@ -632,7 +495,7 @@
   <section id="vista-lista"
            role="tabpanel"
            aria-labelledby="tab-lista">
-    
+
     <div class="row g-4">
       {% for manzana, lotes in manzanas.items() %}
         <div class="col-12 col-md-6 col-xl-4">
@@ -640,6 +503,7 @@
 
             <div class="manzana-head">
               <h5 class="manzana-title">Manzana {{ manzana }}</h5>
+
               <div class="manzana-subtitle">
                 {{ lotes|length }} lote{% if lotes|length != 1 %}s{% endif %}
               </div>
@@ -716,12 +580,36 @@
   const aviso = $("plano-aviso");
   const zonas = Array.from(svg.querySelectorAll(".plano-zona"));
 
-  // Cada usuario y proyecto conserva su propia vista en esta pestaña.
+  const formularioArea = $("filtros-area");
+  const modoArea = $("filtro-area-modo");
+  const areaExacta = $("filtro-area-exacta");
+  const areaDesde = $("filtro-area-desde");
+  const areaHasta = $("filtro-area-hasta");
+  const estadoLote = $("filtro-estado");
+  const errorArea = $("filtro-area-error");
+
+  const etiquetasEstado = {
+    todos: "Todos los estados",
+    disponible: "Disponibles",
+    separado: "Separados",
+    vendido: "Vendidos",
+    contado: "Vendidos al contado",
+    credito: "Vendidos al crédito"
+  };
+
+  let busquedaArea = {
+    modo: "todas",
+    exacta: "",
+    desde: "",
+    hasta: "",
+    estado: "todos"
+  };
+
   const clave =
     `plano-vista:v2:${plano.dataset.usuario}:${plano.dataset.proyecto}`;
 
-  // Si cambia la geometría del plano, recalcular el acercamiento.
   let huella = 0;
+
   const geometria = plano.dataset.plano + zonas.map(z =>
     z.dataset.manzana + ":" + z.getAttribute("points")
   ).join("|");
@@ -747,6 +635,7 @@
         huella,
         vista: plano.hidden ? "lista" : "plano",
         manzana: filtro.value,
+        busquedaArea,
         escala,
         x,
         y,
@@ -754,7 +643,7 @@
         scrollY: window.scrollY
       }));
     } catch (_) {
-      // El plano funciona aunque el navegador bloquee el almacenamiento.
+      // Funciona aunque el navegador bloquee el almacenamiento.
     }
   }
 
@@ -763,7 +652,6 @@
     x = limite(x, 0, 1 - 1 / escala);
     y = limite(y, 0, 1 - 1 / escala);
 
-    // Imagen y polígonos se mueven juntos para conservar la alineación.
     escena.style.transform =
       `scale(${escala}) translate(${-x * 100}%, ${-y * 100}%)`;
 
@@ -790,25 +678,188 @@
     if (persistir) guardar();
   }
 
+  function leerArea(valor) {
+    const texto = String(valor ?? "").trim();
+
+    if (
+      texto.length > 24 ||
+      !/^\d+(?:[.,]\d+)?$/.test(texto)
+    ) {
+      return null;
+    }
+
+    const numero = Number(texto.replace(",", "."));
+
+    return Number.isFinite(numero) && numero > 0 ? numero : null;
+  }
+
+  function validarBusqueda(datos) {
+    if (
+      !datos ||
+      !["todas", "exacta", "rango"].includes(datos.modo)
+    ) {
+      return "Selecciona cómo deseas buscar el área.";
+    }
+
+    if (
+      ![
+        "todos", "disponible", "separado",
+        "vendido", "contado", "credito"
+      ].includes(datos.estado)
+    ) {
+      return "Selecciona un estado válido.";
+    }
+
+    if (
+      datos.modo === "exacta" &&
+      leerArea(datos.exacta) === null
+    ) {
+      return "Escribe un área mayor que cero, por ejemplo 90 o 90,5.";
+    }
+
+    if (datos.modo === "rango") {
+      const desde = leerArea(datos.desde);
+      const hasta = leerArea(datos.hasta);
+
+      if (desde === null || hasta === null) {
+        return "Completa ambos límites con áreas mayores que cero.";
+      }
+
+      if (desde > hasta) {
+        return "El área Desde no puede ser mayor que el área Hasta.";
+      }
+    }
+
+    return "";
+  }
+
+  function limpiarErrorArea() {
+    errorArea.textContent = "";
+    errorArea.hidden = true;
+
+    [areaExacta, areaDesde, areaHasta].forEach(campo => {
+      campo.classList.remove("is-invalid");
+      campo.removeAttribute("aria-invalid");
+    });
+  }
+
+  function mostrarCamposArea() {
+    $("campo-area-exacta").hidden = modoArea.value !== "exacta";
+    $("campo-area-desde").hidden = modoArea.value !== "rango";
+    $("campo-area-hasta").hidden = modoArea.value !== "rango";
+
+    limpiarErrorArea();
+  }
+
+  function coincideBusqueda(zona) {
+    if (["contado", "credito"].includes(busquedaArea.estado)) {
+      if (
+        zona.dataset.estado !== "vendido" ||
+        zona.dataset.formaPago !== busquedaArea.estado
+      ) {
+        return false;
+      }
+    } else if (
+      busquedaArea.estado !== "todos" &&
+      zona.dataset.estado !== busquedaArea.estado
+    ) {
+      return false;
+    }
+
+    if (busquedaArea.modo === "todas") {
+      return true;
+    }
+
+    const area = leerArea(zona.dataset.area);
+
+    if (area === null) {
+      return false;
+    }
+
+    const epsilon = 1e-7;
+
+    if (busquedaArea.modo === "exacta") {
+      return (
+        Math.abs(area - leerArea(busquedaArea.exacta))
+        <= epsilon
+      );
+    }
+
+    return (
+      area >= leerArea(busquedaArea.desde) - epsilon &&
+      area <= leerArea(busquedaArea.hasta) + epsilon
+    );
+  }
+
   function aplicarFiltro(centrar = true) {
     const manzana = filtro.value;
 
-    zonas.forEach(z => z.classList.toggle(
-      "oculta",
-      Boolean(manzana) && z.dataset.manzana !== manzana
-    ));
+    const busquedaActiva =
+      busquedaArea.modo !== "todas" ||
+      busquedaArea.estado !== "todos";
 
     const visibles = zonas.filter(
       z => !manzana || z.dataset.manzana === manzana
     );
 
-    aviso.textContent = manzana
-      ? (
-          visibles.length
-            ? `Manzana ${manzana}: ${visibles.length} lotes vinculados.`
-            : `La manzana ${manzana} todavía no tiene zonas vinculadas.`
-        )
-      : `${zonas.length} lotes vinculados al plano.`;
+    zonas.forEach(z => {
+      const fueraManzana =
+        Boolean(manzana) && z.dataset.manzana !== manzana;
+
+      const coincide = coincideBusqueda(z);
+
+      z.classList.toggle("oculta", fueraManzana);
+      z.classList.toggle("atenuada", !coincide);
+      z.classList.toggle("coincide", busquedaActiva && coincide);
+
+      const enlace = z.closest("a");
+
+      if (fueraManzana || !coincide) {
+        enlace.setAttribute("aria-disabled", "true");
+        enlace.setAttribute("tabindex", "-1");
+      } else {
+        enlace.removeAttribute("aria-disabled");
+        enlace.removeAttribute("tabindex");
+      }
+    });
+
+    const encontrados = visibles.filter(coincideBusqueda);
+
+    if (busquedaActiva) {
+      const plural =
+        encontrados.length === 1
+          ? "lote coincide"
+          : "lotes coinciden";
+
+      aviso.textContent =
+        `${encontrados.length} ${plural} en el plano` +
+        (manzana ? ` · Manzana ${manzana}` : "") +
+        (
+          busquedaArea.estado !== "todos"
+            ? ` · ${etiquetasEstado[busquedaArea.estado]}`
+            : ""
+        ) + ".";
+
+      if (busquedaArea.modo !== "todas") {
+        const sinArea = visibles.filter(
+          z => leerArea(z.dataset.area) === null
+        ).length;
+
+        if (sinArea) {
+          aviso.textContent += sinArea === 1
+            ? " Se excluye 1 lote sin área válida."
+            : ` Se excluyen ${sinArea} lotes sin área válida.`;
+        }
+      }
+    } else {
+      aviso.textContent = manzana
+        ? (
+            visibles.length
+              ? `Manzana ${manzana}: ${visibles.length} lotes vinculados.`
+              : `La manzana ${manzana} todavía no tiene zonas vinculadas.`
+          )
+        : `${zonas.length} lotes vinculados al plano.`;
+    }
 
     if (centrar) {
       escala = 1;
@@ -841,7 +892,11 @@
 
         const lado = Math.min(
           100,
-          Math.max(maxX - minX + 6, maxY - minY + 6, 100 / 6)
+          Math.max(
+            maxX - minX + 6,
+            maxY - minY + 6,
+            100 / 6
+          )
         );
 
         escala = 100 / lado;
@@ -856,11 +911,11 @@
   function zoom(factor, u = .5, v = .5) {
     const nueva = limite(escala * factor, 1, MAX);
 
-    // Conservar el punto bajo el mouse al acercar o alejar.
     x += u * (1 / escala - 1 / nueva);
     y += v * (1 / escala - 1 / nueva);
 
     escala = nueva;
+
     pintar();
     guardar();
   }
@@ -870,14 +925,17 @@
 
   [tabLista, tabPlano].forEach(tab => {
     tab.addEventListener("keydown", e => {
-      if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) {
+      if (
+        !["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)
+      ) {
         return;
       }
 
       e.preventDefault();
 
       const verPlano =
-        e.key === "End" || (e.key !== "Home" && tab === tabLista);
+        e.key === "End" ||
+        (e.key !== "Home" && tab === tabLista);
 
       mostrar(verPlano);
       (verPlano ? tabPlano : tabLista).focus();
@@ -889,29 +947,115 @@
     guardar();
   });
 
+  modoArea.addEventListener("change", mostrarCamposArea);
+
+  function aplicarBusquedaFormulario() {
+    limpiarErrorArea();
+
+    const propuesta = {
+      modo: modoArea.value,
+      exacta:
+        modoArea.value === "exacta"
+          ? areaExacta.value.trim()
+          : "",
+      desde:
+        modoArea.value === "rango"
+          ? areaDesde.value.trim()
+          : "",
+      hasta:
+        modoArea.value === "rango"
+          ? areaHasta.value.trim()
+          : "",
+      estado: estadoLote.value
+    };
+
+    const error = validarBusqueda(propuesta);
+
+    if (error) {
+      errorArea.textContent =
+        error + " La búsqueda anterior sigue aplicada.";
+
+      errorArea.hidden = false;
+
+      const campos = propuesta.modo === "exacta"
+        ? [areaExacta]
+        : [areaDesde, areaHasta];
+
+      campos.forEach(campo => {
+        campo.classList.add("is-invalid");
+        campo.setAttribute("aria-invalid", "true");
+      });
+
+      campos[0].focus();
+      return false;
+    }
+
+    busquedaArea = propuesta;
+
+    aplicarFiltro(false);
+    guardar();
+
+    return true;
+  }
+
+  formularioArea.addEventListener("submit", e => {
+    e.preventDefault();
+    aplicarBusquedaFormulario();
+  });
+
+  function limpiarFiltros() {
+    formularioArea.reset();
+
+    busquedaArea = {
+      modo: "todas",
+      exacta: "",
+      desde: "",
+      hasta: "",
+      estado: "todos"
+    };
+
+    mostrarCamposArea();
+    filtro.value = "";
+
+    aplicarFiltro();
+    guardar();
+  }
+
+  $("limpiar-filtros-area").addEventListener(
+    "click",
+    limpiarFiltros
+  );
+
   mas.addEventListener("click", () => zoom(1.25));
   menos.addEventListener("click", () => zoom(1 / 1.25));
 
-  $("plano-ver-todo").addEventListener("click", () => {
-    filtro.value = "";
-    aplicarFiltro();
-    guardar();
-  });
+  $("plano-ver-todo").addEventListener(
+    "click",
+    limpiarFiltros
+  );
 
-  // ZOOM CON LA RUEDA DEL MOUSE
+  // ZOOM CON LA RUEDA
   lienzo.addEventListener("wheel", e => {
-    if (plano.hidden || !imagen.naturalWidth) return;
+    if (plano.hidden || !imagen.naturalWidth) {
+      return;
+    }
 
     const rect = escena.getBoundingClientRect();
     const ancho = rect.width / escala;
     const alto = rect.height / escala;
 
-    if (!ancho || !alto) return;
+    if (!ancho || !alto) {
+      return;
+    }
 
     const marco = lienzo.getBoundingClientRect();
 
     const delta = e.deltaY * (
-      e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? alto : 1
+      e.deltaMode === 1
+        ? 16
+        : e.deltaMode === 2
+          ? alto
+          : 1
     );
 
     e.preventDefault();
@@ -931,7 +1075,7 @@
     );
   }, { passive: false });
 
-  // DESPLAZAMIENTO AL ARRASTRAR
+  // ARRASTRAR EL PLANO
   lienzo.addEventListener("pointerdown", e => {
     if (
       e.button !== 0 ||
@@ -957,16 +1101,22 @@
   });
 
   window.addEventListener("pointermove", e => {
-    if (!arrastre || e.pointerId !== arrastre.id) return;
+    if (!arrastre || e.pointerId !== arrastre.id) {
+      return;
+    }
 
     const dx = e.clientX - arrastre.inicioX;
     const dy = e.clientY - arrastre.inicioY;
 
-    if (!arrastre.movido && Math.hypot(dx, dy) < 6) return;
+    if (!arrastre.movido && Math.hypot(dx, dy) < 6) {
+      return;
+    }
 
     arrastre.movido = true;
 
-    if (!arrastre.ancho || !arrastre.alto) return;
+    if (!arrastre.ancho || !arrastre.alto) {
+      return;
+    }
 
     lienzo.classList.add("arrastrando");
 
@@ -977,7 +1127,9 @@
   });
 
   function terminar(e) {
-    if (!arrastre || e.pointerId !== arrastre.id) return;
+    if (!arrastre || e.pointerId !== arrastre.id) {
+      return;
+    }
 
     if (arrastre.movido) {
       bloquearClickHasta = Date.now() + 350;
@@ -992,13 +1144,28 @@
   window.addEventListener("pointercancel", terminar);
 
   window.addEventListener("blur", () => {
-    if (arrastre) terminar({ pointerId: arrastre.id });
+    if (arrastre) {
+      terminar({ pointerId: arrastre.id });
+    }
   });
 
-  lienzo.addEventListener("dragstart", e => e.preventDefault());
+  lienzo.addEventListener(
+    "dragstart",
+    e => e.preventDefault()
+  );
 
-  // Evitar abrir un lote por accidente al terminar de arrastrar.
   lienzo.addEventListener("click", e => {
+    const enlace = e.target.closest("a");
+
+    if (
+      enlace &&
+      enlace.getAttribute("aria-disabled") === "true"
+    ) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+
     if (Date.now() < bloquearClickHasta) {
       e.preventDefault();
       e.stopPropagation();
@@ -1026,7 +1193,133 @@
     }
   });
 
-  // RESTAURAR LA VISTA AL VOLVER DESDE EL DETALLE DEL LOTE
+  // DESCARGA DEL PDF
+  const menuDescarga = $("menu-descarga-plano");
+  const botonDescarga = $("boton-descarga-plano");
+  const errorDescarga = $("descarga-plano-error");
+
+  let descargando = false;
+
+  document.addEventListener("click", e => {
+    if (!menuDescarga.contains(e.target)) {
+      menuDescarga.open = false;
+    }
+  });
+
+  menuDescarga.addEventListener("keydown", e => {
+    if (e.key === "Escape") {
+      menuDescarga.open = false;
+      botonDescarga.focus();
+    }
+  });
+
+  menuDescarga.querySelectorAll("[data-descargar]").forEach(boton => {
+    boton.addEventListener("click", async () => {
+      if (descargando) {
+        return;
+      }
+
+      const modo = boton.dataset.descargar;
+
+      errorDescarga.hidden = true;
+      menuDescarga.open = false;
+
+      if (
+        modo === "seleccion" &&
+        !aplicarBusquedaFormulario()
+      ) {
+        return;
+      }
+
+      descargando = true;
+
+      botonDescarga.textContent = "Generando PDF…";
+      botonDescarga.setAttribute("aria-busy", "true");
+
+      try {
+        const destino = new URL(
+          plano.dataset.descarga,
+          window.location.origin
+        );
+
+        destino.searchParams.set("modo", modo);
+
+        if (modo === "seleccion") {
+          Object.entries({
+            manzana: filtro.value,
+            estado: busquedaArea.estado,
+            area_modo: busquedaArea.modo,
+            area_exacta: busquedaArea.exacta,
+            area_desde: busquedaArea.desde,
+            area_hasta: busquedaArea.hasta
+          }).forEach(([clave, valor]) => {
+            destino.searchParams.set(clave, valor);
+          });
+        }
+
+        const respuesta = await fetch(destino, {
+          credentials: "same-origin",
+          cache: "no-store"
+        });
+
+        const tipo =
+          respuesta.headers.get("content-type") || "";
+
+        if (
+          !respuesta.ok ||
+          !tipo.includes("application/pdf")
+        ) {
+          let mensaje =
+            "No se pudo descargar. Comprueba tu sesión " +
+            "e inténtalo nuevamente.";
+
+          if (tipo.includes("application/json")) {
+            mensaje =
+              (await respuesta.json()).error || mensaje;
+          }
+
+          throw new Error(mensaje);
+        }
+
+        const archivo = await respuesta.blob();
+        const temporal = URL.createObjectURL(archivo);
+        const enlace = document.createElement("a");
+
+        enlace.href = temporal;
+
+        const nombre = (
+          respuesta.headers.get("content-disposition") || ""
+        ).match(/filename="?([^";]+)"?/i);
+
+        enlace.download = nombre
+          ? nombre[1]
+          : `plano_${modo}.pdf`;
+
+        document.body.appendChild(enlace);
+        enlace.click();
+        enlace.remove();
+
+        window.setTimeout(
+          () => URL.revokeObjectURL(temporal),
+          60000
+        );
+
+      } catch (error) {
+        errorDescarga.textContent =
+          error.message || "No se pudo descargar el plano.";
+
+        errorDescarga.hidden = false;
+
+      } finally {
+        descargando = false;
+
+        botonDescarga.textContent = "Descargar PDF";
+        botonDescarga.removeAttribute("aria-busy");
+      }
+    });
+  });
+
+  // RESTAURAR AL VOLVER DESDE DETALLE LOTE
   let previo = null;
 
   try {
@@ -1042,42 +1335,96 @@
       filtro.value = previo.manzana;
     }
 
+    const antigua = previo.busquedaArea;
+
+    const guardada = antigua && {
+      modo: antigua.modo,
+      exacta: antigua.exacta,
+      desde: antigua.desde,
+      hasta: antigua.hasta,
+      estado:
+        antigua.estado ??
+        (antigua.disponibles ? "disponible" : "todos")
+    };
+
+    if (
+      guardada &&
+      [
+        guardada.exacta,
+        guardada.desde,
+        guardada.hasta
+      ].every(valor => typeof valor === "string") &&
+      !validarBusqueda(guardada)
+    ) {
+      busquedaArea = guardada;
+
+      modoArea.value = guardada.modo;
+      areaExacta.value = guardada.exacta;
+      areaDesde.value = guardada.desde;
+      areaHasta.value = guardada.hasta;
+      estadoLote.value = guardada.estado;
+    }
+
+    mostrarCamposArea();
     aplicarFiltro();
 
     if (
       previo.huella === huella &&
-      [previo.escala, previo.x, previo.y].every(Number.isFinite)
+      [
+        previo.escala,
+        previo.x,
+        previo.y
+      ].every(Number.isFinite)
     ) {
       escala = previo.escala;
       x = previo.x;
       y = previo.y;
+
       pintar();
     }
 
     mostrar(previo.vista === "plano", false);
 
-    if (previo.regresar && Number.isFinite(previo.scrollY)) {
+    if (
+      previo.regresar &&
+      Number.isFinite(previo.scrollY)
+    ) {
       regresoY = previo.scrollY;
     }
+
   } else {
+    mostrarCamposArea();
     aplicarFiltro();
     mostrar(false, false);
   }
 
   function restaurarScroll() {
-    if (regresoY === null) return;
+    if (regresoY === null) {
+      return;
+    }
 
     const destino = regresoY;
     regresoY = null;
 
-    requestAnimationFrame(() => window.scrollTo(0, destino));
+    requestAnimationFrame(() => {
+      window.scrollTo(0, destino);
+    });
   }
 
   if (imagen.complete) {
     restaurarScroll();
   } else {
-    imagen.addEventListener("load", restaurarScroll, { once: true });
-    imagen.addEventListener("error", restaurarScroll, { once: true });
+    imagen.addEventListener(
+      "load",
+      restaurarScroll,
+      { once: true }
+    );
+
+    imagen.addEventListener(
+      "error",
+      restaurarScroll,
+      { once: true }
+    );
   }
 
   guardar();
