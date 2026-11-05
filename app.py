@@ -1,5 +1,6 @@
 import os
 import uuid
+from novedades import registrar_novedades
 from utils import lotizacion_required, admin_required, superadmin_required 
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session,current_app
 from werkzeug.utils import secure_filename
@@ -38,6 +39,7 @@ app = Flask(__name__)
 app.config["SECRET_KEY"] = os.getenv("SECRET_KEY")
 app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("DATABASE_URL")
 db.init_app(app)
+registrar_novedades(app)
 
 
 @app.template_filter('from_json')
@@ -438,6 +440,7 @@ def login():
             )
 
         login_user(usuario)
+        session["csrf_novedades"] = secrets.token_urlsafe(32)
         # ✅ Guardar último inicio de sesión correcto
         usuario.ultimo_login = hora_local_peru()
         db.session.commit()

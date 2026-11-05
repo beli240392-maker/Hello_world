@@ -272,6 +272,7 @@ class Usuario(UserMixin, db.Model):
     rol = db.Column(db.String(20), nullable=False, default="user")
     activo = db.Column(db.Boolean, default=True)
     ultimo_login = db.Column(db.DateTime, nullable=True)
+    novedades_version_vista = db.Column(db.String(40), nullable=True)
     lotizaciones = db.relationship(
     "Lotizacion",
     secondary=usuario_lotizaciones,

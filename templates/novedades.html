@@ -1,0 +1,654 @@
+<style>
+  #novedades-modal .modal-content {
+    border: 0;
+    border-radius: 20px;
+    overflow: hidden;
+    box-shadow: 0 24px 70px rgba(15,23,42,.2);
+  }
+
+  #novedades-modal .modal-header {
+    background: #eff6ff;
+    border-bottom: 1px solid #dbeafe;
+    padding: 22px 24px;
+  }
+
+  #novedades-modal .modal-title {
+    color: #172033;
+    font-weight: 800;
+    font-size: 1.35rem;
+  }
+
+  #novedades-modal .modal-body {
+    padding: 22px 24px;
+  }
+
+  #novedades-modal .modal-footer {
+    border-top: 1px solid #e2e8f0;
+    padding: 16px 24px;
+  }
+
+  #novedades-modal .novedad-item {
+    display: flex;
+    gap: 12px;
+    padding: 14px 0;
+    border-bottom: 1px solid #edf2f7;
+  }
+
+  #novedades-modal .novedad-item:last-child {
+    border-bottom: 0;
+  }
+
+  #novedades-modal .novedad-icono {
+    display: grid;
+    place-items: center;
+    width: 42px;
+    height: 42px;
+    flex-shrink: 0;
+    border-radius: 12px;
+    background: #eff6ff;
+    font-size: 1.35rem;
+  }
+
+  #novedades-modal .novedad-titulo {
+    font-size: .95rem;
+    font-weight: 700;
+    color: #1e293b;
+    margin: 0 0 5px;
+  }
+
+  #novedades-modal .novedad-texto {
+    color: #64748b;
+    font-size: .88rem;
+    margin: 0;
+  }
+
+  .novedades-sombra {
+    position: fixed;
+    inset: 0;
+    background: rgba(15,23,42,.65);
+    z-index: 1070;
+  }
+
+  .novedades-destacado {
+    position: relative !important;
+    z-index: 1071 !important;
+    outline: 3px solid #60a5fa !important;
+    outline-offset: 4px;
+    border-radius: 6px;
+    pointer-events: none;
+  }
+
+  #novedades-tour {
+    position: fixed;
+    width: 360px;
+    max-width: calc(100vw - 24px);
+    z-index: 1072;
+    padding: 20px;
+    border: 1px solid #dbeafe;
+    border-radius: 16px;
+    background: #fff;
+    color: #1e293b;
+    box-shadow: 0 16px 48px rgba(15,23,42,.25);
+  }
+
+  #novedades-tour h3 {
+    font-size: 1.05rem;
+    font-weight: 800;
+    margin: 8px 0;
+  }
+
+  #novedades-tour p {
+    color: #64748b;
+    font-size: .9rem;
+  }
+
+  #novedades-tour .novedades-paso {
+    color: #2563eb;
+    font-weight: 700;
+    font-size: .78rem;
+    text-transform: uppercase;
+  }
+
+  @media (min-width: 992px) {
+    #navbarNav > .navbar-nav.me-auto {
+      flex-wrap: wrap;
+      min-width: 0;
+    }
+
+    #navbarNav > .navbar-nav:not(.me-auto) {
+      flex-shrink: 0;
+      align-items: center;
+    }
+  }
+</style>
+
+<div
+  class="modal fade"
+  id="novedades-modal"
+  tabindex="-1"
+  aria-labelledby="novedades-titulo"
+  aria-hidden="true">
+
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+
+      <div class="modal-header align-items-start">
+        <div>
+          <div class="small fw-semibold text-primary mb-1">
+            ACTUALIZACIÓN DEL SISTEMA
+          </div>
+
+          <h2 class="modal-title" id="novedades-titulo">
+            Tenemos novedades ✨
+          </h2>
+
+          <div class="small text-muted mt-1">
+            Conoce las mejoras disponibles para tu cuenta.
+          </div>
+        </div>
+
+        <button
+          type="button"
+          class="btn-close"
+          data-bs-dismiss="modal"
+          aria-label="Ver más tarde">
+        </button>
+      </div>
+
+      <div class="modal-body">
+
+        {% for novedad in guia_novedades.elementos %}
+          <div class="novedad-item">
+
+            <div class="novedad-icono" aria-hidden="true">
+              {{ novedad.icono }}
+            </div>
+
+            <div>
+              <h3 class="novedad-titulo">
+                {{ novedad.titulo }}
+              </h3>
+
+              <p class="novedad-texto">
+                {{ novedad.texto }}
+              </p>
+            </div>
+
+          </div>
+        {% endfor %}
+
+        <div
+          id="novedades-error"
+          class="alert alert-danger mt-3 mb-0"
+          role="alert"
+          hidden>
+        </div>
+
+      </div>
+
+      <div class="modal-footer">
+
+        <button
+          type="button"
+          class="btn btn-link text-secondary me-auto"
+          data-bs-dismiss="modal">
+          Más tarde
+        </button>
+
+        <button
+          type="button"
+          class="btn btn-outline-primary"
+          id="novedades-ver-guia">
+          Ver guía
+        </button>
+
+        <button
+          type="button"
+          class="btn btn-primary"
+          id="novedades-entendido">
+          Entendido
+        </button>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<div
+  class="novedades-sombra"
+  id="novedades-sombra"
+  hidden>
+</div>
+
+<div
+  id="novedades-tour"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="novedades-tour-titulo"
+  aria-describedby="novedades-tour-texto"
+  hidden>
+
+  <div class="d-flex align-items-center justify-content-between gap-2">
+
+    <span
+      class="novedades-paso"
+      id="novedades-paso">
+    </span>
+
+    <button
+      type="button"
+      class="btn-close"
+      id="novedades-cerrar-tour"
+      aria-label="Cerrar guía y ver más tarde">
+    </button>
+
+  </div>
+
+  <h3 id="novedades-tour-titulo"></h3>
+  <p id="novedades-tour-texto"></p>
+
+  <div
+    id="novedades-tour-error"
+    class="alert alert-danger small"
+    role="alert"
+    hidden>
+  </div>
+
+  <div class="d-flex justify-content-between gap-2">
+
+    <button
+      type="button"
+      class="btn btn-outline-secondary btn-sm"
+      id="novedades-anterior">
+      Anterior
+    </button>
+
+    <button
+      type="button"
+      class="btn btn-primary btn-sm"
+      id="novedades-siguiente">
+      Siguiente
+    </button>
+
+  </div>
+</div>
+
+<script>
+(() => {
+  const datos = {{ guia_novedades|tojson }};
+
+  const csrfGlobal =
+    {% if csrf_token is defined %}
+      {{ csrf_token()|tojson }};
+    {% else %}
+      null;
+    {% endif %}
+
+  function iniciarNovedades() {
+    if (!window.bootstrap || !datos.elementos.length) return;
+
+    const ventana = document.getElementById('novedades-modal');
+    const modal = bootstrap.Modal.getOrCreateInstance(ventana);
+
+    const tour = document.getElementById('novedades-tour');
+    const sombra = document.getElementById('novedades-sombra');
+
+    const siguiente = document.getElementById('novedades-siguiente');
+    const anterior = document.getElementById('novedades-anterior');
+    const entendido = document.getElementById('novedades-entendido');
+
+    const clave =
+      `novedades:${datos.usuario_id}:${datos.version}:${datos.csrf}`;
+
+    let indice = 0;
+    let destacado = null;
+    let guardando = false;
+    let focoAnterior = null;
+    let scrollAnterior = 0;
+    let menuAbiertoPorGuia = false;
+
+    function aplazar() {
+      try {
+        sessionStorage.setItem(clave, '1');
+      } catch (_) {}
+    }
+
+    function aplazadas() {
+      try {
+        return sessionStorage.getItem(clave) === '1';
+      } catch (_) {
+        return false;
+      }
+    }
+
+    function quitarDestacado() {
+      if (destacado) {
+        destacado.classList.remove('novedades-destacado');
+      }
+
+      destacado = null;
+    }
+
+    function posicionar() {
+      if (tour.hidden) return;
+
+      const rect = destacado
+        ? destacado.getBoundingClientRect()
+        : null;
+
+      const ancho = tour.offsetWidth;
+      const alto = tour.offsetHeight;
+
+      let izquierda = rect
+        ? rect.left
+        : (innerWidth - ancho) / 2;
+
+      let arriba = rect
+        ? rect.bottom + 14
+        : (innerHeight - alto) / 2;
+
+      if (rect && arriba + alto > innerHeight - 12) {
+        arriba = rect.top - alto - 14;
+      }
+
+      izquierda = Math.max(
+        12,
+        Math.min(izquierda, innerWidth - ancho - 12)
+      );
+
+      arriba = Math.max(
+        12,
+        Math.min(arriba, innerHeight - alto - 12)
+      );
+
+      tour.style.left = `${izquierda}px`;
+      tour.style.top = `${arriba}px`;
+    }
+
+    function mostrarPaso() {
+      quitarDestacado();
+
+      const paso = datos.elementos[indice];
+
+      for (const selector of paso.selectores) {
+        const candidato = document.querySelector(selector);
+
+        if (candidato && candidato.getClientRects().length) {
+          destacado = candidato;
+          break;
+        }
+      }
+
+      if (destacado) {
+        destacado.classList.add('novedades-destacado');
+
+        destacado.scrollIntoView({
+          block: 'center',
+          behavior: 'instant'
+        });
+      }
+
+      document.getElementById('novedades-paso').textContent =
+        `Paso ${indice + 1} de ${datos.elementos.length}`;
+
+      document.getElementById(
+        'novedades-tour-titulo'
+      ).textContent = paso.titulo;
+
+      document.getElementById(
+        'novedades-tour-texto'
+      ).textContent = paso.ayuda;
+
+      document.getElementById(
+        'novedades-tour-error'
+      ).hidden = true;
+
+      anterior.disabled = indice === 0;
+
+      siguiente.textContent =
+        indice === datos.elementos.length - 1
+          ? 'Finalizar'
+          : 'Siguiente';
+
+      posicionar();
+      siguiente.focus();
+    }
+
+    function cerrarTour() {
+      tour.hidden = true;
+      sombra.hidden = true;
+
+      quitarDestacado();
+      aplazar();
+
+      const menu = document.getElementById('navbarNav');
+
+      if (menuAbiertoPorGuia && menu && innerWidth < 992) {
+        bootstrap.Collapse.getOrCreateInstance(
+          menu,
+          {toggle: false}
+        ).hide();
+      }
+
+      window.scrollTo({
+        top: scrollAnterior,
+        behavior: 'instant'
+      });
+
+      if (focoAnterior && focoAnterior.isConnected) {
+        focoAnterior.focus();
+      }
+    }
+
+    async function comenzarTour() {
+      focoAnterior = document.querySelector('.navbar-brand');
+      scrollAnterior = window.scrollY;
+
+      const menu = document.getElementById('navbarNav');
+
+      menuAbiertoPorGuia = Boolean(
+        menu
+        && innerWidth < 992
+        && !menu.classList.contains('show')
+      );
+
+      if (menuAbiertoPorGuia) {
+        await new Promise(resolve => {
+          menu.addEventListener(
+            'shown.bs.collapse',
+            resolve,
+            {once: true}
+          );
+
+          bootstrap.Collapse.getOrCreateInstance(
+            menu,
+            {toggle: false}
+          ).show();
+
+          setTimeout(resolve, 500);
+        });
+      }
+
+      indice = 0;
+      sombra.hidden = false;
+      tour.hidden = false;
+
+      mostrarPaso();
+    }
+
+    async function confirmar(desdeTour) {
+      if (guardando) return;
+
+      guardando = true;
+      entendido.disabled = true;
+      siguiente.disabled = true;
+
+      const error = document.getElementById(
+        desdeTour
+          ? 'novedades-tour-error'
+          : 'novedades-error'
+      );
+
+      error.hidden = true;
+
+      try {
+        const headers = {
+          'Content-Type': 'application/json'
+        };
+
+        if (csrfGlobal) {
+          headers['X-CSRFToken'] = csrfGlobal;
+        }
+
+        const respuesta = await fetch(datos.url_guardar, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers,
+          body: JSON.stringify({
+            version: datos.version,
+            csrf: datos.csrf
+          })
+        });
+
+        const resultado = await respuesta.json().catch(
+          () => ({})
+        );
+
+        if (!respuesta.ok || resultado.ok !== true) {
+          throw new Error(
+            resultado.error
+            || 'No se pudo confirmar el guardado. Inténtalo nuevamente.'
+          );
+        }
+
+        datos.pendiente = false;
+        aplazar();
+
+        if (desdeTour) {
+          cerrarTour();
+        } else {
+          modal.hide();
+        }
+
+      } catch (fallo) {
+        error.textContent =
+          fallo.message
+          || 'No se pudo conectar. Puedes intentarlo nuevamente.';
+
+        error.hidden = false;
+        posicionar();
+
+      } finally {
+        guardando = false;
+        entendido.disabled = false;
+        siguiente.disabled = false;
+      }
+    }
+
+    ventana.addEventListener('hide.bs.modal', aplazar);
+
+    document.getElementById(
+      'novedades-ver-guia'
+    ).addEventListener('click', () => {
+      ventana.addEventListener(
+        'hidden.bs.modal',
+        comenzarTour,
+        {once: true}
+      );
+
+      modal.hide();
+    });
+
+    entendido.addEventListener(
+      'click',
+      () => confirmar(false)
+    );
+
+    document.getElementById(
+      'novedades-cerrar-tour'
+    ).addEventListener('click', cerrarTour);
+
+    anterior.addEventListener('click', () => {
+      if (!guardando && indice > 0) {
+        indice--;
+        mostrarPaso();
+      }
+    });
+
+    siguiente.addEventListener('click', () => {
+      if (guardando) return;
+
+      if (indice === datos.elementos.length - 1) {
+        confirmar(true);
+      } else {
+        indice++;
+        mostrarPaso();
+      }
+    });
+
+    document.addEventListener('keydown', evento => {
+      if (tour.hidden) return;
+
+      if (evento.key === 'Escape') {
+        evento.preventDefault();
+        cerrarTour();
+      }
+
+      if (evento.key === 'Tab') {
+        const botones = Array.from(
+          tour.querySelectorAll('button:not(:disabled)')
+        );
+
+        const primero = botones[0];
+        const ultimo = botones[botones.length - 1];
+
+        if (
+          evento.shiftKey
+          && (
+            document.activeElement === primero
+            || !tour.contains(document.activeElement)
+          )
+        ) {
+          evento.preventDefault();
+          ultimo.focus();
+
+        } else if (
+          !evento.shiftKey
+          && (
+            document.activeElement === ultimo
+            || !tour.contains(document.activeElement)
+          )
+        ) {
+          evento.preventDefault();
+          primero.focus();
+        }
+      }
+    });
+
+    window.addEventListener('resize', posicionar);
+
+    window.addEventListener('scroll', posicionar, {
+      passive: true,
+      capture: true
+    });
+
+    if (
+      datos.automatico
+      && !aplazadas()
+      && !document.querySelector('.modal.show, .offcanvas.show')
+    ) {
+      modal.show();
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener(
+      'DOMContentLoaded',
+      iniciarNovedades,
+      {once: true}
+    );
+  } else {
+    iniciarNovedades();
+  }
+})();
+</script>
