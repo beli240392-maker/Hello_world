@@ -860,12 +860,14 @@
 
         {% if not compra.anulada and lote.estado == 'vendido' %}
           <div class="action-bar operacion-actions">
+
             <a
               href="{{ url_for('generar_acta_entrega', compra_id=compra.id) }}"
               class="btn btn-primary">
               {{ icono_lote('documento') }}
               Generar acta de entrega
             </a>
+
             {% if current_user.rol in ('admin', 'superadmin') %}
               <a
                 href="{{ url_for('cambiar_titular', compra_id=compra.id) }}#cambio-titular"
@@ -874,6 +876,19 @@
                 Cambiar titular
               </a>
             {% endif %}
+
+            {% if current_user.rol == 'superadmin' %}
+              <a
+                href="{{ url_for(
+                  'corregir_fecha_operacion',
+                  tipo='compra',
+                  operacion_id=compra.id
+                ) }}"
+                class="btn btn-outline-secondary">
+                Corregir fecha
+              </a>
+            {% endif %}
+
           </div>
         {% endif %}
 
@@ -940,12 +955,24 @@
 
         {% if current_user.rol == 'superadmin' and separacion.activa and lote.estado == 'separado' %}
           <div class="action-bar operacion-actions">
+
             <a
               href="{{ url_for('cambiar_lote_separacion', sep_id=separacion.id) }}"
               class="btn btn-outline-primary">
               {{ icono_lote('derecha') }}
               Cambiar lote
             </a>
+
+            <a
+              href="{{ url_for(
+                'corregir_fecha_operacion',
+                tipo='separacion',
+                operacion_id=separacion.id
+              ) }}"
+              class="btn btn-outline-secondary">
+              Corregir fecha
+            </a>
+
           </div>
         {% endif %}
 

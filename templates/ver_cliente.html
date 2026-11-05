@@ -1378,6 +1378,7 @@
               <tbody>
                 {% for movimiento in historial|sort(attribute='id', reverse=true) %}
                   {% set cambio = movimiento.cambio_lote|default(none) %}
+                  {% set correccion = movimiento.correccion_fecha|default(none) %}
 
                   <tr>
                     <td>
@@ -1416,6 +1417,7 @@
                         <div class="small text-muted">
                           {{ movimiento.fecha.strftime('%H:%M') }}
                         </div>
+
                       {% else %}
                         Sin registrar
                       {% endif %}
@@ -1436,6 +1438,84 @@
                           Cambiado por: {{ cambio.responsable }}
                         </div>
 
+                      {% elif correccion %}
+
+                        {% if correccion.anterior != correccion.nueva %}
+                          <div>
+                            <span class="fw-semibold">Antes:</span>
+                            {{ correccion.anterior }}
+
+                            <span class="text-muted mx-1">→</span>
+
+                            <span class="fw-semibold">Nueva:</span>
+                            {{ correccion.nueva }}
+                          </div>
+
+                        {% else %}
+                          <div>
+                            Fecha de compra: {{ correccion.nueva }}
+                          </div>
+                        {% endif %}
+
+                        {% if correccion.pago_total %}
+                          <div class="small mt-1">
+                            Pago total:
+                            {{ correccion.pago_total_anterior }}
+                            →
+                            {{ correccion.pago_total_nuevo }}
+                          </div>
+                        {% endif %}
+
+                        {% if correccion.vencimientos %}
+                          <details class="mt-2">
+
+                            <summary class="text-primary">
+                              Ver {{ correccion.vencimientos|length }}
+                              vencimientos corregidos
+                            </summary>
+
+                            <div class="table-responsive mt-2">
+                              <table class="table table-sm mb-2">
+
+                                <thead>
+                                  <tr>
+                                    <th>Cuota</th>
+                                    <th>Antes</th>
+                                    <th>Nueva</th>
+                                  </tr>
+                                </thead>
+
+                                <tbody>
+                                  {% for cuota in correccion.vencimientos %}
+                                    <tr>
+                                      <td>{{ cuota.numero }}</td>
+
+                                      <td class="text-nowrap">
+                                        {{ cuota.anterior }}
+                                      </td>
+
+                                      <td class="text-nowrap">
+                                        {{ cuota.nueva }}
+                                      </td>
+                                    </tr>
+                                  {% endfor %}
+                                </tbody>
+
+                              </table>
+                            </div>
+
+                          </details>
+                        {% endif %}
+
+                        <div class="mt-1">
+                          <span class="fw-semibold">Motivo:</span>
+                          {{ correccion.motivo }}
+                        </div>
+
+                        <div class="small text-muted mt-1">
+                          Corregido por: {{ correccion.responsable }}
+                        </div>
+
                       {% else %}
                         {{ movimiento.detalle or 'Sin detalle' }}
                       {% endif %}
@@ -1444,13 +1524,17 @@
                         <div class="mt-2">
                           <a
                             class="btn btn-outline-primary btn-sm"
-                            href="{{ url_for('historial_operacion', historial_id=movimiento.id) }}">
+                            href="{{ url_for(
+                              'historial_operacion',
+                              historial_id=movimiento.id
+                            ) }}">
                             Ver detalle
                           </a>
                         </div>
                       {% endif %}
                     </td>
                   </tr>
+
                 {% endfor %}
               </tbody>
 

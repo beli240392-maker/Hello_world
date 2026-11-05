@@ -8907,8 +8907,61 @@ def _historial_para_mostrar(registros):
                 "separacion_id": datos["separacion"]
             }
 
-        # Esta parte debe ejecutarse para todos los movimientos.
-        # Por eso está fuera del bloque anterior.
+        correccion_fecha = None
+        datos_fecha = registro.datos_operacion
+
+        if (
+            isinstance(datos_fecha, dict)
+            and datos_fecha.get("version") == 2
+            and datos_fecha.get("evento") == "correccion_fecha"
+            and registro.tipo in (
+                "Fecha de compra corregida",
+                "Fecha de separación corregida",
+                "Vencimientos de cuotas corregidos"
+            )
+        ):
+            try:
+                def fecha_texto(valor):
+                    return (
+                        datetime.fromisoformat(valor).strftime("%d/%m/%Y")
+                        if valor else "Sin registrar"
+                    )
+
+                correccion_fecha = {
+                    "anterior": fecha_texto(
+                        datos_fecha.get("fecha_anterior")
+                    ),
+                    "nueva": fecha_texto(datos_fecha["fecha_nueva"]),
+                    "motivo": (
+                        datos_fecha.get("motivo") or "Sin registrar"
+                    ),
+                    "responsable": (
+                        datos_fecha.get("usuario") or "Sin registrar"
+                    ),
+                    "pago_total": (
+                        datos_fecha.get("pago_total_corregido") is True
+                    ),
+                    "vencimientos": [
+                        {
+                            "numero": fila["numero"],
+                            "anterior": fecha_texto(fila["anterior"]),
+                            "nueva": fecha_texto(fila["nueva"])
+                        }
+                        for fila in (
+                            datos_fecha.get("vencimientos") or []
+                        )
+                    ],
+                    "pago_total_anterior": fecha_texto(
+                        datos_fecha.get("pago_total_anterior")
+                    ),
+                    "pago_total_nuevo": fecha_texto(
+                        datos_fecha.get("pago_total_nuevo")
+                    )
+                }
+
+            except (KeyError, TypeError, ValueError):
+                correccion_fecha = None
+
         filas.append({
             "id": registro.id,
             "lote": registro.lote,
@@ -8916,6 +8969,7 @@ def _historial_para_mostrar(registros):
             "tipo": registro.tipo,
             "detalle": registro.detalle,
             "cambio_lote": cambio,
+            "correccion_fecha": correccion_fecha,
             "tiene_expediente": (
                 isinstance(registro.datos_operacion, dict)
                 and registro.datos_operacion.get("version") == 1
@@ -9854,6 +9908,605 @@ def descargar_plano(lot_id):
         return jsonify(
             error="No se pudo generar el plano. Inténtalo nuevamente."
         ), 500
+
+def _permite_ajustar_vencimientos(operacion, tipo, cuotas, pagos):
+    if tipo != "compra" or operacion.forma_pago != "credito":
+        return False, (
+            "El ajuste de vencimientos es solo para compras al crédito."
+        )
+
+    if (
+        not cuotas
+        or len(cuotas) != operacion.cuotas_total
+        or [c.numero for c in cuotas] != list(range(1, len(cuotas) + 1))
+        or any(c.fecha_vencimiento is None for c in cuotas)
+    ):
+        return False, (
+            "El cronograma está incompleto o su numeración no es "
+            "consecutiva. Revisa las cuotas antes de ajustar sus fechas."
+        )
+
+    return True, ""
+
+
+def _vencimientos_desde_fecha(fecha, cuotas):
+    from calendar import monthrange
+
+    resultado = []
+
+    for cuota in cuotas:
+        anio, mes = divmod(
+            fecha.year * 12 + fecha.month - 1 + cuota.numero,
+            12
+        )
+
+        mes += 1
+
+        if not 1 <= anio <= 9999:
+            raise ValueError(
+                "Una fecha de vencimiento queda fuera del rango permitido."
+            )
+
+        dia = min(fecha.day, monthrange(anio, mes)[1])
+
+        resultado.append(
+            cuota.fecha_vencimiento.replace(
+                year=anio,
+                month=mes,
+                day=dia
+            )
+        )
+
+    return resultado
+
+
+def _estado_correccion_fecha(operacion, tipo, cuotas=None, pagos=None):
+    copia = _copia_para_transferencia(operacion)
+
+    if tipo == "compra":
+        if cuotas is None:
+            cuotas = (
+                Cuota.query
+                .filter_by(compra_id=operacion.id)
+                .order_by(Cuota.numero, Cuota.id)
+                .all()
+            )
+
+        if pagos is None:
+            pagos = (
+                Pago.query
+                .filter_by(compra_id=operacion.id)
+                .order_by(Pago.id)
+                .all()
+            )
+
+        copia["cuotas"] = [
+            _copia_para_transferencia(c) for c in cuotas
+        ]
+
+        copia["pagos"] = [
+            _copia_para_transferencia(p) for p in pagos
+        ]
+
+    ultimo = (
+        db.session.query(Historial.id)
+        .filter(
+            Historial.lote_id == operacion.lote_id,
+            Historial.tipo.in_((
+                "Fecha de compra corregida",
+                "Fecha de separación corregida",
+                "Vencimientos de cuotas corregidos"
+            ))
+        )
+        .order_by(Historial.id.desc())
+        .first()
+    )
+
+    return {
+        "tipo": tipo,
+        "operacion_id": operacion.id,
+        "cliente_id": operacion.cliente_id,
+        "lote_id": operacion.lote_id,
+        "proyecto_id": operacion.lote.lotizacion_id,
+        "ultimo_cambio": ultimo[0] if ultimo else None,
+        "huella": hashlib.sha256(
+            json.dumps(
+                copia,
+                sort_keys=True,
+                ensure_ascii=False
+            ).encode("utf-8")
+        ).hexdigest()
+    }
+
+
+@app.route(
+    "/corregir_fecha/<string:tipo>/<int:operacion_id>",
+    methods=["GET", "POST"]
+)
+@login_required
+@lotizacion_required
+@superadmin_required
+def corregir_fecha_operacion(tipo, operacion_id):
+    from flask import abort
+
+    if tipo not in ("compra", "separacion"):
+        abort(404)
+
+    modelo = Compra if tipo == "compra" else Separacion
+    campo_fecha = "fecha_compra" if tipo == "compra" else "fecha"
+
+    operacion = modelo.query.get_or_404(operacion_id)
+    lote = operacion.lote
+
+    if str(session.get("lotizacion_id")) != str(lote.lotizacion_id):
+        abort(
+            403,
+            description="Selecciona primero el proyecto de esta operación."
+        )
+
+    vigente = (
+        not operacion.anulada and lote.estado == "vendido"
+        if tipo == "compra"
+        else operacion.activa and lote.estado == "separado"
+    )
+
+    if not vigente:
+        flash(
+            "Solo puedes corregir la fecha de una operación vigente.",
+            "warning"
+        )
+        return redirect(url_for("detalle_lote", lote_id=lote.id))
+
+    session.setdefault(
+        "csrf_correccion_fecha",
+        secrets.token_urlsafe(32)
+    )
+
+    firmador = URLSafeTimedSerializer(
+        app.config["SECRET_KEY"],
+        salt="correccion-fecha-v2"
+    )
+
+    estado = _estado_correccion_fecha(operacion, tipo)
+
+    base = {
+        **estado,
+        "usuario_id": current_user.id,
+        "csrf": session["csrf_correccion_fecha"]
+    }
+
+    fecha_actual = getattr(operacion, campo_fecha)
+
+    formulario = {
+        "fecha": request.form.get(
+            "fecha",
+            fecha_actual.strftime("%Y-%m-%d") if fecha_actual else ""
+        ).strip(),
+        "motivo": request.form.get("motivo", "").strip(),
+        "pago_total": request.form.get("pago_total") == "si",
+        "ajustar_vencimientos": (
+            tipo == "compra"
+            and operacion.forma_pago == "credito"
+        )
+    }
+
+    error = None
+    codigo = 200
+
+    if request.method == "POST":
+        try:
+            firmado = firmador.loads(
+                request.form.get("token_fecha", ""),
+                max_age=1800
+            )
+
+            if not isinstance(firmado, dict) or firmado != base:
+                db.session.rollback()
+                flash(
+                    "La operación o la sesión cambió. "
+                    "Revisa nuevamente sus datos.",
+                    "warning"
+                )
+                return redirect(url_for(
+                    "corregir_fecha_operacion",
+                    tipo=tipo,
+                    operacion_id=operacion_id
+                ))
+
+            if not re.fullmatch(
+                r"\d{4}-\d{2}-\d{2}",
+                formulario["fecha"]
+            ):
+                raise ValueError("Selecciona una fecha válida.")
+
+            try:
+                nueva = datetime.strptime(
+                    formulario["fecha"],
+                    "%Y-%m-%d"
+                ).date()
+            except ValueError:
+                raise ValueError("Selecciona una fecha válida.")
+
+            if nueva > hora_local_peru().date():
+                raise ValueError(
+                    "La fecha no puede ser posterior a hoy."
+                )
+
+            if (
+                not formulario["motivo"]
+                or len(formulario["motivo"]) > 200
+            ):
+                raise ValueError(
+                    "Escribe un motivo de entre 1 y 200 caracteres."
+                )
+
+            if request.form.get("pago_total", "") not in ("", "si"):
+                raise ValueError(
+                    "La opción de fecha de pago total no es válida."
+                )
+
+            lote = (
+                Lote.query
+                .filter_by(id=firmado["lote_id"])
+                .populate_existing()
+                .with_for_update()
+                .first()
+            )
+
+            operacion = (
+                modelo.query
+                .filter_by(id=operacion_id)
+                .populate_existing()
+                .with_for_update()
+                .first()
+            )
+
+            if (
+                lote is None
+                or operacion is None
+                or operacion.lote_id != firmado["lote_id"]
+                or str(session.get("lotizacion_id"))
+                    != str(lote.lotizacion_id)
+            ):
+                raise ValueError(
+                    "La operación cambió. "
+                    "Recarga la página antes de continuar."
+                )
+
+            cuotas = []
+            pagos = []
+
+            if tipo == "compra":
+                cuotas = (
+                    Cuota.query
+                    .filter_by(compra_id=operacion.id)
+                    .order_by(Cuota.numero, Cuota.id)
+                    .populate_existing()
+                    .with_for_update()
+                    .all()
+                )
+
+                pagos = (
+                    Pago.query
+                    .filter_by(compra_id=operacion.id)
+                    .order_by(Pago.id)
+                    .populate_existing()
+                    .with_for_update()
+                    .all()
+                )
+
+            vigente = (
+                not operacion.anulada and lote.estado == "vendido"
+                if tipo == "compra"
+                else operacion.activa and lote.estado == "separado"
+            )
+
+            if (
+                not vigente
+                or _estado_correccion_fecha(
+                    operacion, tipo, cuotas, pagos
+                ) != estado
+            ):
+                db.session.rollback()
+                flash(
+                    "La operación cambió. Revisa nuevamente sus datos.",
+                    "warning"
+                )
+                return redirect(url_for(
+                    "corregir_fecha_operacion",
+                    tipo=tipo,
+                    operacion_id=operacion_id
+                ))
+
+            anterior = getattr(operacion, campo_fecha)
+
+            cierre_anterior = (
+                operacion.fecha_cancelacion
+                if tipo == "compra" else None
+            )
+
+            permite_cierre = (
+                tipo == "compra"
+                and operacion.forma_pago == "contado"
+                and operacion.cancelado
+                and anterior is not None
+                and cierre_anterior is not None
+                and cierre_anterior.date() == anterior.date()
+            )
+
+            if formulario["pago_total"] and not permite_cierre:
+                raise ValueError(
+                    "Esta operación no permite corregir también "
+                    "la fecha de pago total."
+                )
+
+            cambios_vencimientos = []
+            propuestas = []
+
+            if formulario["ajustar_vencimientos"]:
+                permitido, razon = _permite_ajustar_vencimientos(
+                    operacion, tipo, cuotas, pagos
+                )
+
+                if not permitido:
+                    raise ValueError(razon)
+
+                propuestas = _vencimientos_desde_fecha(
+                    nueva, cuotas
+                )
+
+                cambios_vencimientos = [
+                    {
+                        "cuota_id": cuota.id,
+                        "numero": cuota.numero,
+                        "anterior": (
+                            cuota.fecha_vencimiento.isoformat()
+                        ),
+                        "nueva": propuesta.isoformat()
+                    }
+                    for cuota, propuesta in zip(cuotas, propuestas)
+                    if cuota.fecha_vencimiento != propuesta
+                ]
+
+            if (
+                anterior
+                and nueva == anterior.date()
+                and not cambios_vencimientos
+            ):
+                raise ValueError(
+                    "No hay cambios de fecha ni de vencimientos "
+                    "que guardar."
+                )
+
+            nueva_fecha = (
+                anterior.replace(
+                    year=nueva.year,
+                    month=nueva.month,
+                    day=nueva.day
+                )
+                if anterior
+                else datetime.combine(nueva, datetime.min.time())
+            )
+
+            setattr(operacion, campo_fecha, nueva_fecha)
+
+            cierre_nuevo = cierre_anterior
+
+            if formulario["pago_total"]:
+                cierre_nuevo = cierre_anterior.replace(
+                    year=nueva.year,
+                    month=nueva.month,
+                    day=nueva.day
+                )
+                operacion.fecha_cancelacion = cierre_nuevo
+
+            # Actualizar únicamente los vencimientos.
+            # Se conservan los pagos, vouchers y estados de las cuotas.
+            if formulario["ajustar_vencimientos"]:
+                for cuota, propuesta in zip(cuotas, propuestas):
+                    cuota.fecha_vencimiento = propuesta
+
+            datos = {
+                "version": 2,
+                "evento": "correccion_fecha",
+                "tipo": tipo,
+                "operacion_id": operacion.id,
+                "fecha_anterior": (
+                    anterior.isoformat() if anterior else None
+                ),
+                "fecha_nueva": nueva_fecha.isoformat(),
+                "motivo": formulario["motivo"],
+                "usuario_id": current_user.id,
+                "usuario": current_user.username,
+                "pago_total_corregido": formulario["pago_total"],
+                "cronograma_corregido": bool(cambios_vencimientos),
+                "vencimientos": cambios_vencimientos,
+                "pago_total_anterior": (
+                    cierre_anterior.isoformat()
+                    if cierre_anterior else None
+                ),
+                "pago_total_nuevo": (
+                    cierre_nuevo.isoformat()
+                    if cierre_nuevo else None
+                )
+            }
+
+            texto_anterior = (
+                anterior.strftime("%d/%m/%Y")
+                if anterior else "Sin registrar"
+            )
+
+            etiqueta = (
+                "compra" if tipo == "compra" else "separación"
+            )
+
+            tipo_historial = (
+                "Vencimientos de cuotas corregidos"
+                if (
+                    anterior
+                    and nueva == anterior.date()
+                    and cambios_vencimientos
+                )
+                else f"Fecha de {etiqueta} corregida"
+            )
+
+            db.session.add(Historial(
+                cliente_id=operacion.cliente_id,
+                lote_id=lote.id,
+                tipo=tipo_historial,
+                fecha=hora_local_peru().replace(tzinfo=None),
+                detalle=(
+                    f"{etiqueta.capitalize()} #{operacion.id}: "
+                    f"{texto_anterior} -> "
+                    f"{nueva.strftime('%d/%m/%Y')}. "
+                    f"Por {current_user.username}."
+                )[:200],
+                datos_operacion=datos
+            ))
+
+            db.session.commit()
+
+            session["csrf_correccion_fecha"] = (
+                secrets.token_urlsafe(32)
+            )
+
+            flash(
+                "Corrección guardada. El cambio quedó registrado "
+                "en el historial del cliente.",
+                "success"
+            )
+
+            return redirect(url_for(
+                "detalle_lote",
+                lote_id=lote.id
+            ))
+
+        except (BadSignature, SignatureExpired):
+            db.session.rollback()
+            error = (
+                "El formulario venció o no es válido. "
+                "Revisa los datos antes de guardar nuevamente."
+            )
+            codigo = 400
+
+        except ValueError as exc:
+            db.session.rollback()
+            error = str(exc)
+            codigo = 400
+
+        except Exception:
+            db.session.rollback()
+
+            current_app.logger.exception(
+                "Error al corregir la fecha de %s %s",
+                tipo,
+                operacion_id
+            )
+
+            error = (
+                "No se pudo confirmar el guardado. Revisa la fecha "
+                "y el historial antes de volver a intentarlo."
+            )
+            codigo = 500
+
+    operacion = db.session.get(modelo, operacion_id)
+
+    if operacion is None:
+        abort(404)
+
+    lote = operacion.lote
+
+    if str(session.get("lotizacion_id")) != str(lote.lotizacion_id):
+        abort(403)
+
+    fecha_actual = getattr(operacion, campo_fecha)
+
+    cierre = (
+        operacion.fecha_cancelacion
+        if tipo == "compra" else None
+    )
+
+    permite_cierre = bool(
+        tipo == "compra"
+        and operacion.forma_pago == "contado"
+        and operacion.cancelado
+        and fecha_actual
+        and cierre
+        and fecha_actual.date() == cierre.date()
+    )
+
+    cuotas = []
+    pagos = []
+
+    if tipo == "compra":
+        cuotas = (
+            Cuota.query
+            .filter_by(compra_id=operacion.id)
+            .order_by(Cuota.numero, Cuota.id)
+            .all()
+        )
+
+        pagos = (
+            Pago.query
+            .filter_by(compra_id=operacion.id)
+            .order_by(Pago.id)
+            .all()
+        )
+
+    permite_vencimientos, razon_vencimientos = (
+        _permite_ajustar_vencimientos(
+            operacion, tipo, cuotas, pagos
+        )
+    )
+
+    cronograma_vista = [
+        {
+            "numero": c.numero,
+            "monto": c.monto,
+            "anterior": (
+                c.fecha_vencimiento.strftime("%Y-%m-%d")
+                if c.fecha_vencimiento else ""
+            ),
+            "texto_anterior": (
+                c.fecha_vencimiento.strftime("%d/%m/%Y")
+                if c.fecha_vencimiento else "Sin registrar"
+            )
+        }
+        for c in cuotas
+    ] if tipo == "compra" and operacion.forma_pago == "credito" else []
+
+    primer_vencimiento = min(
+        (
+            c.fecha_vencimiento
+            for c in cuotas
+            if c.fecha_vencimiento
+        ),
+        default=None
+    )
+
+    token = firmador.dumps({
+        **_estado_correccion_fecha(operacion, tipo),
+        "usuario_id": current_user.id,
+        "csrf": session["csrf_correccion_fecha"]
+    })
+
+    return render_template(
+        "corregir_fecha_operacion.html",
+        tipo=tipo,
+        operacion=operacion,
+        lote=lote,
+        fecha_actual=fecha_actual,
+        fecha_pago_total=cierre,
+        permite_pago_total=permite_cierre,
+        primer_vencimiento=primer_vencimiento,
+        permite_vencimientos=permite_vencimientos,
+        razon_vencimientos=razon_vencimientos,
+        cronograma_vista=cronograma_vista,
+        hoy=hora_local_peru().strftime("%Y-%m-%d"),
+        formulario=formulario,
+        error=error,
+        token_fecha=token
+    ), codigo
 
 # ------------------- MAIN -------------------
 if __name__ == "__main__":

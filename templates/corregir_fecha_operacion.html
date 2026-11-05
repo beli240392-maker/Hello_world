@@ -1,0 +1,449 @@
+{% extends "base.html" %}
+{% block content %}
+
+<style>
+  .corregir-fecha-page {
+    max-width: 850px;
+    margin: 0 auto;
+  }
+
+  .corregir-fecha-page .fecha-card {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 20px;
+    box-shadow: 0 10px 30px rgba(15, 23, 42, .06);
+    overflow: hidden;
+  }
+
+  .corregir-fecha-page .fecha-cabecera {
+    padding: 24px;
+    background: #f8fafc;
+    border-bottom: 1px solid #e2e8f0;
+  }
+
+  .corregir-fecha-page .fecha-cabecera h2 {
+    color: #172033;
+    font-size: 1.5rem;
+    font-weight: 800;
+    margin: 5px 0 8px;
+  }
+
+  .corregir-fecha-page .fecha-cuerpo {
+    padding: 24px;
+  }
+
+  .corregir-fecha-page .fecha-resumen {
+    padding: 16px;
+    border: 1px solid #dbeafe;
+    border-radius: 12px;
+    background: #eff6ff;
+    margin-bottom: 20px;
+  }
+
+  .corregir-fecha-page .cronograma-vista {
+    max-height: 320px;
+    overflow: auto;
+  }
+
+  .corregir-fecha-page .fecha-label {
+    color: #64748b;
+    font-size: .82rem;
+    margin-bottom: 5px;
+  }
+
+  .corregir-fecha-page .fecha-valor {
+    font-weight: 700;
+    color: #1e293b;
+  }
+
+  @media (max-width: 575.98px) {
+    .corregir-fecha-page .cronograma-vista table {
+      font-size: .82rem;
+    }
+
+    .corregir-fecha-page .cronograma-vista table
+      > :not(caption) > * > * {
+      padding: .25rem .125rem;
+    }
+  }
+</style>
+
+<div class="container corregir-fecha-page py-3">
+  <div class="fecha-card">
+
+    <div class="fecha-cabecera">
+      <div class="small fw-semibold text-primary">
+        SOLO SUPERADMIN
+      </div>
+
+      <h2>
+        Corregir fecha de
+        {{ 'compra' if tipo == 'compra' else 'separación' }}
+      </h2>
+
+      <div class="text-muted">
+        {{ lote.lotizacion.nombre }} ·
+        Mz {{ lote.manzana }} · Lote {{ lote.numero }}
+      </div>
+    </div>
+
+    <div class="fecha-cuerpo">
+
+      <div class="fecha-resumen">
+        <div class="row g-3">
+
+          <div class="col-12 col-sm-8">
+            <div class="fecha-label">Cliente</div>
+
+            <div class="fecha-valor">
+              {{ operacion.cliente.nombre }}
+              {{ operacion.cliente.apellidos }}
+            </div>
+
+            <div class="small text-muted">
+              DNI: {{ operacion.cliente.dni }}
+            </div>
+          </div>
+
+          <div class="col-12 col-sm-4">
+            <div class="fecha-label">Fecha registrada</div>
+
+            <div class="fecha-valor">
+              {{ fecha_actual.strftime('%d/%m/%Y')
+                 if fecha_actual else 'Sin registrar' }}
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      {% if error %}
+        <div class="alert alert-danger" role="alert">
+          {{ error }}
+        </div>
+      {% endif %}
+
+      <form
+        method="POST"
+        action="{{ url_for(
+          'corregir_fecha_operacion',
+          tipo=tipo,
+          operacion_id=operacion.id
+        ) }}">
+
+        <input
+          type="hidden"
+          name="token_fecha"
+          value="{{ token_fecha }}">
+
+        {% if csrf_token is defined %}
+          <input
+            type="hidden"
+            name="csrf_token"
+            value="{{ csrf_token() }}">
+        {% endif %}
+
+        <div class="mb-3">
+          <label
+            for="nueva-fecha"
+            class="form-label fw-semibold">
+            Fecha correcta
+          </label>
+
+          <input
+            id="nueva-fecha"
+            name="fecha"
+            type="date"
+            class="form-control"
+            value="{{ formulario.fecha }}"
+            max="{{ hoy }}"
+            required>
+        </div>
+
+        <div class="mb-3">
+          <label
+            for="motivo-fecha"
+            class="form-label fw-semibold">
+            Motivo de la corrección
+          </label>
+
+          <textarea
+            id="motivo-fecha"
+            name="motivo"
+            class="form-control"
+            rows="3"
+            maxlength="200"
+            required
+            placeholder="Ejemplo: se ingresó octubre y correspondía septiembre."
+          >{{ formulario.motivo }}</textarea>
+
+          <div class="form-text">
+            El motivo y las fechas anterior y nueva aparecerán
+            en el historial del cliente.
+          </div>
+        </div>
+
+        {% if permite_pago_total %}
+          <div class="border rounded-3 p-3 mb-3">
+            <div class="form-check">
+
+              <input
+                id="pago-total"
+                name="pago_total"
+                type="checkbox"
+                value="si"
+                class="form-check-input"
+                {% if formulario.pago_total %}checked{% endif %}>
+
+              <label
+                class="form-check-label fw-semibold"
+                for="pago-total">
+                Corregir también la fecha de pago total
+              </label>
+
+            </div>
+
+            <div class="small text-muted mt-2">
+              Esta compra es al contado y su pago total figura
+              el mismo día que la compra:
+              {{ fecha_pago_total.strftime('%d/%m/%Y') }}.
+              Si marcas la casilla, ambas fechas tomarán el día
+              seleccionado. Si no, solo cambiará la fecha de compra.
+            </div>
+          </div>
+
+        {% elif fecha_pago_total %}
+          <div class="small text-muted mb-3">
+            La fecha de pago total
+            ({{ fecha_pago_total.strftime('%d/%m/%Y') }})
+            se conserva.
+          </div>
+        {% endif %}
+
+        {% if tipo == 'compra' and operacion.forma_pago == 'credito' %}
+          <div class="border rounded-3 p-3 mb-3">
+
+            {% if permite_vencimientos %}
+              <div class="fw-semibold text-primary">
+                Los vencimientos se actualizarán automáticamente
+              </div>
+
+              <div class="small text-muted mt-2">
+                Se calcularán cuotas mensuales desde la fecha
+                correcta de compra, incluidas las cuotas pagadas.
+                Revisa la columna «Al guardar». Se conservan los
+                importes, los vouchers, los estados pagados y las
+                fechas reales de los pagos.
+              </div>
+
+            {% else %}
+              <div class="small text-muted">
+                {{ razon_vencimientos }}
+              </div>
+            {% endif %}
+
+            {% if cronograma_vista %}
+              <div class="table-responsive cronograma-vista mt-3">
+                <table class="table table-sm align-middle mb-0">
+
+                  <thead>
+                    <tr>
+                      <th>Cuota</th>
+                      <th class="d-none d-sm-table-cell">Importe</th>
+                      <th>Actual</th>
+                      <th>Al guardar</th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {% for cuota in cronograma_vista %}
+                      <tr
+                        data-cuota-numero="{{ cuota.numero }}"
+                        data-fecha-anterior="{{ cuota.anterior }}">
+
+                        <td>
+                          {{ cuota.numero }}
+
+                          <div
+                            class="small text-muted text-nowrap d-sm-none">
+                            S/ {{ '%.2f'|format(cuota.monto) }}
+                          </div>
+                        </td>
+
+                        <td
+                          class="text-nowrap d-none d-sm-table-cell">
+                          S/ {{ '%.2f'|format(cuota.monto) }}
+                        </td>
+
+                        <td class="text-nowrap">
+                          {{ cuota.texto_anterior }}
+                        </td>
+
+                        <td class="text-nowrap fecha-cuota-nueva">
+                          {{ cuota.texto_anterior }}
+                        </td>
+
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+
+                </table>
+              </div>
+            {% endif %}
+
+            <div
+              id="estado-vencimientos"
+              class="small text-muted mt-2">
+              Revisa los vencimientos propuestos antes de guardar.
+            </div>
+
+          </div>
+        {% endif %}
+
+        <div class="alert alert-light border mb-3">
+
+          <strong>Nueva fecha:</strong>
+          <span id="vista-fecha">
+            La que selecciones arriba
+          </span>.
+
+          {% if permite_pago_total %}
+            <div
+              id="vista-pago-total"
+              class="small mt-1"
+              hidden>
+              La fecha de pago total también cambiará a
+              <strong id="fecha-pago-total-nueva"></strong>.
+            </div>
+          {% endif %}
+
+          <div class="small mt-1">
+            Se conserva la hora registrada. No se modifican
+            precio, inicial, importes de cuotas, vouchers ni pagos.
+          </div>
+
+          {% if primer_vencimiento %}
+            <div class="small mt-1">
+              Primer vencimiento actual:
+              {{ primer_vencimiento.strftime('%d/%m/%Y') }}.
+            </div>
+          {% endif %}
+
+        </div>
+
+        <div class="d-flex flex-wrap gap-2">
+
+          <button
+            type="submit"
+            class="btn btn-primary"
+            {% if tipo == 'compra'
+                  and operacion.forma_pago == 'credito'
+                  and not permite_vencimientos %}
+              disabled
+            {% endif %}>
+            Guardar corrección
+          </button>
+
+          <a
+            href="{{ url_for('detalle_lote', lote_id=lote.id) }}"
+            class="btn btn-outline-secondary">
+            Cancelar
+          </a>
+
+        </div>
+
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const campo = document.getElementById('nueva-fecha');
+  const vista = document.getElementById('vista-fecha');
+  const pagoTotal = document.getElementById('pago-total');
+  const avisoPago = document.getElementById('vista-pago-total');
+
+  const ajustarVencimientos = {{ permite_vencimientos|tojson }};
+  const estadoCuotas = document.getElementById('estado-vencimientos');
+
+  const filas = Array.from(
+    document.querySelectorAll('[data-cuota-numero]')
+  );
+
+  function formato(fecha) {
+    const partes = fecha.split('-');
+
+    return partes.length === 3
+      ? partes.reverse().join('/')
+      : 'Sin seleccionar';
+  }
+
+  function fechaMensual(fecha, numero) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return '';
+
+    const [anio, mes, dia] = fecha.split('-').map(Number);
+
+    const total = anio * 12 + mes - 1 + numero;
+    const nuevoAnio = Math.floor(total / 12);
+    const nuevoMes = total % 12 + 1;
+
+    if (nuevoAnio < 1 || nuevoAnio > 9999) return '';
+
+    const ultimo = new Date(0);
+    ultimo.setUTCFullYear(nuevoAnio, nuevoMes, 0);
+
+    const nuevoDia = Math.min(dia, ultimo.getUTCDate());
+
+    return (
+      `${String(nuevoAnio).padStart(4, '0')}-` +
+      `${String(nuevoMes).padStart(2, '0')}-` +
+      `${String(nuevoDia).padStart(2, '0')}`
+    );
+  }
+
+  function actualizar() {
+    const partes = campo.value.split('-');
+
+    vista.textContent = partes.length === 3
+      ? partes.reverse().join('/')
+      : 'Sin seleccionar';
+
+    filas.forEach(fila => {
+      const fecha = ajustarVencimientos
+        ? fechaMensual(
+            campo.value,
+            Number(fila.dataset.cuotaNumero)
+          )
+        : fila.dataset.fechaAnterior;
+
+      fila.querySelector('.fecha-cuota-nueva').textContent =
+        formato(fecha);
+    });
+
+    if (estadoCuotas) {
+      estadoCuotas.textContent = ajustarVencimientos
+        ? 'Al guardar se aplicarán automáticamente las fechas propuestas de la tabla.'
+        : 'Los vencimientos se conservan.';
+    }
+
+    if (avisoPago) {
+      avisoPago.hidden = !pagoTotal.checked;
+
+      document.getElementById(
+        'fecha-pago-total-nueva'
+      ).textContent = vista.textContent;
+    }
+  }
+
+  campo.addEventListener('input', actualizar);
+
+  if (pagoTotal) {
+    pagoTotal.addEventListener('change', actualizar);
+  }
+
+  actualizar();
+})();
+</script>
+
+{% endblock %}
