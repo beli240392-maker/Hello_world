@@ -2545,25 +2545,30 @@ def subir_acta(compra_id):
     flash("✅ Acta de entrega subida y marcada como entregado.", "success")
     return redirect(url_for("ver_cliente", cliente_id=compra.cliente_id))
 
-# ------------------- REPORTES -------------------
 @app.route("/reportes", methods=["GET"])
 @login_required
 @lotizacion_required
 def reportes():
     lotizacion_id = session.get("lotizacion_id")
 
-    # Obtener fecha seleccionada o fecha actual de Perú
-    fecha_str = request.args.get("fecha")
-    try:
-        if fecha_str:
-            fecha = datetime.strptime(fecha_str, "%Y-%m-%d").date()
-        else:
-            fecha = hora_local_peru().date()
-    except ValueError:
-        fecha = hora_local_peru().date()
+    # La fecha es opcional y filtra únicamente las compras.
+    fecha_str = (request.args.get("fecha") or "").strip()
+    fecha = None
 
-    # Fecha sin zona horaria para mantener compatibilidad
-    fecha_datetime = datetime.combine(fecha, datetime.min.time())
+    if fecha_str:
+        try:
+            fecha = datetime.strptime(
+                fecha_str, "%Y-%m-%d"
+            ).date()
+        except ValueError:
+            flash(
+                "La fecha no es válida. Se muestran todas las compras.",
+                "warning"
+            )
+
+    # Las cuotas siempre se consultan según el día actual.
+    hoy = hora_local_peru().date()
+    fecha_datetime = datetime.combine(hoy, datetime.min.time())
 
     separaciones = (
         Separacion.query.filter_by(activa=True)
@@ -2572,23 +2577,31 @@ def reportes():
         .all()
     )
 
-    compras_contado = (
+    consulta_contado = (
         Compra.query.filter_by(forma_pago="contado")
         .filter(Compra.anulada.isnot(True))
-        .filter(db.func.date(Compra.fecha_compra) == fecha)
         .join(Lote)
         .filter(Lote.lotizacion_id == lotizacion_id)
-        .all()
     )
 
-    compras_credito = (
+    consulta_credito = (
         Compra.query.filter_by(forma_pago="credito")
         .filter(Compra.anulada.isnot(True))
-        .filter(db.func.date(Compra.fecha_compra) == fecha)
         .join(Lote)
         .filter(Lote.lotizacion_id == lotizacion_id)
-        .all()
     )
+
+    if fecha is not None:
+        consulta_contado = consulta_contado.filter(
+            db.func.date(Compra.fecha_compra) == fecha
+        )
+
+        consulta_credito = consulta_credito.filter(
+            db.func.date(Compra.fecha_compra) == fecha
+        )
+
+    compras_contado = consulta_contado.all()
+    compras_credito = consulta_credito.all()
 
     cuotas_vencidas = (
         Cuota.query.filter(
@@ -2621,6 +2634,123 @@ def reportes():
         .all()
     )
 
+    # Estado actual de todos los créditos del proyecto.
+    from sqlalchemy.orm import joinedload, selectinload
+
+    filtro_creditos = request.args.get("estado_credito", "todos")
+
+    if filtro_creditos not in ("todos", "deuda", "pagados", "revisar"):
+        filtro_creditos = "todos"
+
+    creditos = (
+        Compra.query
+        .join(Lote)
+        .filter(
+            Compra.forma_pago == "credito",
+            Compra.anulada.isnot(True),
+            Lote.lotizacion_id == lotizacion_id
+        )
+        .options(
+            joinedload(Compra.cliente),
+            joinedload(Compra.lote),
+            selectinload(Compra.cuotas)
+        )
+        .all()
+    )
+
+    def orden_natural(valor):
+        return tuple(
+            (1, int(parte))
+            if parte.isdigit()
+            else (0, parte.casefold())
+            for parte in re.split(r"(\d+)", str(valor or ""))
+            if parte
+        )
+
+    creditos.sort(key=lambda compra: (
+        orden_natural(compra.lote.manzana),
+        orden_natural(compra.lote.numero),
+        compra.id
+    ))
+
+    filas_creditos = []
+
+    resumen_creditos = {
+        "total": len(creditos),
+        "deuda": 0,
+        "pagados": 0,
+        "revisar": 0
+    }
+
+    for compra in creditos:
+        cuotas = compra.cuotas
+        total = len(cuotas)
+        pagadas = sum(1 for cuota in cuotas if cuota.pagada)
+        pendientes = total - pagadas
+
+        saldo = sum(
+            (
+                Decimal(str(cuota.monto))
+                for cuota in cuotas
+                if not cuota.pagada
+            ),
+            Decimal("0")
+        ).quantize(Decimal("0.01"))
+
+        numeros = [cuota.numero for cuota in cuotas]
+
+        completo = (
+            total > 0
+            and total == compra.cuotas_total
+            and all(isinstance(numero, int) for numero in numeros)
+            and sorted(numeros) == list(range(1, total + 1))
+        )
+
+        if total == 0:
+            estado = "sin_cronograma"
+            resumen_creditos["revisar"] += 1
+
+        elif not completo:
+            estado = "revisar"
+            resumen_creditos["revisar"] += 1
+
+        elif pendientes:
+            estado = "deuda"
+            resumen_creditos["deuda"] += 1
+
+        else:
+            estado = "pagado"
+            resumen_creditos["pagados"] += 1
+
+        filas_creditos.append({
+            "compra": compra,
+            "total": total,
+            "pagadas": pagadas,
+            "pendientes": pendientes,
+            "saldo": saldo,
+            "estado": estado,
+            "completo": completo
+        })
+
+    estados_filtro = {
+        "todos": {
+            "deuda", "pagado", "sin_cronograma", "revisar"
+        },
+        "deuda": {"deuda"},
+        "pagados": {"pagado"},
+        "revisar": {"sin_cronograma", "revisar"}
+    }
+
+    creditos_mostrados = [
+        fila for fila in filas_creditos
+        if fila["estado"] in estados_filtro[filtro_creditos]
+    ]
+
+    saldo_creditos_mostrados = sum(
+        (fila["saldo"] for fila in creditos_mostrados),
+        Decimal("0.00")
+    )
+
     return render_template(
         "reportes.html",
         fecha=fecha,
@@ -2629,8 +2759,13 @@ def reportes():
         compras_contado=compras_contado,
         compras_credito=compras_credito,
         cuotas_vencidas=cuotas_vencidas,
-        cuotas_por_vencer=cuotas_por_vencer
+        cuotas_por_vencer=cuotas_por_vencer,
+        filtro_creditos=filtro_creditos,
+        resumen_creditos=resumen_creditos,
+        creditos_mostrados=creditos_mostrados,
+        saldo_creditos_mostrados=saldo_creditos_mostrados
     )
+
 
 @app.route("/buscar_cliente", methods=["GET"])
 @login_required

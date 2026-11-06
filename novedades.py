@@ -6,9 +6,26 @@ from models import Usuario, db
 
 
 # Cambiar esta versión al publicar nuevas novedades.
-NOVEDADES_VERSION = "20261104_03"
+NOVEDADES_VERSION = "20261105_02"
 
 NOVEDADES_CONTENIDO = (
+        {
+        "titulo": "Estado de créditos en Reportes",
+        "texto": (
+            "Consulta qué lotes al crédito tienen cuotas pendientes "
+            "y cuáles están pagados, con su saldo y acceso al detalle."
+        ),
+        "icono": "📊",
+        "roles": ("vendedor", "user", "admin", "superadmin"),
+        "selectores": (
+            'a[href="/reportes"]',
+        ),
+        "ayuda": (
+            "Entra a Reportes y selecciona «Estado de créditos». "
+            "Usa Todos, Con deuda, Pagados o Por revisar para "
+            "consultar los lotes del proyecto activo."
+        )
+    },
     {
         "titulo": "Corrección de fechas y vencimientos",
         "texto": (

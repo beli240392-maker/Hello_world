@@ -435,6 +435,58 @@
       padding: 18px;
     }
   }
+  .reportes-page .rp-credit-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 16px 24px;
+    border-bottom: 1px solid #e9eef6;
+  }
+
+  .reportes-page .rp-credit-filter {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 8px 12px;
+    border: 1px solid #dce7f8;
+    border-radius: 10px;
+    background: #fff;
+    color: #536681;
+    font-size: 12px;
+    font-weight: 700;
+    text-decoration: none;
+  }
+
+  .reportes-page .rp-credit-filter[aria-current="true"] {
+    background: var(--rp-blue);
+    border-color: var(--rp-blue);
+    color: #fff;
+  }
+
+  .reportes-page .rp-green {
+    background: #e8f7ef;
+    color: #14734d;
+  }
+
+  .reportes-page .rp-credit-note {
+    padding: 16px 24px;
+    border-top: 1px solid #e9eef6;
+    color: var(--rp-muted);
+    font-size: 12px;
+    line-height: 1.6;
+  }
+
+  .reportes-page .rp-credit-client small {
+    display: block;
+    margin-top: 4px;
+    color: var(--rp-muted);
+    font-weight: 400;
+  }
+
+  .reportes-page .rp-panel:focus-visible {
+    outline: 3px solid #62a1ff;
+    outline-offset: 3px;
+  }
 </style>
 
 <div class="reportes-page" id="reportes-page">
@@ -458,23 +510,36 @@
     </a>
   </header>
 
-  <!-- FILTRO -->
-  <form method="get" class="rp-filter">
+    <form method="get" class="rp-filter">
+
+    <input
+      type="hidden"
+      name="estado_credito"
+      value="{{ filtro_creditos }}">
 
     <div class="rp-filter-field">
-      <label for="rp-fecha">Fecha de consulta</label>
+      <label for="rp-fecha">
+        Fecha de compra (opcional)
+      </label>
 
-      <input type="date"
-             id="rp-fecha"
-             name="fecha"
-             value="{{ fecha }}">
+      <input
+        type="date"
+        id="rp-fecha"
+        name="fecha"
+        value="{{ fecha or '' }}">
     </div>
 
     <button type="submit">Consultar</button>
 
     <p class="rp-filter-note">
-      Ventas del día seleccionado y cuotas según esa fecha.<br>
-      Las separaciones muestran su estado activo actual.
+      {% if fecha %}
+        Compras del {{ fecha.strftime('%d/%m/%Y') }}.<br>
+      {% else %}
+        Todas las compras del proyecto activo.<br>
+      {% endif %}
+
+      La fecha solo filtra compras; las separaciones
+      y cuotas muestran su estado actual.
     </p>
 
   </form>
@@ -495,7 +560,9 @@
       <strong class="rp-stat-value">
         {{ compras_contado|length }}
       </strong>
-      <small>Del día seleccionado</small>
+      <small>
+        {{ 'Del día seleccionado' if fecha else 'Todas las fechas' }}
+      </small>
     </div>
 
     <div class="rp-stat" style="--rp-accent: #a97400;">
@@ -503,7 +570,9 @@
       <strong class="rp-stat-value">
         {{ compras_credito|length }}
       </strong>
-      <small>Del día seleccionado</small>
+      <small>
+        {{ 'Del día seleccionado' if fecha else 'Todas las fechas' }}
+      </small>
     </div>
 
     <div class="rp-stat" style="--rp-accent: #1763eb;">
@@ -511,7 +580,7 @@
       <strong class="rp-stat-value">
         {{ cuotas_vencidas|length }}
       </strong>
-      <small>Pendientes según fecha consultada</small>
+      <small>Pendientes al día de hoy</small>
     </div>
 
   </div>
@@ -541,6 +610,14 @@
             aria-controls="rp-credito">
       A crédito
       <span class="rp-count">{{ compras_credito|length }}</span>
+    </button>
+
+    <button type="button"
+            class="rp-tab"
+            id="rp-tab-estado-creditos"
+            aria-controls="rp-estado-creditos">
+      Estado de créditos
+      <span class="rp-count">{{ resumen_creditos.total }}</span>
     </button>
 
     <button type="button"
@@ -649,8 +726,11 @@
       <div>
         <h3>Ventas al contado</h3>
         <p>
-          Ventas registradas el
-          {{ fecha_datetime.strftime("%d/%m/%Y") }}.
+          {% if fecha %}
+            Ventas registradas el {{ fecha.strftime('%d/%m/%Y') }}.
+          {% else %}
+            Todas las ventas vigentes del proyecto, de cualquier fecha.
+          {% endif %}
         </p>
       </div>
       <span class="rp-tag">
@@ -709,7 +789,7 @@
           {% else %}
           <tr>
             <td colspan="7" class="rp-empty">
-              No hay ventas al contado para la fecha seleccionada.
+              {{ 'No hay ventas al contado para la fecha seleccionada.' if fecha else 'No hay ventas al contado en este proyecto.' }}
             </td>
           </tr>
           {% endfor %}
@@ -728,8 +808,11 @@
       <div>
         <h3>Ventas a crédito</h3>
         <p>
-          Ventas registradas el
-          {{ fecha_datetime.strftime("%d/%m/%Y") }}.
+          {% if fecha %}
+            Ventas registradas el {{ fecha.strftime('%d/%m/%Y') }}.
+          {% else %}
+            Todas las ventas vigentes del proyecto, de cualquier fecha.
+          {% endif %}
         </p>
       </div>
       <span class="rp-tag">
@@ -793,7 +876,7 @@
           {% else %}
           <tr>
             <td colspan="7" class="rp-empty">
-              No hay ventas a crédito para la fecha seleccionada.
+              {{ 'No hay ventas a crédito para la fecha seleccionada.' if fecha else 'No hay ventas a crédito en este proyecto.' }}
             </td>
           </tr>
           {% endfor %}
@@ -803,6 +886,190 @@
     </div>
   </section>
 
+  <!-- ESTADO ACTUAL DE TODOS LOS CRÉDITOS -->
+  <section
+    class="rp-panel"
+    id="rp-estado-creditos"
+    aria-labelledby="rp-tab-estado-creditos">
+
+    <div class="rp-panel-head">
+      <div>
+        <h3>Estado de créditos</h3>
+        <p>
+          Estado actual de todas las compras al crédito del proyecto,
+          sin limitar por la fecha de consulta.
+        </p>
+      </div>
+
+      <span class="rp-tag">
+        {{ resumen_creditos.total }} créditos
+      </span>
+    </div>
+
+    <nav
+      class="rp-credit-filters"
+      aria-label="Filtrar estado de créditos">
+
+      {% for valor, texto, cantidad in [
+        ('todos', 'Todos', resumen_creditos.total),
+        ('deuda', 'Con deuda', resumen_creditos.deuda),
+        ('pagados', 'Pagados', resumen_creditos.pagados),
+        ('revisar', 'Por revisar', resumen_creditos.revisar)
+      ] %}
+
+        <a
+          class="rp-credit-filter"
+          href="{{ url_for(
+            'reportes',
+            fecha=fecha,
+            estado_credito=valor
+          ) }}#rp-estado-creditos"
+          aria-current="{{ 'true' if filtro_creditos == valor else 'false' }}">
+          {{ texto }}
+          <span>{{ cantidad }}</span>
+        </a>
+
+      {% endfor %}
+    </nav>
+
+    <div class="rp-table-wrap">
+      <table
+        class="rp-table"
+        id="tabla-estado-creditos"
+        aria-label="Estado actual de créditos">
+
+        <thead>
+          <tr>
+            <th scope="col">Lote</th>
+            <th scope="col">Cliente</th>
+            <th scope="col">Pagadas</th>
+            <th scope="col">Pendientes</th>
+            <th scope="col">Saldo de cuotas</th>
+            <th scope="col">Estado</th>
+            <th scope="col">Detalle</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {% for fila in creditos_mostrados %}
+            <tr data-compra-id="{{ fila.compra.id }}">
+
+              <td>
+                <span class="rp-lot">
+                  Mz {{ fila.compra.lote.manzana }} ·
+                  Lt {{ fila.compra.lote.numero }}
+                </span>
+              </td>
+
+              <td class="rp-client rp-credit-client">
+                {{ fila.compra.cliente.nombre }}
+                {{ fila.compra.cliente.apellidos }}
+
+                <small>
+                  DNI: {{ fila.compra.cliente.dni }}
+                </small>
+
+                <small>
+                  {{ fila.compra.cliente.telefono or 'Sin teléfono' }}
+                </small>
+              </td>
+
+              <td>
+                {% if fila.total %}
+                  {{ fila.pagadas }} de {{ fila.total }}
+                {% else %}
+                  —
+                {% endif %}
+              </td>
+
+              <td>
+                {% if fila.total %}
+                  {{ fila.pendientes }}
+                {% else %}
+                  —
+                {% endif %}
+              </td>
+
+              <td class="rp-money">
+                {% if fila.total %}
+                  S/ {{ '%.2f'|format(fila.saldo) }}{{ '*' if not fila.completo else '' }}
+                {% else %}
+                  Por revisar
+                {% endif %}
+              </td>
+
+              <td>
+                {% if fila.estado == 'pagado' %}
+                  <span class="rp-badge rp-green">
+                    Pagado
+                  </span>
+
+                {% elif fila.estado == 'deuda' %}
+                  <span class="rp-badge rp-amber">
+                    Con deuda
+                  </span>
+
+                {% elif fila.estado == 'sin_cronograma' %}
+                  <span class="rp-badge rp-red">
+                    Sin cronograma
+                  </span>
+
+                {% else %}
+                  <span class="rp-badge rp-red">
+                    Revisar cronograma
+                  </span>
+                {% endif %}
+              </td>
+
+              <td>
+                <a
+                  class="btn btn-outline-primary btn-sm text-nowrap"
+                  href="{{ url_for(
+                    'detalle_cuotas',
+                    compra_id=fila.compra.id
+                  ) }}">
+                  Ver cuotas
+                </a>
+              </td>
+
+            </tr>
+
+          {% else %}
+            <tr>
+              <td colspan="7" class="rp-empty">
+                No hay créditos para este filtro en el proyecto activo.
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+
+      </table>
+    </div>
+
+    <div class="rp-credit-note">
+
+      <div>
+        Mostrando {{ creditos_mostrados|length }}
+        de {{ resumen_creditos.total }} créditos.
+      </div>
+
+      <div class="mt-1">
+        <strong>
+          Saldo de cuotas registradas en esta lista:
+          S/ {{ '%.2f'|format(saldo_creditos_mostrados) }}.
+        </strong>
+      </div>
+
+      {% if resumen_creditos.revisar %}
+        <div class="mt-1">
+          * Hay operaciones por revisar. Si faltan cuotas o su
+          numeración no coincide, el saldo solo suma las cuotas
+          existentes; no se considera una compra completamente pagada.
+        </div>
+      {% endif %}
+
+    </div>
+  </section>
   <!-- CUOTAS VENCIDAS -->
   <section class="rp-panel"
            id="rp-vencidas"
@@ -812,8 +1079,8 @@
       <div>
         <h3>Cuotas vencidas</h3>
         <p>
-          Cuotas pendientes con vencimiento anterior
-          a la fecha consultada.
+          Todas las cuotas pendientes vencidas antes de hoy,
+          {{ fecha_datetime.strftime('%d/%m/%Y') }}.
         </p>
       </div>
       <span class="rp-badge rp-red">
@@ -876,7 +1143,7 @@
           {% else %}
           <tr>
             <td colspan="7" class="rp-empty">
-              No hay cuotas vencidas para la fecha consultada.
+              No hay cuotas vencidas actualmente.
             </td>
           </tr>
           {% endfor %}
@@ -895,8 +1162,9 @@
       <div>
         <h3>Cuotas por vencer</h3>
         <p>
-          Vencimientos desde la fecha consultada hasta
-          los próximos siete días.
+          Todas las cuotas pendientes que vencen desde hoy,
+          {{ fecha_datetime.strftime('%d/%m/%Y') }},
+          hasta los próximos siete días.
         </p>
       </div>
       <span class="rp-badge rp-blue">
@@ -991,7 +1259,7 @@
 
     if (panels.some(panel => !panel)) return;
 
-    function activate(index) {
+    function activate(index, actualizarURL = false) {
       tabs.forEach((tab, i) => {
         const selected = i === index;
 
@@ -1003,6 +1271,24 @@
         tab.tabIndex = selected ? 0 : -1;
         panels[i].hidden = !selected;
       });
+
+      if (actualizarURL) {
+        window.history.replaceState(
+          window.history.state,
+          '',
+          '#' + panels[index].id
+        );
+      }
+
+      const activo = tabs[index].getBoundingClientRect();
+      const barra = tablist.getBoundingClientRect();
+
+      if (activo.left < barra.left) {
+        tablist.scrollLeft -= barra.left - activo.left + 6;
+
+      } else if (activo.right > barra.right) {
+        tablist.scrollLeft += activo.right - barra.right + 6;
+      }
     }
 
     tablist.setAttribute('role', 'tablist');
@@ -1013,7 +1299,7 @@
       panels[index].tabIndex = 0;
 
       tab.addEventListener('click', () => {
-        activate(index);
+        activate(index, true);
       });
 
       tab.addEventListener('keydown', event => {
@@ -1021,23 +1307,31 @@
 
         if (event.key === 'ArrowRight') {
           next = (index + 1) % tabs.length;
+
         } else if (event.key === 'ArrowLeft') {
           next = (index - 1 + tabs.length) % tabs.length;
+
         } else if (event.key === 'Home') {
           next = 0;
+
         } else if (event.key === 'End') {
           next = tabs.length - 1;
+
         } else {
           return;
         }
 
         event.preventDefault();
-        activate(next);
+        activate(next, true);
         tabs[next].focus();
       });
     });
 
-    activate(0);
+    const inicial = panels.findIndex(panel =>
+      '#' + panel.id === window.location.hash
+    );
+
+    activate(inicial >= 0 ? inicial : 0);
   })();
 </script>
 
